@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} - EveryTools{% endblock %}
+{% block top_title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="tool-page">
+    <div class="tool-header">
+        <h1>{{ title }}</h1>
+        <p>{{ description }}</p>
+    </div>
+
+    <form id="tool-form" data-endpoint="{{ endpoint }}">
+        {% if text_input %}
+        <div class="form-group">
+            <label for="text-input">{{ text_label|default('Enter text') }}</label>
+            <textarea id="text-input" name="text" class="text-input" rows="4"
+                placeholder="{{ text_placeholder|default('Type or paste here...') }}"></textarea>
+        </div>
+        {% else %}
+        <div class="upload-zone" id="upload-zone">
+            <input type="file" id="file-input" name="files"
+                accept="{{ accept }}" {{ 'multiple' if multiple }}>
+            <div class="upload-prompt" id="upload-prompt">
+                <i class="bi bi-cloud-arrow-up"></i>
+                <p>Drag &amp; drop file{{ 's' if multiple }} here</p>
+                <span>or click to browse</span>
+                {% if accept %}<small>Accepted: {{ accept }}</small>{% endif %}
+            </div>
+            <div class="file-list" id="file-list"></div>
+        </div>
+        {% endif %}
+
+        {% if options %}
+        <div class="tool-options">
+            {% for opt in options %}
+            <div class="form-group option-group"
+                {% if opt.depends_on %}
+                data-depends-on="{{ opt.depends_on.keys()|list|first }}"
+                data-depends-value="{{ opt.depends_on.values()|list|first }}"
+                {% endif %}>
+                <label for="opt-{{ opt.name }}">{{ opt.label }}</label>
+
+                {% if opt.type == 'select' %}
+                <select id="opt-{{ opt.name }}" name="{{ opt.name }}">
+                    {% for c in opt.choices %}
+                    <option value="{{ c.value }}" {{ 'selected' if c.value == opt.get('default','') }}>{{ c.label }}</option>
+                    {% endfor %}
+                </select>
+
+                {% elif opt.type == 'number' %}
+                <input type="number" id="opt-{{ opt.name }}" name="{{ opt.name }}"
+                    value="{{ opt.default|default('') }}"
+                    min="{{ opt.min|default('') }}" max="{{ opt.max|default('') }}"
+                    step="{{ opt.step|default('1') }}">
+
+                {% elif opt.type == 'text' %}
+                <input type="text" id="opt-{{ opt.name }}" name="{{ opt.name }}"
+                    value="{{ opt.default|default('') }}"
+                    placeholder="{{ opt.placeholder|default('') }}">
+
+                {% elif opt.type == 'password' %}
+                <input type="password" id="opt-{{ opt.name }}" name="{{ opt.name }}"
+                    placeholder="{{ opt.placeholder|default('') }}">
+
+                {% elif opt.type == 'checkbox' %}
+                <label class="checkbox-label">
+                    <input type="checkbox" id="opt-{{ opt.name }}" name="{{ opt.name }}"
+                        {{ 'checked' if opt.default }}>
+                    <span>{{ opt.check_label|default('Enable') }}</span>
+                </label>
+
+                {% elif opt.type == 'range' %}
+                <div class="range-group">
+                    <input type="range" id="opt-{{ opt.name }}" name="{{ opt.name }}"
+                        value="{{ opt.default|default(50) }}"
+                        min="{{ opt.min|default(0) }}" max="{{ opt.max|default(100) }}"
+                        step="{{ opt.step|default(1) }}"
+                        oninput="this.nextElementSibling.textContent=this.value+'{{ opt.suffix|default('') }}'">
+                    <span class="range-value">{{ opt.default|default(50) }}{{ opt.suffix|default('') }}</span>
+                </div>
+
+                {% elif opt.type == 'radio' %}
+                <div class="radio-group">
+                    {% for c in opt.choices %}
+                    <label class="radio-label">
+                        <input type="radio" name="{{ opt.name }}" value="{{ c.value }}"
+                            {{ 'checked' if c.value == opt.default }}>
+                        <span>{{ c.label }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <button type="submit" class="btn btn-primary" id="submit-btn">
+            <span class="btn-text">{{ button_text|default('Process') }}</span>
+            <span class="btn-loading" style="display:none">
+                <i class="bi bi-arrow-repeat spin"></i> Processing...
+            </span>
+        </button>
+    </form>
+
+    <div id="result-area" class="result-area" style="display:none">
+        <div id="result-success" class="result-success" style="display:none">
+            <i class="bi bi-check-circle-fill"></i>
+            <span id="result-message">Done!</span>
+            <a id="download-btn" class="btn btn-success" download>
+                <i class="bi bi-download"></i> Download
+            </a>
+            <div id="result-preview" style="display:none"></div>
+        </div>
+        <div id="result-text" class="result-text-box" style="display:none">
+            <div class="result-text-header">
+                <span>Result</span>
+                <button class="btn btn-small" onclick="copyResult()"><i class="bi bi-clipboard"></i> Copy</button>
+            </div>
+            <pre id="result-text-content"></pre>
+        </div>
+        <div id="result-error" class="result-error" style="display:none">
+            <i class="bi bi-exclamation-circle-fill"></i>
+            <span id="error-message"></span>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Percentage Calculator - EveryTools{% endblock %}
+{% block top_title %}Percentage Calculator{% endblock %}
+
+{% block content %}
+<div class="client-tool">
+    <div class="tool-header">
+        <h1>Percentage Calculator</h1>
+        <p>Quick percentage calculations</p>
+    </div>
+
+    <div class="calc-section">
+        <h3>What is X% of Y?</h3>
+        <div class="inline-form">
+            <span>What is</span>
+            <input type="number" id="p1-pct" style="width:80px" oninput="calc1()">
+            <span>% of</span>
+            <input type="number" id="p1-val" style="width:100px" oninput="calc1()">
+            <span>?</span>
+        </div>
+        <div class="calc-result-inline" id="p1-result">&mdash;</div>
+    </div>
+
+    <div class="calc-section">
+        <h3>X is what % of Y?</h3>
+        <div class="inline-form">
+            <input type="number" id="p2-x" style="width:100px" oninput="calc2()">
+            <span>is what % of</span>
+            <input type="number" id="p2-y" style="width:100px" oninput="calc2()">
+            <span>?</span>
+        </div>
+        <div class="calc-result-inline" id="p2-result">&mdash;</div>
+    </div>
+
+    <div class="calc-section">
+        <h3>Percentage change from X to Y</h3>
+        <div class="inline-form">
+            <span>From</span>
+            <input type="number" id="p3-from" style="width:100px" oninput="calc3()">
+            <span>to</span>
+            <input type="number" id="p3-to" style="width:100px" oninput="calc3()">
+        </div>
+        <div class="calc-result-inline" id="p3-result">&mdash;</div>
+    </div>
+
+    <div class="calc-section">
+        <h3>Increase / Decrease by percentage</h3>
+        <div class="inline-form">
+            <input type="number" id="p4-val" style="width:100px" oninput="calc4()">
+            <select id="p4-dir" onchange="calc4()" style="width:auto">
+                <option value="increase">+ increase by</option>
+                <option value="decrease">− decrease by</option>
+            </select>
+            <input type="number" id="p4-pct" style="width:80px" oninput="calc4()">
+            <span>%</span>
+        </div>
+        <div class="calc-result-inline" id="p4-result">&mdash;</div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function calc1() {
+    const pct = parseFloat(document.getElementById("p1-pct").value);
+    const val = parseFloat(document.getElementById("p1-val").value);
+    if (isNaN(pct) || isNaN(val)) return;
+    document.getElementById("p1-result").textContent = parseFloat((pct / 100 * val).toPrecision(10));
+}
+
+function calc2() {
+    const x = parseFloat(document.getElementById("p2-x").value);
+    const y = parseFloat(document.getElementById("p2-y").value);
+    if (isNaN(x) || isNaN(y) || y === 0) return;
+    document.getElementById("p2-result").textContent = parseFloat((x / y * 100).toPrecision(10)) + "%";
+}
+
+function calc3() {
+    const from = parseFloat(document.getElementById("p3-from").value);
+    const to = parseFloat(document.getElementById("p3-to").value);
+    if (isNaN(from) || isNaN(to) || from === 0) return;
+    const change = ((to - from) / Math.abs(from)) * 100;
+    const sign = change >= 0 ? "+" : "";
+    document.getElementById("p3-result").textContent = sign + parseFloat(change.toPrecision(10)) + "%";
+}
+
+function calc4() {
+    const val = parseFloat(document.getElementById("p4-val").value);
+    const pct = parseFloat(document.getElementById("p4-pct").value);
+    const dir = document.getElementById("p4-dir").value;
+    if (isNaN(val) || isNaN(pct)) return;
+    const factor = dir === "increase" ? 1 + pct / 100 : 1 - pct / 100;
+    document.getElementById("p4-result").textContent = parseFloat((val * factor).toPrecision(10));
+}
+</script>
+{% endblock %}

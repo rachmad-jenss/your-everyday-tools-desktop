@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Base64 Encode/Decode - EveryTools{% endblock %}
+{% block top_title %}Base64{% endblock %}
+
+{% block content %}
+<div class="client-tool">
+    <div class="tool-header">
+        <h1>Base64 Encode / Decode</h1>
+        <p>Encode text to Base64 or decode Base64 to text</p>
+    </div>
+    <div class="split-pane">
+        <div class="pane">
+            <div class="pane-header">
+                <span>Text</span>
+                <button class="btn btn-small" onclick="encodeB64()">Encode &rarr;</button>
+            </div>
+            <div class="pane-body">
+                <textarea id="b64-text" placeholder="Enter text to encode..."></textarea>
+            </div>
+        </div>
+        <div class="pane">
+            <div class="pane-header">
+                <button class="btn btn-small" onclick="decodeB64()">&larr; Decode</button>
+                <span>Base64</span>
+                <button class="btn btn-small" onclick="navigator.clipboard.writeText(document.getElementById('b64-encoded').value)"><i class="bi bi-clipboard"></i></button>
+            </div>
+            <div class="pane-body">
+                <textarea id="b64-encoded" placeholder="Enter Base64 to decode..."></textarea>
+            </div>
+        </div>
+    </div>
+    <div id="b64-status" style="margin-top:.5rem;font-size:.85rem"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function encodeB64() {
+    const text = document.getElementById("b64-text").value;
+    try {
+        document.getElementById("b64-encoded").value = btoa(unescape(encodeURIComponent(text)));
+        document.getElementById("b64-status").innerHTML = '<span style="color:var(--success)"><i class="bi bi-check-circle"></i> Encoded</span>';
+    } catch (e) {
+        document.getElementById("b64-status").innerHTML = `<span style="color:var(--danger)"><i class="bi bi-x-circle"></i> ${e.message}</span>`;
+    }
+}
+
+function decodeB64() {
+    const encoded = document.getElementById("b64-encoded").value;
+    try {
+        document.getElementById("b64-text").value = decodeURIComponent(escape(atob(encoded)));
+        document.getElementById("b64-status").innerHTML = '<span style="color:var(--success)"><i class="bi bi-check-circle"></i> Decoded</span>';
+    } catch (e) {
+        document.getElementById("b64-status").innerHTML = `<span style="color:var(--danger)"><i class="bi bi-x-circle"></i> Invalid Base64</span>`;
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}CSV / JSON Converter - EveryTools{% endblock %}
+{% block top_title %}CSV / JSON{% endblock %}
+
+{% block content %}
+<div class="client-tool">
+    <div class="tool-header">
+        <h1>CSV / JSON Converter</h1>
+        <p>Convert between CSV and JSON formats</p>
+    </div>
+    <div style="margin-bottom:1rem">
+        <button class="btn btn-primary" id="btn-csv" onclick="setMode('csv')" style="opacity:1">CSV &rarr; JSON</button>
+        <button class="btn btn-primary" id="btn-json" onclick="setMode('json')" style="opacity:.5">JSON &rarr; CSV</button>
+    </div>
+    <div class="split-pane">
+        <div class="pane">
+            <div class="pane-header"><span id="input-label">CSV Input</span></div>
+            <div class="pane-body">
+                <textarea id="conv-input" placeholder="Paste your data here..."></textarea>
+            </div>
+        </div>
+        <div class="pane">
+            <div class="pane-header">
+                <span id="output-label">JSON Output</span>
+                <button class="btn btn-small" onclick="navigator.clipboard.writeText(document.getElementById('conv-output').textContent)"><i class="bi bi-clipboard"></i> Copy</button>
+            </div>
+            <div class="pane-body">
+                <pre id="conv-output"></pre>
+            </div>
+        </div>
+    </div>
+    <button class="btn btn-primary" style="margin-top:1rem" onclick="convert()">Convert</button>
+    <div id="conv-status" style="margin-top:.5rem;font-size:.85rem"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let mode = "csv";
+
+function setMode(m) {
+    mode = m;
+    document.getElementById("btn-csv").style.opacity = m === "csv" ? 1 : .5;
+    document.getElementById("btn-json").style.opacity = m === "json" ? 1 : .5;
+    document.getElementById("input-label").textContent = m === "csv" ? "CSV Input" : "JSON Input";
+    document.getElementById("output-label").textContent = m === "csv" ? "JSON Output" : "CSV Output";
+}
+
+function convert() {
+    const input = document.getElementById("conv-input").value.trim();
+    const status = document.getElementById("conv-status");
+    const output = document.getElementById("conv-output");
+    if (!input) { status.innerHTML = '<span style="color:var(--danger)">Please enter data.</span>'; return; }
+
+    try {
+        if (mode === "csv") {
+            const lines = input.split("\n").map(l => l.trim()).filter(l => l);
+            const headers = parseCSVLine(lines[0]);
+            const result = lines.slice(1).map(line => {
+                const vals = parseCSVLine(line);
+                const obj = {};
+                headers.forEach((h, i) => obj[h] = vals[i] || "");
+                return obj;
+            });
+            output.textContent = JSON.stringify(result, null, 2);
+        } else {
+            const arr = JSON.parse(input);
+            if (!Array.isArray(arr) || arr.length === 0) throw new Error("JSON must be an array of objects.");
+            const headers = Object.keys(arr[0]);
+            const lines = [headers.join(",")];
+            arr.forEach(obj => {
+                lines.push(headers.map(h => {
+                    let v = String(obj[h] ?? "");
+                    if (v.includes(",") || v.includes('"') || v.includes("\n")) v = '"' + v.replace(/"/g, '""') + '"';
+                    return v;
+                }).join(","));
+            });
+            output.textContent = lines.join("\n");
+        }
+        status.innerHTML = '<span style="color:var(--success)"><i class="bi bi-check-circle"></i> Converted successfully</span>';
+    } catch (e) {
+        status.innerHTML = `<span style="color:var(--danger)"><i class="bi bi-x-circle"></i> ${e.message}</span>`;
+    }
+}
+
+function parseCSVLine(line) {
+    const result = [];
+    let current = "", inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (inQuotes) {
+            if (ch === '"' && line[i + 1] === '"') { current += '"'; i++; }
+            else if (ch === '"') inQuotes = false;
+            else current += ch;
+        } else {
+            if (ch === '"') inQuotes = true;
+            else if (ch === ",") { result.push(current.trim()); current = ""; }
+            else current += ch;
+        }
+    }
+    result.push(current.trim());
+    return result;
+}
+</script>
+{% endblock %}

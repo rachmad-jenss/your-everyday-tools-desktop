@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}URL Encode/Decode - EveryTools{% endblock %}
+{% block top_title %}URL Encode{% endblock %}
+
+{% block content %}
+<div class="client-tool">
+    <div class="tool-header">
+        <h1>URL Encode / Decode</h1>
+        <p>Encode or decode URL components</p>
+    </div>
+    <div class="split-pane">
+        <div class="pane">
+            <div class="pane-header">
+                <span>Decoded Text</span>
+                <button class="btn btn-small" onclick="encodeURL()">Encode &rarr;</button>
+            </div>
+            <div class="pane-body">
+                <textarea id="url-text" placeholder="Enter text to encode..."></textarea>
+            </div>
+        </div>
+        <div class="pane">
+            <div class="pane-header">
+                <button class="btn btn-small" onclick="decodeURL()">&larr; Decode</button>
+                <span>Encoded</span>
+                <button class="btn btn-small" onclick="navigator.clipboard.writeText(document.getElementById('url-encoded').value)"><i class="bi bi-clipboard"></i></button>
+            </div>
+            <div class="pane-body">
+                <textarea id="url-encoded" placeholder="Enter URL-encoded text to decode..."></textarea>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function encodeURL() {
+    document.getElementById("url-encoded").value = encodeURIComponent(document.getElementById("url-text").value);
+}
+function decodeURL() {
+    try {
+        document.getElementById("url-text").value = decodeURIComponent(document.getElementById("url-encoded").value);
+    } catch (e) {
+        alert("Invalid URL-encoded text.");
+    }
+}
+</script>
+{% endblock %}

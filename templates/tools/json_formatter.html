@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}JSON Formatter - EveryTools{% endblock %}
+{% block top_title %}JSON Formatter{% endblock %}
+
+{% block content %}
+<div class="client-tool">
+    <div class="tool-header">
+        <h1>JSON Formatter</h1>
+        <p>Format, validate, and minify JSON data</p>
+    </div>
+    <div class="split-pane">
+        <div class="pane">
+            <div class="pane-header">
+                <span>Input</span>
+                <div>
+                    <button class="btn btn-small" onclick="formatJSON()">Format</button>
+                    <button class="btn btn-small" onclick="minifyJSON()">Minify</button>
+                </div>
+            </div>
+            <div class="pane-body">
+                <textarea id="json-input" placeholder='Paste your JSON here...'></textarea>
+            </div>
+        </div>
+        <div class="pane">
+            <div class="pane-header">
+                <span>Output</span>
+                <button class="btn btn-small" onclick="copyOutput()"><i class="bi bi-clipboard"></i> Copy</button>
+            </div>
+            <div class="pane-body">
+                <pre id="json-output"></pre>
+            </div>
+        </div>
+    </div>
+    <div id="json-status" style="margin-top:.5rem;font-size:.85rem"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function formatJSON() {
+    const input = document.getElementById("json-input").value;
+    const status = document.getElementById("json-status");
+    try {
+        const obj = JSON.parse(input);
+        document.getElementById("json-output").textContent = JSON.stringify(obj, null, 2);
+        status.innerHTML = '<span style="color:var(--success)"><i class="bi bi-check-circle"></i> Valid JSON</span>';
+    } catch (e) {
+        status.innerHTML = `<span style="color:var(--danger)"><i class="bi bi-x-circle"></i> ${e.message}</span>`;
+    }
+}
+
+function minifyJSON() {
+    const input = document.getElementById("json-input").value;
+    const status = document.getElementById("json-status");
+    try {
+        const obj = JSON.parse(input);
+        document.getElementById("json-output").textContent = JSON.stringify(obj);
+        status.innerHTML = '<span style="color:var(--success)"><i class="bi bi-check-circle"></i> Valid JSON (minified)</span>';
+    } catch (e) {
+        status.innerHTML = `<span style="color:var(--danger)"><i class="bi bi-x-circle"></i> ${e.message}</span>`;
+    }
+}
+
+function copyOutput() {
+    navigator.clipboard.writeText(document.getElementById("json-output").textContent);
+}
+</script>
+{% endblock %}

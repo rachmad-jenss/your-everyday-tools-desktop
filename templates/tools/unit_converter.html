@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}Unit Converter - EveryTools{% endblock %}
+{% block top_title %}Unit Converter{% endblock %}
+
+{% block content %}
+<div class="client-tool">
+    <div class="tool-header">
+        <h1>Unit Converter</h1>
+        <p>Convert between common units of measurement</p>
+    </div>
+    <div class="form-group">
+        <label>Category</label>
+        <select id="uc-category" onchange="loadUnits()">
+            <option value="length">Length</option>
+            <option value="weight">Weight</option>
+            <option value="temperature">Temperature</option>
+            <option value="area">Area</option>
+            <option value="volume">Volume</option>
+            <option value="speed">Speed</option>
+            <option value="data">Digital Storage</option>
+            <option value="time">Time</option>
+        </select>
+    </div>
+    <div class="converter-row">
+        <div class="form-group">
+            <label>From</label>
+            <input type="number" id="uc-from-val" value="1" oninput="convertUnit()">
+            <select id="uc-from-unit" onchange="convertUnit()" style="margin-top:.3rem"></select>
+        </div>
+        <button class="converter-swap" onclick="swapUnits()"><i class="bi bi-arrow-left-right"></i></button>
+        <div class="form-group">
+            <label>To</label>
+            <input type="number" id="uc-to-val" readonly>
+            <select id="uc-to-unit" onchange="convertUnit()" style="margin-top:.3rem"></select>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const UNITS = {
+    length: {
+        meter: 1, kilometer: 1000, centimeter: 0.01, millimeter: 0.001,
+        mile: 1609.344, yard: 0.9144, foot: 0.3048, inch: 0.0254,
+        "nautical mile": 1852
+    },
+    weight: {
+        kilogram: 1, gram: 0.001, milligram: 0.000001, "metric ton": 1000,
+        pound: 0.453592, ounce: 0.0283495, stone: 6.35029
+    },
+    temperature: { celsius: "C", fahrenheit: "F", kelvin: "K" },
+    area: {
+        "sq meter": 1, "sq kilometer": 1e6, "sq centimeter": 1e-4,
+        "sq mile": 2.59e6, "sq yard": 0.836127, "sq foot": 0.092903,
+        "sq inch": 6.4516e-4, hectare: 10000, acre: 4046.86
+    },
+    volume: {
+        liter: 1, milliliter: 0.001, "cubic meter": 1000,
+        gallon: 3.78541, quart: 0.946353, pint: 0.473176,
+        cup: 0.236588, "fluid ounce": 0.0295735, tablespoon: 0.0147868
+    },
+    speed: {
+        "m/s": 1, "km/h": 0.277778, "mph": 0.44704, knot: 0.514444, "ft/s": 0.3048
+    },
+    data: {
+        byte: 1, kilobyte: 1024, megabyte: 1048576, gigabyte: 1073741824,
+        terabyte: 1099511627776, bit: 0.125
+    },
+    time: {
+        second: 1, minute: 60, hour: 3600, day: 86400, week: 604800,
+        month: 2629746, year: 31557600
+    }
+};
+
+function loadUnits() {
+    const cat = document.getElementById("uc-category").value;
+    const units = Object.keys(UNITS[cat]);
+    ["uc-from-unit", "uc-to-unit"].forEach((id, i) => {
+        const sel = document.getElementById(id);
+        sel.innerHTML = units.map((u, j) =>
+            `<option value="${u}" ${j === i ? "selected" : ""}>${u}</option>`
+        ).join("");
+    });
+    convertUnit();
+}
+
+function convertUnit() {
+    const cat = document.getElementById("uc-category").value;
+    const val = parseFloat(document.getElementById("uc-from-val").value) || 0;
+    const from = document.getElementById("uc-from-unit").value;
+    const to = document.getElementById("uc-to-unit").value;
+
+    let result;
+    if (cat === "temperature") {
+        result = convertTemp(val, from, to);
+    } else {
+        const baseVal = val * UNITS[cat][from];
+        result = baseVal / UNITS[cat][to];
+    }
+    document.getElementById("uc-to-val").value = parseFloat(result.toPrecision(10));
+}
+
+function convertTemp(val, from, to) {
+    let celsius;
+    if (from === "celsius") celsius = val;
+    else if (from === "fahrenheit") celsius = (val - 32) * 5 / 9;
+    else celsius = val - 273.15;
+
+    if (to === "celsius") return celsius;
+    if (to === "fahrenheit") return celsius * 9 / 5 + 32;
+    return celsius + 273.15;
+}
+
+function swapUnits() {
+    const from = document.getElementById("uc-from-unit");
+    const to = document.getElementById("uc-to-unit");
+    [from.value, to.value] = [to.value, from.value];
+    convertUnit();
+}
+
+loadUnits();
+</script>
+{% endblock %}

@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}Date Calculator - EveryTools{% endblock %}
+{% block top_title %}Date Calculator{% endblock %}
+
+{% block content %}
+<div class="client-tool">
+    <div class="tool-header">
+        <h1>Date Calculator</h1>
+        <p>Calculate differences between dates or add/subtract days</p>
+    </div>
+
+    <div class="calc-section">
+        <h3>Difference between two dates</h3>
+        <div class="inline-form">
+            <div class="form-group">
+                <label>Start Date</label>
+                <input type="date" id="d1-start" onchange="calcDiff()">
+            </div>
+            <div class="form-group">
+                <label>End Date</label>
+                <input type="date" id="d1-end" onchange="calcDiff()">
+            </div>
+        </div>
+        <div id="d1-result" class="calc-result-inline">&mdash;</div>
+        <div id="d1-detail" style="font-size:.85rem;color:var(--text-light);margin-top:.3rem"></div>
+    </div>
+
+    <div class="calc-section">
+        <h3>Add or subtract days from a date</h3>
+        <div class="inline-form">
+            <div class="form-group">
+                <label>Date</label>
+                <input type="date" id="d2-date" onchange="calcAdd()">
+            </div>
+            <select id="d2-dir" onchange="calcAdd()" style="width:auto;align-self:flex-end;margin-bottom:.1rem">
+                <option value="add">+ Add</option>
+                <option value="sub">− Subtract</option>
+            </select>
+            <div class="form-group" style="max-width:80px">
+                <label>Days</label>
+                <input type="number" id="d2-days" value="7" min="0" oninput="calcAdd()">
+            </div>
+        </div>
+        <div id="d2-result" class="calc-result-inline">&mdash;</div>
+    </div>
+
+    <div class="calc-section">
+        <h3>What day of the week?</h3>
+        <div class="inline-form">
+            <div class="form-group">
+                <label>Date</label>
+                <input type="date" id="d3-date" onchange="calcDay()">
+            </div>
+        </div>
+        <div id="d3-result" class="calc-result-inline">&mdash;</div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const today = new Date().toISOString().split("T")[0];
+document.getElementById("d1-start").value = today;
+document.getElementById("d1-end").value = today;
+document.getElementById("d2-date").value = today;
+document.getElementById("d3-date").value = today;
+
+function calcDiff() {
+    const s = new Date(document.getElementById("d1-start").value);
+    const e = new Date(document.getElementById("d1-end").value);
+    if (isNaN(s) || isNaN(e)) return;
+
+    const diffMs = Math.abs(e - s);
+    const days = Math.round(diffMs / 86400000);
+    const weeks = Math.floor(days / 7);
+    const months = Math.round(days / 30.44);
+    const years = Math.round(days / 365.25 * 100) / 100;
+
+    document.getElementById("d1-result").textContent = days + " days";
+    document.getElementById("d1-detail").textContent =
+        `${weeks} weeks, ${months} months, ${years} years`;
+}
+
+function calcAdd() {
+    const d = new Date(document.getElementById("d2-date").value);
+    const days = parseInt(document.getElementById("d2-days").value) || 0;
+    const dir = document.getElementById("d2-dir").value;
+    if (isNaN(d)) return;
+
+    const result = new Date(d);
+    result.setDate(result.getDate() + (dir === "add" ? days : -days));
+
+    const dayNames = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+    document.getElementById("d2-result").textContent =
+        result.toISOString().split("T")[0] + " (" + dayNames[result.getDay()] + ")";
+}
+
+function calcDay() {
+    const d = new Date(document.getElementById("d3-date").value);
+    if (isNaN(d)) return;
+    const dayNames = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+    document.getElementById("d3-result").textContent = dayNames[d.getDay()];
+}
+
+calcDiff();
+calcAdd();
+calcDay();
+</script>
+{% endblock %}

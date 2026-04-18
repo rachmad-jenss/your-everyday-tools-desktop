@@ -1,0 +1,11 @@
+Flask
+Pillow
+PyMuPDF
+qrcode[pil]
+markdown
+reportlab
+img2pdf
+rembg
+pyzbar
+pdf2docx
+python-docx

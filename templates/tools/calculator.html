@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}Calculator - EveryTools{% endblock %}
+{% block top_title %}Calculator{% endblock %}
+
+{% block content %}
+<div class="client-tool" style="max-width:360px">
+    <div class="tool-header">
+        <h1>Calculator</h1>
+        <p>Basic and scientific calculator</p>
+    </div>
+    <div class="calc-display">
+        <div class="calc-expression" id="calc-expr">&nbsp;</div>
+        <div class="calc-result" id="calc-result">0</div>
+    </div>
+    <div class="calc-grid">
+        <button class="calc-btn" onclick="clearCalc()">C</button>
+        <button class="calc-btn" onclick="backspace()"><i class="bi bi-backspace"></i></button>
+        <button class="calc-btn op" onclick="appendOp('%')">%</button>
+        <button class="calc-btn op" onclick="appendOp('/')">÷</button>
+
+        <button class="calc-btn" onclick="appendNum('7')">7</button>
+        <button class="calc-btn" onclick="appendNum('8')">8</button>
+        <button class="calc-btn" onclick="appendNum('9')">9</button>
+        <button class="calc-btn op" onclick="appendOp('*')">×</button>
+
+        <button class="calc-btn" onclick="appendNum('4')">4</button>
+        <button class="calc-btn" onclick="appendNum('5')">5</button>
+        <button class="calc-btn" onclick="appendNum('6')">6</button>
+        <button class="calc-btn op" onclick="appendOp('-')">−</button>
+
+        <button class="calc-btn" onclick="appendNum('1')">1</button>
+        <button class="calc-btn" onclick="appendNum('2')">2</button>
+        <button class="calc-btn" onclick="appendNum('3')">3</button>
+        <button class="calc-btn op" onclick="appendOp('+')">+</button>
+
+        <button class="calc-btn" onclick="appendNum('.')">.</button>
+        <button class="calc-btn" onclick="appendNum('0')">0</button>
+        <button class="calc-btn eq span2" onclick="calculate()">=</button>
+    </div>
+    <div class="calc-grid" style="margin-top:.5rem;grid-template-columns:repeat(5,1fr)">
+        <button class="calc-btn op" onclick="sciOp('sqrt')">√</button>
+        <button class="calc-btn op" onclick="sciOp('pow2')">x²</button>
+        <button class="calc-btn op" onclick="sciOp('inv')">1/x</button>
+        <button class="calc-btn op" onclick="sciOp('sin')">sin</button>
+        <button class="calc-btn op" onclick="sciOp('cos')">cos</button>
+        <button class="calc-btn op" onclick="sciOp('tan')">tan</button>
+        <button class="calc-btn op" onclick="sciOp('log')">log</button>
+        <button class="calc-btn op" onclick="sciOp('ln')">ln</button>
+        <button class="calc-btn op" onclick="appendNum(Math.PI.toFixed(8))">π</button>
+        <button class="calc-btn op" onclick="appendNum(Math.E.toFixed(8))">e</button>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let expression = "";
+let currentNum = "0";
+let lastResult = null;
+
+function updateDisplay() {
+    document.getElementById("calc-expr").textContent = expression || "\u00a0";
+    document.getElementById("calc-result").textContent = currentNum;
+}
+
+function appendNum(n) {
+    if (lastResult !== null) { expression = ""; lastResult = null; }
+    if (currentNum === "0" && n !== ".") currentNum = n;
+    else currentNum += n;
+    updateDisplay();
+}
+
+function appendOp(op) {
+    if (lastResult !== null) { expression = currentNum + " " + op + " "; currentNum = "0"; lastResult = null; }
+    else { expression += currentNum + " " + op + " "; currentNum = "0"; }
+    updateDisplay();
+}
+
+function calculate() {
+    const expr = expression + currentNum;
+    try {
+        // Safe evaluation using Function constructor
+        let sanitized = expr.replace(/[^0-9+\-*/.%() ]/g, "");
+        let result = Function('"use strict"; return (' + sanitized + ')')();
+        if (!isFinite(result)) throw new Error("Invalid");
+        expression = expr + " =";
+        currentNum = parseFloat(result.toPrecision(12)).toString();
+        lastResult = currentNum;
+    } catch {
+        currentNum = "Error";
+        lastResult = null;
+    }
+    updateDisplay();
+}
+
+function clearCalc() {
+    expression = ""; currentNum = "0"; lastResult = null;
+    updateDisplay();
+}
+
+function backspace() {
+    if (currentNum.length > 1) currentNum = currentNum.slice(0, -1);
+    else currentNum = "0";
+    updateDisplay();
+}
+
+function sciOp(op) {
+    let val = parseFloat(currentNum);
+    switch (op) {
+        case "sqrt": val = Math.sqrt(val); break;
+        case "pow2": val = val * val; break;
+        case "inv": val = 1 / val; break;
+        case "sin": val = Math.sin(val * Math.PI / 180); break;
+        case "cos": val = Math.cos(val * Math.PI / 180); break;
+        case "tan": val = Math.tan(val * Math.PI / 180); break;
+        case "log": val = Math.log10(val); break;
+        case "ln": val = Math.log(val); break;
+    }
+    currentNum = isFinite(val) ? parseFloat(val.toPrecision(12)).toString() : "Error";
+    updateDisplay();
+}
+
+document.addEventListener("keydown", e => {
+    if (e.key >= "0" && e.key <= "9" || e.key === ".") appendNum(e.key);
+    else if (["+", "-", "*", "/", "%"].includes(e.key)) appendOp(e.key);
+    else if (e.key === "Enter" || e.key === "=") calculate();
+    else if (e.key === "Backspace") backspace();
+    else if (e.key === "Escape") clearCalc();
+});
+</script>
+{% endblock %}

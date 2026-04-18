@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Markdown Preview - EveryTools{% endblock %}
+{% block top_title %}Markdown Preview{% endblock %}
+
+{% block content %}
+<div class="client-tool">
+    <div class="tool-header">
+        <h1>Markdown Preview</h1>
+        <p>Write Markdown and see the HTML preview live</p>
+    </div>
+    <div class="split-pane">
+        <div class="pane">
+            <div class="pane-header"><span>Markdown</span></div>
+            <div class="pane-body">
+                <textarea id="md-input" oninput="renderMD()" placeholder="# Hello World
+
+Write your **Markdown** here...
+
+- Item 1
+- Item 2
+
+> A quote
+
+`code` and more"></textarea>
+            </div>
+        </div>
+        <div class="pane">
+            <div class="pane-header">
+                <span>Preview</span>
+                <button class="btn btn-small" onclick="copyHTML()"><i class="bi bi-clipboard"></i> Copy HTML</button>
+            </div>
+            <div class="md-preview" id="md-output"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function renderMD() {
+    const md = document.getElementById("md-input").value;
+    document.getElementById("md-output").innerHTML = simpleMarkdown(md);
+}
+
+function copyHTML() {
+    navigator.clipboard.writeText(document.getElementById("md-output").innerHTML);
+}
+
+function simpleMarkdown(text) {
+    let html = text
+        // Code blocks
+        .replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
+        // Inline code
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        // Headers
+        .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+        .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+        .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+        // Bold & italic
+        .replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.+?)\*/g, '<em>$1</em>')
+        // Strikethrough
+        .replace(/~~(.+?)~~/g, '<del>$1</del>')
+        // Blockquote
+        .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
+        // Horizontal rule
+        .replace(/^---$/gm, '<hr>')
+        // Images
+        .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" style="max-width:100%">')
+        // Links
+        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
+        // Unordered lists
+        .replace(/^[*-] (.+)$/gm, '<li>$1</li>')
+        // Line breaks → paragraphs
+        .replace(/\n\n/g, '</p><p>')
+        .replace(/\n/g, '<br>');
+
+    // Wrap loose <li> in <ul>
+    html = html.replace(/(<li>.*?<\/li>)/gs, '<ul>$1</ul>');
+    html = html.replace(/<\/ul>\s*<ul>/g, '');
+
+    return '<p>' + html + '</p>';
+}
+</script>
+{% endblock %}

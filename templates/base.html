@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Your Everyday Tools{% endblock %}</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <nav class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <a href="/" class="logo"><i class="bi bi-tools"></i> EveryTools</a>
+        </div>
+        <div class="sidebar-nav">
+            {% for cat in tool_categories %}
+            <div class="nav-category">
+                <button class="nav-category-btn" onclick="toggleCategory(this)">
+                    <i class="bi {{ cat.icon }}"></i> {{ cat.name }}
+                    <i class="bi bi-chevron-down chevron"></i>
+                </button>
+                <div class="nav-items">
+                    {% for tool in cat.tools %}
+                    <a href="/{{ cat.id }}/{{ tool.id }}" class="nav-item">
+                        <i class="bi {{ tool.icon }}"></i> {{ tool.name }}
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </nav>
+
+    <div class="overlay" id="overlay" onclick="closeSidebar()"></div>
+
+    <main class="main-content">
+        <header class="top-bar">
+            <button class="menu-btn" onclick="openSidebar()"><i class="bi bi-list"></i></button>
+            <span class="top-title">{% block top_title %}Your Everyday Tools{% endblock %}</span>
+        </header>
+        <div class="content-area">
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

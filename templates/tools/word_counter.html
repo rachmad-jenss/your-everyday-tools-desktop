@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Word Counter - EveryTools{% endblock %}
+{% block top_title %}Word Counter{% endblock %}
+
+{% block content %}
+<div class="client-tool">
+    <div class="tool-header">
+        <h1>Word Counter</h1>
+        <p>Count words, characters, sentences, and paragraphs</p>
+    </div>
+    <div class="pane" style="margin-bottom:1rem">
+        <div class="pane-body">
+            <textarea id="wc-input" style="min-height:200px" placeholder="Type or paste your text here..." oninput="countWords()"></textarea>
+        </div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.8rem">
+        <div class="calc-section" style="text-align:center">
+            <div class="calc-result-inline" id="wc-words">0</div>
+            <div style="font-size:.85rem;color:var(--text-light)">Words</div>
+        </div>
+        <div class="calc-section" style="text-align:center">
+            <div class="calc-result-inline" id="wc-chars">0</div>
+            <div style="font-size:.85rem;color:var(--text-light)">Characters</div>
+        </div>
+        <div class="calc-section" style="text-align:center">
+            <div class="calc-result-inline" id="wc-chars-ns">0</div>
+            <div style="font-size:.85rem;color:var(--text-light)">Characters (no spaces)</div>
+        </div>
+        <div class="calc-section" style="text-align:center">
+            <div class="calc-result-inline" id="wc-sentences">0</div>
+            <div style="font-size:.85rem;color:var(--text-light)">Sentences</div>
+        </div>
+        <div class="calc-section" style="text-align:center">
+            <div class="calc-result-inline" id="wc-paragraphs">0</div>
+            <div style="font-size:.85rem;color:var(--text-light)">Paragraphs</div>
+        </div>
+        <div class="calc-section" style="text-align:center">
+            <div class="calc-result-inline" id="wc-reading">0 min</div>
+            <div style="font-size:.85rem;color:var(--text-light)">Reading Time</div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function countWords() {
+    const text = document.getElementById("wc-input").value;
+    const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+    const chars = text.length;
+    const charsNS = text.replace(/\s/g, "").length;
+    const sentences = text.trim() ? (text.match(/[.!?]+\s/g) || []).length + (text.trim().slice(-1).match(/[.!?]/) ? 1 : (text.trim().length > 0 ? 1 : 0)) : 0;
+    const paragraphs = text.trim() ? text.split(/\n\s*\n/).filter(p => p.trim()).length : 0;
+    const readingMin = Math.max(1, Math.ceil(words / 200));
+
+    document.getElementById("wc-words").textContent = words;
+    document.getElementById("wc-chars").textContent = chars;
+    document.getElementById("wc-chars-ns").textContent = charsNS;
+    document.getElementById("wc-sentences").textContent = sentences;
+    document.getElementById("wc-paragraphs").textContent = paragraphs || (text.trim() ? 1 : 0);
+    document.getElementById("wc-reading").textContent = words ? readingMin + " min" : "0 min";
+}
+</script>
+{% endblock %}
