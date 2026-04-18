@@ -1,12 +1,19 @@
 import io
 from flask import Blueprint, render_template, request, send_file, jsonify
 from PIL import Image, ImageDraw, ImageFont
+from PIL.ExifTags import TAGS
 
 try:
     from rembg import remove as rembg_remove
     HAS_REMBG = True
 except ImportError:
     HAS_REMBG = False
+
+try:
+    import pytesseract
+    HAS_TESSERACT = True
+except ImportError:
+    HAS_TESSERACT = False
 
 bp = Blueprint("image", __name__)
 
@@ -171,6 +178,54 @@ def rotate_page():
                  {"value": "flip_v", "label": "Flip Vertical"},
              ]},
         ])
+
+
+@bp.route("/exif")
+def exif_page():
+    return render_template("upload_tool.html",
+        title="EXIF Viewer / Stripper",
+        description="View or remove metadata (EXIF) from images",
+        endpoint="/image/exif",
+        accept=IMAGE_ACCEPT,
+        multiple=False,
+        options=[
+            {"type": "select", "name": "action", "label": "Action",
+             "choices": [
+                 {"value": "view", "label": "View EXIF data"},
+                 {"value": "strip", "label": "Strip EXIF data"},
+             ]},
+        ])
+
+
+@bp.route("/favicon")
+def favicon_page():
+    return render_template("upload_tool.html",
+        title="Favicon Generator",
+        description="Create a .ico favicon from any image",
+        endpoint="/image/favicon",
+        accept=IMAGE_ACCEPT,
+        multiple=False,
+        options=[
+            {"type": "select", "name": "sizes", "label": "Sizes to include",
+             "choices": [
+                 {"value": "all", "label": "All (16, 32, 48, 64, 128, 256)"},
+                 {"value": "standard", "label": "Standard (16, 32, 48)"},
+                 {"value": "16", "label": "16x16 only"},
+                 {"value": "32", "label": "32x32 only"},
+             ]},
+        ],
+        button_text="Generate Favicon")
+
+
+@bp.route("/ocr")
+def ocr_page():
+    return render_template("upload_tool.html",
+        title="Image to Text (OCR)",
+        description="Extract text from images using optical character recognition",
+        endpoint="/image/ocr",
+        accept=IMAGE_ACCEPT,
+        multiple=False,
+        options=[])
 
 
 @bp.route("/watermark")
@@ -418,3 +473,90 @@ def watermark():
 
     name = files[0].filename.rsplit(".", 1)[0] + f"_watermarked.{fmt_info[2]}"
     return send_file(buf, mimetype=fmt_info[1], as_attachment=True, download_name=name)
+
+
+@bp.route("/exif", methods=["POST"])
+def exif():
+    files = request.files.getlist("files")
+    if not files or not files[0].filename:
+        return jsonify(error="No file uploaded."), 400
+
+    action = request.form.get("action", "view")
+    img = get_pil_image(files[0])
+
+    if action == "view":
+        exif_data = {}
+        raw_exif = img._getexif()
+        if raw_exif:
+            for tag_id, value in raw_exif.items():
+                tag_name = TAGS.get(tag_id, tag_id)
+                # Convert bytes to string for JSON serialization
+                if isinstance(value, bytes):
+                    try:
+                        value = value.decode("utf-8", errors="replace")
+                    except Exception:
+                        value = str(value)
+                elif not isinstance(value, (str, int, float, list, dict, bool, type(None))):
+                    value = str(value)
+                exif_data[str(tag_name)] = value
+        if not exif_data:
+            return jsonify(text="No EXIF data found in this image.")
+        import json
+        return jsonify(text=json.dumps(exif_data, indent=2, ensure_ascii=False))
+    else:
+        # Strip EXIF by re-saving without exif
+        cleaned = Image.new(img.mode, img.size)
+        cleaned.putdata(list(img.getdata()))
+
+        ext = files[0].filename.rsplit(".", 1)[1].lower() if "." in files[0].filename else "png"
+        fmt_info = FORMAT_MAP.get(ext, FORMAT_MAP["png"])
+        buf = image_to_bytes(cleaned, fmt_info[0])
+
+        name = files[0].filename.rsplit(".", 1)[0] + f"_clean.{fmt_info[2]}"
+        return send_file(buf, mimetype=fmt_info[1], as_attachment=True, download_name=name)
+
+
+@bp.route("/favicon", methods=["POST"])
+def favicon():
+    files = request.files.getlist("files")
+    if not files or not files[0].filename:
+        return jsonify(error="No file uploaded."), 400
+
+    size_opt = request.form.get("sizes", "all")
+    size_map = {
+        "all": [16, 32, 48, 64, 128, 256],
+        "standard": [16, 32, 48],
+        "16": [16],
+        "32": [32],
+    }
+    sizes = size_map.get(size_opt, size_map["all"])
+
+    img = get_pil_image(files[0]).convert("RGBA")
+    icons = []
+    for s in sizes:
+        icons.append(img.resize((s, s), Image.LANCZOS))
+
+    buf = io.BytesIO()
+    icons[0].save(buf, format="ICO", sizes=[(s, s) for s in sizes],
+                  append_images=icons[1:] if len(icons) > 1 else [])
+    buf.seek(0)
+
+    return send_file(buf, mimetype="image/x-icon",
+                     as_attachment=True, download_name="favicon.ico")
+
+
+@bp.route("/ocr", methods=["POST"])
+def ocr():
+    if not HAS_TESSERACT:
+        return jsonify(error="OCR requires 'pytesseract' package and Tesseract binary. Install with: pip install pytesseract, then install Tesseract from https://github.com/tesseract-ocr/tesseract"), 400
+
+    files = request.files.getlist("files")
+    if not files or not files[0].filename:
+        return jsonify(error="No file uploaded."), 400
+
+    img = get_pil_image(files[0])
+    text = pytesseract.image_to_string(img)
+
+    if not text.strip():
+        return jsonify(text="(No text detected in image)")
+    return jsonify(text=text)

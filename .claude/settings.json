@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(pip install:*)",
-      "Bash(python -c \"from app import app; print\\('App imports OK'\\); print\\('Routes:'\\); [print\\(f'  {rule}'\\) for rule in sorted\\(str\\(r\\) for r in app.url_map.iter_rules\\(\\)\\) if not r.startswith\\('/static'\\)]\")",
-      "Bash(python -c ':*)"
-    ]
-  }
-}

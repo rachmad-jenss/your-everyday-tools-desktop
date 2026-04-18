@@ -26,3 +26,18 @@ def percentage():
 @bp.route("/date")
 def date_calc():
     return render_template("tools/date_calc.html")
+
+
+@bp.route("/timestamp")
+def timestamp():
+    return render_template("tools/timestamp_converter.html")
+
+
+@bp.route("/number-base")
+def number_base():
+    return render_template("tools/number_base.html")
+
+
+@bp.route("/pomodoro")
+def pomodoro():
+    return render_template("tools/pomodoro.html")

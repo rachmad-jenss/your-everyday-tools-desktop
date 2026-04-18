@@ -73,6 +73,21 @@ def pdf_to_text_page():
         options=[])
 
 
+@bp.route("/html-to-pdf")
+def html_to_pdf_page():
+    return render_template("upload_tool.html",
+        title="HTML to PDF",
+        description="Convert HTML content to a PDF document",
+        endpoint="/convert/html-to-pdf",
+        text_input=True,
+        text_label="HTML Content",
+        text_placeholder="<h1>Hello World</h1>\n<p>Paste your HTML here...</p>",
+        accept="",
+        multiple=False,
+        options=[],
+        button_text="Convert to PDF")
+
+
 # ── Helpers ──────────────────────────────────────
 
 def _docx_to_pdf(data: bytes) -> bytes:
