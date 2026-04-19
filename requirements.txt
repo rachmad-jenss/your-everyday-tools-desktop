@@ -13,3 +13,5 @@ rembg
 pyzbar
 pdf2docx
 pytesseract
+ezdxf
+matplotlib

@@ -17,6 +17,26 @@ try:
 except ImportError:
     HAS_PDF2DOCX = False
 
+try:
+    import pytesseract
+    HAS_TESSERACT = True
+except ImportError:
+    HAS_TESSERACT = False
+
+try:
+    import ezdxf
+    from ezdxf.addons.drawing import RenderContext, Frontend
+    from ezdxf.addons.drawing.matplotlib import MatplotlibBackend
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    HAS_EZDXF = True
+except ImportError:
+    HAS_EZDXF = False
+
+import shutil
+ODA_CONVERTER = shutil.which("ODAFileConverter") or shutil.which("oda_file_converter")
+
 bp = Blueprint("convert", __name__)
 
 
@@ -71,6 +91,68 @@ def pdf_to_text_page():
         accept=".pdf",
         multiple=False,
         options=[])
+
+
+OCR_LANGS = [
+    {"value": "eng", "label": "English"},
+    {"value": "ind", "label": "Indonesian"},
+    {"value": "fra", "label": "French"},
+    {"value": "deu", "label": "German"},
+    {"value": "spa", "label": "Spanish"},
+    {"value": "ita", "label": "Italian"},
+    {"value": "por", "label": "Portuguese"},
+    {"value": "rus", "label": "Russian"},
+    {"value": "chi_sim", "label": "Chinese (Simplified)"},
+    {"value": "chi_tra", "label": "Chinese (Traditional)"},
+    {"value": "jpn", "label": "Japanese"},
+    {"value": "kor", "label": "Korean"},
+    {"value": "ara", "label": "Arabic"},
+    {"value": "hin", "label": "Hindi"},
+]
+
+
+@bp.route("/ocr-pdf")
+def ocr_pdf_page():
+    return render_template("upload_tool.html",
+        title="OCR PDF",
+        description="Extract text from scanned PDFs or create a searchable PDF with a hidden text layer",
+        endpoint="/convert/ocr-pdf",
+        accept=".pdf",
+        multiple=False,
+        options=[
+            {"type": "select", "name": "mode", "label": "Output",
+             "choices": [
+                 {"value": "searchable", "label": "Searchable PDF (image + text layer)"},
+                 {"value": "text", "label": "Extracted text only"},
+             ]},
+            {"type": "select", "name": "lang", "label": "Language",
+             "choices": OCR_LANGS},
+            {"type": "number", "name": "dpi", "label": "OCR Resolution (DPI)",
+             "default": 200, "min": 100, "max": 400},
+        ])
+
+
+@bp.route("/cad-to-pdf")
+def cad_to_pdf_page():
+    desc = "Convert DXF (or DWG with ODA File Converter) drawings to PDF or PNG"
+    if not ODA_CONVERTER:
+        desc += " — DWG requires ODA File Converter on PATH"
+    return render_template("upload_tool.html",
+        title="CAD to PDF/Image",
+        description=desc,
+        endpoint="/convert/cad-to-pdf",
+        accept=".dxf,.dwg",
+        multiple=False,
+        options=[
+            {"type": "select", "name": "format", "label": "Output Format",
+             "choices": [
+                 {"value": "pdf", "label": "PDF"},
+                 {"value": "png", "label": "PNG"},
+             ]},
+            {"type": "number", "name": "dpi", "label": "PNG Resolution (DPI)",
+             "default": 150, "min": 72, "max": 600,
+             "depends_on": {"format": "png"}},
+        ])
 
 
 @bp.route("/html-to-pdf")
@@ -357,3 +439,144 @@ def html_to_pdf():
 
     return send_file(output, mimetype="application/pdf",
                      as_attachment=True, download_name="converted.pdf")
+
+
+@bp.route("/ocr-pdf", methods=["POST"])
+def ocr_pdf():
+    if not HAS_TESSERACT:
+        return jsonify(error="OCR requires 'pytesseract' and the Tesseract binary. Install: pip install pytesseract, plus Tesseract from https://github.com/tesseract-ocr/tesseract"), 400
+
+    files = request.files.getlist("files")
+    if not files or not files[0].filename:
+        return jsonify(error="No file uploaded."), 400
+
+    mode = request.form.get("mode", "searchable")
+    lang = request.form.get("lang", "eng")
+    dpi = int(request.form.get("dpi", 200))
+
+    pdf_data = files[0].read()
+    src = fitz.open(stream=pdf_data, filetype="pdf")
+    zoom = dpi / 72
+
+    try:
+        if mode == "text":
+            text_parts = []
+            for i, page in enumerate(src):
+                pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom))
+                img = Image.open(io.BytesIO(pix.tobytes("png")))
+                text = pytesseract.image_to_string(img, lang=lang)
+                text_parts.append(f"--- Page {i + 1} ---\n{text.strip()}")
+            src.close()
+            combined = "\n\n".join(text_parts).strip()
+            return jsonify(text=combined or "(No text detected)")
+
+        output = fitz.open()
+        for page in src:
+            pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom))
+            img = Image.open(io.BytesIO(pix.tobytes("png")))
+            page_pdf_bytes = pytesseract.image_to_pdf_or_hocr(img, extension="pdf", lang=lang)
+            sub = fitz.open(stream=page_pdf_bytes, filetype="pdf")
+            output.insert_pdf(sub)
+            sub.close()
+        src.close()
+
+        buf = io.BytesIO()
+        output.save(buf)
+        output.close()
+        buf.seek(0)
+
+        name = files[0].filename.rsplit(".", 1)[0] + "_ocr.pdf"
+        return send_file(buf, mimetype="application/pdf",
+                         as_attachment=True, download_name=name)
+    except pytesseract.TesseractNotFoundError:
+        return jsonify(error="Tesseract binary not found. Install from https://github.com/tesseract-ocr/tesseract and ensure it is on PATH."), 400
+    except Exception as e:
+        msg = str(e)
+        if "language" in msg.lower() or "traineddata" in msg.lower():
+            return jsonify(error=f"Language pack '{lang}' not installed. Download its .traineddata file into your Tesseract tessdata directory."), 400
+        return jsonify(error=f"OCR failed: {msg}"), 400
+
+
+@bp.route("/cad-to-pdf", methods=["POST"])
+def cad_to_pdf():
+    if not HAS_EZDXF:
+        return jsonify(error="CAD conversion requires 'ezdxf' and 'matplotlib'. Install: pip install ezdxf matplotlib"), 400
+
+    files = request.files.getlist("files")
+    if not files or not files[0].filename:
+        return jsonify(error="No file uploaded."), 400
+
+    target = request.form.get("format", "pdf")
+    dpi = int(request.form.get("dpi", 150))
+
+    filename = files[0].filename
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    file_data = files[0].read()
+
+    import tempfile, os, subprocess
+    with tempfile.TemporaryDirectory() as tmpdir:
+        if ext == "dwg":
+            if not ODA_CONVERTER:
+                return jsonify(error="DWG support requires ODA File Converter. Download it free from https://www.opendesign.com/guestfiles/oda_file_converter and ensure it is on your PATH. Or convert your DWG to DXF first."), 400
+
+            in_dir = os.path.join(tmpdir, "in")
+            out_dir = os.path.join(tmpdir, "out")
+            os.makedirs(in_dir)
+            os.makedirs(out_dir)
+            dwg_path = os.path.join(in_dir, "input.dwg")
+            with open(dwg_path, "wb") as f:
+                f.write(file_data)
+
+            try:
+                subprocess.run(
+                    [ODA_CONVERTER, in_dir, out_dir, "ACAD2018", "DXF", "0", "1", "*.DWG"],
+                    check=True, capture_output=True, timeout=60,
+                )
+            except subprocess.CalledProcessError as e:
+                return jsonify(error=f"DWG to DXF conversion failed: {e.stderr.decode(errors='replace')[:200]}"), 400
+            except subprocess.TimeoutExpired:
+                return jsonify(error="DWG conversion timed out."), 400
+
+            dxf_path = os.path.join(out_dir, "input.dxf")
+            if not os.path.exists(dxf_path):
+                return jsonify(error="DWG to DXF conversion produced no output."), 400
+            doc = ezdxf.readfile(dxf_path)
+        elif ext == "dxf":
+            dxf_path = os.path.join(tmpdir, "input.dxf")
+            with open(dxf_path, "wb") as f:
+                f.write(file_data)
+            try:
+                doc = ezdxf.readfile(dxf_path)
+            except Exception as e:
+                return jsonify(error=f"Invalid DXF file: {str(e)[:200]}"), 400
+        else:
+            return jsonify(error="Upload a .dxf or .dwg file."), 400
+
+        msp = doc.modelspace()
+        fig = plt.figure()
+        ax = fig.add_axes([0, 0, 1, 1])
+        ax.set_aspect("equal")
+        ax.set_axis_off()
+
+        try:
+            ctx = RenderContext(doc)
+            backend = MatplotlibBackend(ax)
+            Frontend(ctx, backend).draw_layout(msp, finalize=True)
+        except Exception as e:
+            plt.close(fig)
+            return jsonify(error=f"Rendering failed: {str(e)[:200]}"), 400
+
+        buf = io.BytesIO()
+        base_name = filename.rsplit(".", 1)[0]
+        if target == "pdf":
+            fig.savefig(buf, format="pdf", bbox_inches="tight", pad_inches=0.2)
+            plt.close(fig)
+            buf.seek(0)
+            return send_file(buf, mimetype="application/pdf",
+                             as_attachment=True, download_name=base_name + ".pdf")
+        else:
+            fig.savefig(buf, format="png", dpi=dpi, bbox_inches="tight", pad_inches=0.2)
+            plt.close(fig)
+            buf.seek(0)
+            return send_file(buf, mimetype="image/png",
+                             as_attachment=True, download_name=base_name + ".png")

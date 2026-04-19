@@ -1,6 +1,6 @@
 # Your Everyday Tools
 
-A lightweight, self-hosted web app that bundles 48 everyday utilities into a single interface. Built with Python + Flask, zero JavaScript frameworks, and minimal CSS — no bloat, just tools.
+A lightweight, self-hosted web app that bundles 51 everyday utilities into a single interface. Built with Python + Flask, zero JavaScript frameworks, and minimal CSS — no bloat, just tools.
 
 ![Python](https://img.shields.io/badge/Python-3.10+-blue)
 ![Flask](https://img.shields.io/badge/Flask-3.x-green)
@@ -27,6 +27,8 @@ A lightweight, self-hosted web app that bundles 48 everyday utilities into a sin
 | **PDF to Images** | Export each PDF page as PNG or JPG (configurable DPI) |
 | **PDF to Text** | Extract all text content from a PDF |
 | **HTML to PDF** | Convert HTML content to a PDF document |
+| **OCR PDF** | Make scanned PDFs searchable (image + hidden text layer) or extract text — 14 languages supported |
+| **CAD to PDF/Image** | Convert DXF drawings to PDF or PNG (DWG via optional ODA File Converter) |
 
 ### PDF Tools
 | Tool | Description |
@@ -54,6 +56,7 @@ A lightweight, self-hosted web app that bundles 48 everyday utilities into a sin
 | **EXIF Viewer** | View or strip image metadata (EXIF data) for privacy |
 | **Favicon Generator** | Create .ico favicons from any image with multiple size options |
 | **Image to Text (OCR)** | Extract text from images using optical character recognition |
+| **Animated WebP/GIF** | Convert between animated GIF and animated WebP (preserves per-frame timing) |
 
 ### Text & Data (client-side, no upload needed)
 | Tool | Description |
@@ -138,7 +141,8 @@ The core app works out of the box with the main dependencies. Some features requ
 | `rembg` | Remove Background | Installs ONNX Runtime (~500 MB). The app works without it and shows a helpful message if missing. |
 | `pyzbar` | Read QR Code | Requires the [ZBar](https://github.com/NaturalHistoryMuseum/pyzbar#installation) shared library on your system. |
 | `pdf2docx` | PDF to Word | Pure Python, but conversion quality depends on PDF complexity. |
-| `pytesseract` | Image to Text (OCR) | Requires the [Tesseract](https://github.com/tesseract-ocr/tesseract) binary installed on your system. |
+| `pytesseract` | Image to Text (OCR), OCR PDF | Requires the [Tesseract](https://github.com/tesseract-ocr/tesseract) binary installed on your system. For non-English OCR, download the matching `*.traineddata` language pack into your Tesseract `tessdata` folder. |
+| `ezdxf` + `matplotlib` | CAD to PDF/Image | Renders DXF drawings. For DWG support, also install the free [ODA File Converter](https://www.opendesign.com/guestfiles/oda_file_converter) and make sure it's on your `PATH`. |
 
 If you only need the core tools, install the minimal set:
 

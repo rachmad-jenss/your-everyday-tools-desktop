@@ -217,6 +217,31 @@ def favicon_page():
         button_text="Generate Favicon")
 
 
+@bp.route("/animated")
+def animated_page():
+    return render_template("upload_tool.html",
+        title="Animated WebP / GIF",
+        description="Convert animated GIF to WebP, or animated WebP to GIF (preserves timing)",
+        endpoint="/image/animated",
+        accept=".gif,.webp",
+        multiple=False,
+        options=[
+            {"type": "select", "name": "target", "label": "Output Format",
+             "choices": [
+                 {"value": "webp", "label": "Animated WebP"},
+                 {"value": "gif", "label": "GIF"},
+             ]},
+            {"type": "range", "name": "quality", "label": "WebP Quality",
+             "default": 80, "min": 10, "max": 100, "step": 5, "suffix": "%",
+             "depends_on": {"target": "webp"}},
+            {"type": "number", "name": "fps", "label": "Override FPS (0 = keep original)",
+             "default": 0, "min": 0, "max": 60},
+            {"type": "checkbox", "name": "lossless", "label": "Lossless",
+             "check_label": "Lossless WebP (larger file)", "default": False,
+             "depends_on": {"target": "webp"}},
+        ])
+
+
 @bp.route("/ocr")
 def ocr_page():
     return render_template("upload_tool.html",
@@ -543,6 +568,83 @@ def favicon():
 
     return send_file(buf, mimetype="image/x-icon",
                      as_attachment=True, download_name="favicon.ico")
+
+
+@bp.route("/animated", methods=["POST"])
+def animated():
+    files = request.files.getlist("files")
+    if not files or not files[0].filename:
+        return jsonify(error="No file uploaded."), 400
+
+    target = request.form.get("target", "webp").lower()
+    quality = int(request.form.get("quality", 80))
+    fps_override = int(request.form.get("fps", 0))
+    lossless = request.form.get("lossless") == "on"
+
+    try:
+        src = Image.open(io.BytesIO(files[0].read()))
+    except Exception as e:
+        return jsonify(error=f"Could not read image: {e}"), 400
+
+    frames = []
+    durations = []
+    try:
+        while True:
+            frame = src.copy()
+            if frame.mode == "P":
+                frame = frame.convert("RGBA")
+            frames.append(frame)
+            durations.append(src.info.get("duration", 100))
+            src.seek(src.tell() + 1)
+    except EOFError:
+        pass
+
+    if not frames:
+        return jsonify(error="No frames found in image."), 400
+
+    if fps_override > 0:
+        per_frame_ms = int(1000 / fps_override)
+        durations = [per_frame_ms] * len(frames)
+
+    loop = src.info.get("loop", 0)
+    buf = io.BytesIO()
+    base = files[0].filename.rsplit(".", 1)[0]
+
+    if target == "webp":
+        save_kwargs = {
+            "format": "WEBP",
+            "save_all": True,
+            "append_images": frames[1:],
+            "duration": durations,
+            "loop": loop,
+            "lossless": lossless,
+        }
+        if not lossless:
+            save_kwargs["quality"] = quality
+        frames[0].save(buf, **save_kwargs)
+        buf.seek(0)
+        return send_file(buf, mimetype="image/webp",
+                         as_attachment=True, download_name=base + ".webp")
+
+    # GIF output — GIF palette is 256 colors
+    gif_frames = [f.convert("RGBA") for f in frames]
+    disposal_frames = []
+    for f in gif_frames:
+        if f.mode == "RGBA":
+            bg = Image.new("RGBA", f.size, (255, 255, 255, 255))
+            bg.paste(f, mask=f.split()[3])
+            disposal_frames.append(bg.convert("P", palette=Image.ADAPTIVE, colors=256))
+        else:
+            disposal_frames.append(f.convert("P", palette=Image.ADAPTIVE, colors=256))
+
+    disposal_frames[0].save(
+        buf, format="GIF", save_all=True,
+        append_images=disposal_frames[1:],
+        duration=durations, loop=loop, optimize=True, disposal=2,
+    )
+    buf.seek(0)
+    return send_file(buf, mimetype="image/gif",
+                     as_attachment=True, download_name=base + ".gif")
 
 
 @bp.route("/ocr", methods=["POST"])
