@@ -9,6 +9,12 @@
         <p>{{ description }}</p>
     </div>
 
+    {% if notes %}
+    <div class="tool-notes">
+        {{ notes|safe }}
+    </div>
+    {% endif %}
+
     <form id="tool-form" data-endpoint="{{ endpoint }}">
         {% if text_input %}
         <div class="form-group">

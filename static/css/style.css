@@ -224,6 +224,35 @@ a { color: var(--primary); text-decoration: none; }
 .tool-header h1 { font-size: 1.5rem; margin-bottom: .3rem; }
 .tool-header p { color: var(--text-light); }
 
+.tool-notes {
+    background: #fff8e1;
+    border-left: 3px solid #f5b700;
+    border-radius: 4px;
+    padding: .75rem 1rem;
+    margin-bottom: 1.25rem;
+    font-size: .88rem;
+    line-height: 1.5;
+    color: #5a4200;
+}
+.tool-notes p { margin: 0 0 .5rem; }
+.tool-notes p:last-child { margin-bottom: 0; }
+.tool-notes code {
+    background: rgba(0,0,0,.06);
+    padding: .1rem .35rem;
+    border-radius: 3px;
+    font-size: .82rem;
+}
+.tool-notes details { margin-top: .5rem; }
+.tool-notes details > summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: #8a6300;
+}
+.tool-notes details[open] > summary { margin-bottom: .5rem; }
+.tool-notes ol, .tool-notes ul { margin: .25rem 0 .5rem 1.2rem; padding: 0; }
+.tool-notes li { margin-bottom: .2rem; }
+.tool-notes a { color: #b26f00; }
+
 /* ── Upload Zone ──────────────────────────────── */
 .upload-zone {
     border: 2px dashed var(--border);

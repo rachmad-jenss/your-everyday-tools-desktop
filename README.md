@@ -150,6 +150,38 @@ If you only need the core tools, install the minimal set:
 pip install Flask Pillow PyMuPDF "qrcode[pil]" markdown reportlab img2pdf python-docx
 ```
 
+### Enabling DWG support (ODA File Converter)
+
+DXF files work out of the box once you install `ezdxf` and `matplotlib`. For **DWG** files, the app shells out to the free **ODA File Converter** (by Open Design Alliance) to convert DWG → DXF, then renders the DXF. There is no reliable pure-Python library that reads DWG, so this extra step is necessary.
+
+1. **Download** the installer for your OS from [opendesign.com](https://www.opendesign.com/guestfiles/oda_file_converter). It's a free guest download — no account required.
+2. **Run the installer.** Defaults are fine.
+3. **Add it to your PATH** so the Flask app can find it. The app looks for a binary named `ODAFileConverter` or `oda_file_converter` using `shutil.which()`.
+
+   - **Windows** — add the install folder (contains `ODAFileConverter.exe`) to your `Path`:
+     - Press `Win + R` → `sysdm.cpl` → *Advanced* tab → *Environment Variables*
+     - Under *System variables*, select `Path` → *Edit* → *New* → paste the folder, e.g.:
+       ```
+       C:\Program Files\ODA\ODAFileConverter 26.4.0
+       ```
+     - Click OK, open a **new** terminal, run `where ODAFileConverter` to verify.
+
+   - **macOS** — symlink the binary into `/usr/local/bin`:
+     ```bash
+     sudo ln -s /Applications/ODAFileConverter.app/Contents/MacOS/ODAFileConverter /usr/local/bin/ODAFileConverter
+     ```
+     Verify with `which ODAFileConverter`.
+
+   - **Linux** — the `.deb` / `.rpm` package usually installs the binary on `PATH` automatically. If not:
+     ```bash
+     sudo ln -s /opt/ODAFileConverter_QT5*/ODAFileConverter /usr/local/bin/ODAFileConverter
+     ```
+     Verify with `which ODAFileConverter`.
+
+4. **Restart the Flask server.** PATH is read once at startup, so a running server won't see the new entry. After restart, the CAD tool page will show a green *"DWG support is enabled"* banner.
+
+**No ODA, no problem:** if you can't install it (e.g. on a restricted machine), open your DWG in free tools like [Autodesk Viewer](https://viewer.autodesk.com/), LibreCAD, or QCAD, export as DXF, then upload the DXF here.
+
 ---
 
 ## Project Structure

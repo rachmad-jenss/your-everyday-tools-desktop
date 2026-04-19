@@ -134,12 +134,43 @@ def ocr_pdf_page():
 
 @bp.route("/cad-to-pdf")
 def cad_to_pdf_page():
-    desc = "Convert DXF (or DWG with ODA File Converter) drawings to PDF or PNG"
-    if not ODA_CONVERTER:
-        desc += " — DWG requires ODA File Converter on PATH"
+    if ODA_CONVERTER:
+        notes = (
+            '<p><i class="bi bi-check-circle-fill" style="color:#2ec4b6"></i> '
+            '<strong>DWG support is enabled.</strong> ODA File Converter was detected at '
+            f'<code>{ODA_CONVERTER}</code>.</p>'
+            '<p>DXF files are rendered directly. DWG files are auto-converted to DXF first.</p>'
+        )
+    else:
+        notes = (
+            '<p><strong>DXF works out of the box.</strong> DWG files need the free '
+            '<a href="https://www.opendesign.com/guestfiles/oda_file_converter" target="_blank" rel="noopener">'
+            'ODA File Converter</a> installed and available on your system <code>PATH</code>.</p>'
+            '<details>'
+            '<summary>How to install ODA File Converter</summary>'
+            '<ol>'
+            '<li>Download the installer for your OS from '
+            '<a href="https://www.opendesign.com/guestfiles/oda_file_converter" target="_blank" rel="noopener">opendesign.com</a> '
+            '(free, guest download — no account required).</li>'
+            '<li>Run the installer. Defaults are fine.</li>'
+            '<li><strong>Add it to your PATH so this app can find it:</strong>'
+            '<ul>'
+            '<li><strong>Windows:</strong> add <code>C:\\Program Files\\ODA\\ODAFileConverter_title_version</code> '
+            '(the folder containing <code>ODAFileConverter.exe</code>) to your <em>System Environment Variables</em> &rarr; <code>Path</code>.</li>'
+            '<li><strong>macOS:</strong> <code>ln -s /Applications/ODAFileConverter.app/Contents/MacOS/ODAFileConverter /usr/local/bin/ODAFileConverter</code></li>'
+            '<li><strong>Linux:</strong> the <code>.deb</code>/<code>.rpm</code> package installs <code>ODAFileConverter</code> on PATH automatically. Otherwise symlink the binary into <code>/usr/local/bin</code>.</li>'
+            '</ul></li>'
+            '<li>Open a new terminal and verify: <code>ODAFileConverter</code> (should launch the tool GUI, or exit silently).</li>'
+            '<li><strong>Restart this Flask server</strong> so it picks up the updated PATH.</li>'
+            '</ol>'
+            '<p style="margin-top:.4rem">Alternative: open your DWG in free tools like <a href="https://www.autodesk.com/viewers" target="_blank" rel="noopener">Autodesk Viewer</a>, LibreCAD, or QCAD and export it as DXF, then upload the DXF here.</p>'
+            '</details>'
+        )
+
     return render_template("upload_tool.html",
         title="CAD to PDF/Image",
-        description=desc,
+        description="Convert DXF drawings to PDF or PNG. DWG is supported when ODA File Converter is installed.",
+        notes=notes,
         endpoint="/convert/cad-to-pdf",
         accept=".dxf,.dwg",
         multiple=False,
