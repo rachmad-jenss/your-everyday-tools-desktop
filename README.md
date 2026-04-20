@@ -11,11 +11,15 @@ See [CHANGELOG.md](CHANGELOG.md) for release history and recent fixes.
 
 ## Screenshots
 
-![Home Page](screenshots/1.png)
+![Home Page](screenshots/1a.png)
 
-![Tool Page](screenshots/2.png)
+![Tool Page](screenshots/1b.png)
 
-![Tool Page](screenshots/3.png)
+![Tool Page](screenshots/1c.png)
+
+![Tool Page](screenshots/1d.png)
+
+![Tool Page](screenshots/1e.png)
 
 ---
 
