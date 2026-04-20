@@ -93,6 +93,37 @@ def pdf_to_text_page():
         options=[])
 
 
+@bp.route("/pdf-to-excel")
+def pdf_to_excel_page():
+    return render_template("upload_tool.html",
+        title="PDF to Excel",
+        description="Extract tables from a PDF into an .xlsx workbook",
+        notes=(
+            "<p><strong>Tip:</strong> works best on PDFs with clearly ruled tables. "
+            "For scanned PDFs (images of tables), run them through "
+            "<a href=\"/convert/ocr-pdf\">OCR PDF</a> first so the tool has text to work with.</p>"
+        ),
+        endpoint="/convert/pdf-to-excel",
+        accept=".pdf",
+        multiple=False,
+        options=[
+            {"type": "text", "name": "pages", "label": "Pages (leave empty for all)",
+             "placeholder": "e.g. 1-3, 5"},
+            {"type": "select", "name": "mode", "label": "Extraction mode", "default": "tables",
+             "choices": [
+                 {"value": "tables", "label": "Tables only (recommended)"},
+                 {"value": "tables_text", "label": "Tables, fall back to text rows when none are found"},
+                 {"value": "text", "label": "Text only — every line becomes a row"},
+             ]},
+            {"type": "select", "name": "organize", "label": "Sheet organization", "default": "per_table",
+             "choices": [
+                 {"value": "per_table", "label": "One sheet per detected table"},
+                 {"value": "per_page", "label": "One sheet per page (tables stacked)"},
+                 {"value": "combined", "label": "Everything on one sheet"},
+             ]},
+        ])
+
+
 OCR_LANGS = [
     {"value": "eng", "label": "English"},
     {"value": "ind", "label": "Indonesian"},
@@ -443,6 +474,168 @@ def pdf_to_text():
 
     doc.close()
     return jsonify(text="\n".join(text_parts))
+
+
+@bp.route("/pdf-to-excel", methods=["POST"])
+def pdf_to_excel():
+    import re
+    from openpyxl import Workbook
+    from openpyxl.styles import Font
+    from openpyxl.utils import get_column_letter
+    from routes.pdf_tools import parse_page_ranges
+
+    files = request.files.getlist("files")
+    if not files or not files[0].filename:
+        return jsonify(error="No file uploaded."), 400
+
+    mode = request.form.get("mode", "tables")
+    organize = request.form.get("organize", "per_table")
+    pages_spec = request.form.get("pages", "").strip()
+
+    doc = fitz.open(stream=files[0].read(), filetype="pdf")
+
+    try:
+        target_pages = parse_page_ranges(pages_spec, len(doc))
+    except ValueError:
+        doc.close()
+        return jsonify(error="Invalid page range format."), 400
+    if not target_pages:
+        doc.close()
+        return jsonify(error="No valid pages selected."), 400
+
+    wb = Workbook()
+    wb.remove(wb.active)
+    used_names: set[str] = set()
+    total_tables = 0
+    total_text_pages = 0
+
+    def _safe_name(base: str) -> str:
+        name = re.sub(r"[\[\]\*\?\/\\:]", "_", base)[:31] or "Sheet"
+        candidate = name
+        i = 2
+        while candidate in used_names:
+            suffix = f"_{i}"
+            candidate = (name[: 31 - len(suffix)] + suffix)
+            i += 1
+        used_names.add(candidate)
+        return candidate
+
+    def _write_rows(ws, rows: list[list], start_row: int = 1, header: bool = True) -> int:
+        for r_idx, row in enumerate(rows, start=start_row):
+            for c_idx, cell in enumerate(row, start=1):
+                ws.cell(row=r_idx, column=c_idx, value="" if cell is None else str(cell))
+            if header and r_idx == start_row:
+                for c_idx in range(1, len(row) + 1):
+                    ws.cell(row=r_idx, column=c_idx).font = Font(bold=True)
+        return start_row + len(rows)
+
+    def _text_rows(page) -> list[list[str]]:
+        lines = page.get_text().splitlines()
+        rows = []
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            parts = re.split(r"\s{2,}|\t+", line)
+            rows.append(parts if parts else [line])
+        return rows
+
+    # ── "combined" — stream everything into a single sheet ────────────
+    if organize == "combined":
+        ws = wb.create_sheet(_safe_name("Extracted"))
+        next_row = 1
+        for pno in target_pages:
+            page = doc[pno]
+            page_had_content = False
+
+            if mode in ("tables", "tables_text"):
+                tables = list(page.find_tables())
+                for t in tables:
+                    rows = t.extract()
+                    if not rows:
+                        continue
+                    ws.cell(row=next_row, column=1, value=f"Page {pno + 1} – table").font = Font(bold=True, italic=True)
+                    next_row += 1
+                    next_row = _write_rows(ws, rows, start_row=next_row)
+                    next_row += 1
+                    total_tables += 1
+                    page_had_content = True
+
+            if mode == "text" or (mode == "tables_text" and not page_had_content):
+                text_rows = _text_rows(page)
+                if text_rows:
+                    ws.cell(row=next_row, column=1, value=f"Page {pno + 1} – text").font = Font(bold=True, italic=True)
+                    next_row += 1
+                    next_row = _write_rows(ws, text_rows, start_row=next_row, header=False)
+                    next_row += 1
+                    total_text_pages += 1
+
+    # ── "per_page" and "per_table" ────────────────────────────────────
+    else:
+        for pno in target_pages:
+            page = doc[pno]
+            tables_rows = []  # list of (label, rows)
+
+            if mode in ("tables", "tables_text"):
+                for tidx, t in enumerate(page.find_tables(), start=1):
+                    rows = t.extract()
+                    if rows:
+                        tables_rows.append((f"Table {tidx}", rows))
+                        total_tables += 1
+
+            if mode == "text" or (mode == "tables_text" and not tables_rows):
+                text_rows = _text_rows(page)
+                if text_rows:
+                    tables_rows.append(("Text", text_rows))
+                    total_text_pages += 1
+
+            if not tables_rows:
+                continue
+
+            if organize == "per_table":
+                for label, rows in tables_rows:
+                    is_text = label == "Text"
+                    sheet = wb.create_sheet(_safe_name(f"Page{pno + 1}_{label.replace(' ', '')}"))
+                    _write_rows(sheet, rows, header=not is_text)
+            else:  # per_page
+                sheet = wb.create_sheet(_safe_name(f"Page_{pno + 1}"))
+                next_row = 1
+                for label, rows in tables_rows:
+                    is_text = label == "Text"
+                    sheet.cell(row=next_row, column=1, value=label).font = Font(bold=True, italic=True)
+                    next_row += 1
+                    next_row = _write_rows(sheet, rows, start_row=next_row, header=not is_text)
+                    next_row += 1
+
+    doc.close()
+
+    if not wb.sheetnames:
+        return jsonify(error=(
+            "No tables or text found on the selected pages. "
+            "If this is a scanned PDF, run it through OCR PDF first."
+        )), 400
+
+    # Auto-size columns on every sheet (cap at 60 chars to avoid absurd widths)
+    for ws in wb.worksheets:
+        for col_idx in range(1, ws.max_column + 1):
+            max_len = 0
+            for row_idx in range(1, ws.max_row + 1):
+                v = ws.cell(row=row_idx, column=col_idx).value
+                if v is not None:
+                    max_len = max(max_len, len(str(v)))
+            ws.column_dimensions[get_column_letter(col_idx)].width = min(max_len + 2, 60)
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    name = files[0].filename.rsplit(".", 1)[0] + ".xlsx"
+    return send_file(
+        output,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=name,
+    )
 
 
 @bp.route("/html-to-pdf", methods=["POST"])

@@ -2,6 +2,11 @@
 
 All notable changes to **Your Everyday Tools** are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project loosely follows [Semantic Versioning](https://semver.org/).
 
+## [0.4.3] — 2026-04-20
+
+### Added
+- **PDF to Excel** — extract tables from a PDF into an `.xlsx` workbook. Three modes: tables-only, tables-with-text-fallback, or text-only. Three sheet organizations: one sheet per table, one per page, or all combined. Powered by PyMuPDF's native `find_tables()` — no new dependencies. For scanned PDFs, run **OCR PDF** first.
+
 ## [0.4.2] — 2026-04-20
 
 ### Added

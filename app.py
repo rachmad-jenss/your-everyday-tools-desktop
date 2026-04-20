@@ -14,6 +14,7 @@ TOOL_CATEGORIES = [
             {"id": "pdf-to-word", "name": "PDF to Word", "desc": "Convert PDF to Word document", "icon": "bi-file-word-fill"},
             {"id": "pdf-to-images", "name": "PDF to Images", "desc": "Convert PDF pages to images", "icon": "bi-file-image-fill"},
             {"id": "pdf-to-text", "name": "PDF to Text", "desc": "Extract text content from PDF", "icon": "bi-file-text-fill"},
+            {"id": "pdf-to-excel", "name": "PDF to Excel", "desc": "Extract tables from PDF into an .xlsx", "icon": "bi-file-earmark-spreadsheet-fill"},
             {"id": "html-to-pdf", "name": "HTML to PDF", "desc": "Convert HTML content to PDF", "icon": "bi-filetype-html"},
             {"id": "ocr-pdf", "name": "OCR PDF", "desc": "Make scanned PDFs searchable or extract text", "icon": "bi-file-earmark-text-fill"},
             {"id": "cad-to-pdf", "name": "CAD to PDF/Image", "desc": "Convert DXF/DWG drawings to PDF or PNG", "icon": "bi-rulers"},

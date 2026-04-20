@@ -1,6 +1,6 @@
 # Your Everyday Tools
 
-A lightweight, self-hosted web app that bundles 77 everyday utilities into a single interface. Built with Python + Flask, zero JavaScript frameworks, and minimal CSS — no bloat, just tools.
+A lightweight, self-hosted web app that bundles 78 everyday utilities into a single interface. Built with Python + Flask, zero JavaScript frameworks, and minimal CSS — no bloat, just tools.
 
 ![Python](https://img.shields.io/badge/Python-3.10+-blue)
 ![Flask](https://img.shields.io/badge/Flask-3.x-green)
@@ -32,6 +32,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release history and recent fixes.
 | **PDF to Word** | Convert PDF documents to `.docx` format |
 | **PDF to Images** | Export each PDF page as PNG or JPG (configurable DPI) |
 | **PDF to Text** | Extract all text content from a PDF |
+| **PDF to Excel** | Extract tables from a PDF into an `.xlsx` workbook — one sheet per table, per page, or all combined. Falls back to line-by-line text when no tables are detected. Uses PyMuPDF's native `find_tables()` (no extra dependencies). |
 | **HTML to PDF** | Convert HTML content to a PDF document |
 | **OCR PDF** | Make scanned PDFs searchable (image + hidden text layer) or extract text — 14 languages supported |
 | **CAD to PDF/Image** | Convert DXF drawings to PDF or PNG (DWG via optional ODA File Converter) |
