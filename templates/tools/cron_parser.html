@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Cron Parser - EveryTools{% endblock %}
+{% block top_title %}Cron Parser{% endblock %}
+
+{% block content %}
+<div class="client-tool">
+    <div class="tool-header">
+        <h1>Cron Expression Parser</h1>
+        <p>Validate cron expressions and preview upcoming run times</p>
+    </div>
+
+    <div style="display:flex;gap:.5rem;margin-bottom:.6rem;flex-wrap:wrap;align-items:center">
+        <label>Expression:
+            <input type="text" id="cron-expr" value="*/5 * * * *" style="font-family:monospace;min-width:200px">
+        </label>
+        <label>Count:
+            <input type="number" id="cron-count" value="10" min="1" max="50" style="width:70px">
+        </label>
+        <button class="btn btn-primary" onclick="parseCron()"><i class="bi bi-play-circle"></i> Parse</button>
+    </div>
+
+    <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.6rem">
+        <button class="btn btn-small" onclick="setExpr('* * * * *')">Every minute</button>
+        <button class="btn btn-small" onclick="setExpr('*/5 * * * *')">Every 5 min</button>
+        <button class="btn btn-small" onclick="setExpr('0 * * * *')">Hourly</button>
+        <button class="btn btn-small" onclick="setExpr('0 0 * * *')">Daily midnight</button>
+        <button class="btn btn-small" onclick="setExpr('0 9 * * 1-5')">Weekdays 9am</button>
+        <button class="btn btn-small" onclick="setExpr('0 0 1 * *')">Monthly 1st</button>
+        <button class="btn btn-small" onclick="setExpr('0 0 * * 0')">Weekly Sunday</button>
+    </div>
+
+    <div id="cron-status" style="margin:.5rem 0;font-size:.9rem"></div>
+
+    <div class="split-pane">
+        <div class="pane">
+            <div class="pane-header"><span>Description</span></div>
+            <div class="pane-body"><pre id="cron-desc"></pre></div>
+        </div>
+        <div class="pane">
+            <div class="pane-header"><span>Next runs</span></div>
+            <div class="pane-body"><pre id="cron-next"></pre></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function setExpr(e) {
+    document.getElementById("cron-expr").value = e;
+    parseCron();
+}
+
+async function parseCron() {
+    const expr = document.getElementById("cron-expr").value;
+    const count = document.getElementById("cron-count").value;
+    const status = document.getElementById("cron-status");
+
+    if (!expr.trim()) { status.textContent = "Enter a cron expression."; return; }
+
+    const fd = new FormData();
+    fd.append("expr", expr);
+    fd.append("count", count);
+
+    status.textContent = "Parsing...";
+    try {
+        const r = await fetch("/dev/cron", { method: "POST", body: fd });
+        const j = await r.json();
+        if (j.error) {
+            status.innerHTML = `<span style="color:var(--danger)"><i class="bi bi-x-circle"></i> ${j.error}</span>`;
+            document.getElementById("cron-desc").textContent = "";
+            document.getElementById("cron-next").textContent = "";
+        } else {
+            status.innerHTML = '<span style="color:var(--success)"><i class="bi bi-check-circle"></i> Valid expression</span>';
+            document.getElementById("cron-desc").textContent = j.description;
+            document.getElementById("cron-next").textContent = j.next.join("\n");
+        }
+    } catch (e) {
+        status.innerHTML = `<span style="color:var(--danger)">Network error: ${e.message}</span>`;
+    }
+}
+
+parseCron();
+</script>
+{% endblock %}

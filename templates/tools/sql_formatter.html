@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}SQL Formatter - EveryTools{% endblock %}
+{% block top_title %}SQL Formatter{% endblock %}
+
+{% block content %}
+<div class="client-tool">
+    <div class="tool-header">
+        <h1>SQL Formatter</h1>
+        <p>Format SQL statements with proper indentation and keyword casing</p>
+    </div>
+
+    <div style="display:flex;gap:.5rem;margin-bottom:.6rem;flex-wrap:wrap;align-items:center">
+        <label>Keyword case:
+            <select id="sql-keyword">
+                <option value="upper" selected>UPPERCASE</option>
+                <option value="lower">lowercase</option>
+                <option value="capitalize">Capitalize</option>
+            </select>
+        </label>
+        <label>Indent:
+            <select id="sql-indent">
+                <option value="2" selected>2 spaces</option>
+                <option value="4">4 spaces</option>
+                <option value="tab">tab</option>
+            </select>
+        </label>
+        <button class="btn btn-primary" onclick="formatSQL()"><i class="bi bi-magic"></i> Format</button>
+    </div>
+
+    <div class="split-pane">
+        <div class="pane">
+            <div class="pane-header"><span>Input</span></div>
+            <div class="pane-body">
+                <textarea id="sql-input" placeholder="select * from users where id=1"></textarea>
+            </div>
+        </div>
+        <div class="pane">
+            <div class="pane-header">
+                <span>Output</span>
+                <button class="btn btn-small" onclick="copyOutput()"><i class="bi bi-clipboard"></i> Copy</button>
+            </div>
+            <div class="pane-body"><pre id="sql-output"></pre></div>
+        </div>
+    </div>
+    <div id="sql-status" style="margin-top:.5rem;font-size:.85rem"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function formatSQL() {
+    const input = document.getElementById("sql-input").value;
+    const status = document.getElementById("sql-status");
+    if (!input.trim()) { status.textContent = "Enter some SQL."; return; }
+
+    const fd = new FormData();
+    fd.append("sql", input);
+    fd.append("keyword_case", document.getElementById("sql-keyword").value);
+    fd.append("indent", document.getElementById("sql-indent").value);
+
+    status.textContent = "Formatting...";
+    try {
+        const r = await fetch("/dev/sql-format", { method: "POST", body: fd });
+        const j = await r.json();
+        if (j.error) {
+            status.innerHTML = `<span style="color:var(--danger)"><i class="bi bi-x-circle"></i> ${j.error}</span>`;
+        } else {
+            document.getElementById("sql-output").textContent = j.text;
+            status.innerHTML = '<span style="color:var(--success)"><i class="bi bi-check-circle"></i> Formatted</span>';
+        }
+    } catch (e) {
+        status.innerHTML = `<span style="color:var(--danger)">Network error: ${e.message}</span>`;
+    }
+}
+
+function copyOutput() {
+    navigator.clipboard.writeText(document.getElementById("sql-output").textContent);
+}
+</script>
+{% endblock %}

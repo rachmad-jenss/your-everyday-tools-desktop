@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}JWT Decoder - EveryTools{% endblock %}
+{% block top_title %}JWT Decoder{% endblock %}
+
+{% block content %}
+<div class="client-tool">
+    <div class="tool-header">
+        <h1>JWT Decoder</h1>
+        <p>Decode header and payload of a JSON Web Token. Signatures are NOT verified — do not trust decoded content without verification.</p>
+    </div>
+
+    <div class="form-group">
+        <label>Paste JWT</label>
+        <textarea id="jwt-input" class="text-input" rows="4"
+            placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+            oninput="decode()"></textarea>
+    </div>
+
+    <div id="jwt-status" style="margin-bottom:1rem;font-size:.9rem"></div>
+
+    <div class="split-pane">
+        <div class="pane">
+            <div class="pane-header">
+                <span>Header <span style="font-weight:400;color:var(--text-light)">(algorithm &amp; type)</span></span>
+                <button class="btn btn-small" onclick="copyField('jwt-header')"><i class="bi bi-clipboard"></i></button>
+            </div>
+            <div class="pane-body"><pre id="jwt-header"></pre></div>
+        </div>
+        <div class="pane">
+            <div class="pane-header">
+                <span>Payload <span style="font-weight:400;color:var(--text-light)">(claims)</span></span>
+                <button class="btn btn-small" onclick="copyField('jwt-payload')"><i class="bi bi-clipboard"></i></button>
+            </div>
+            <div class="pane-body"><pre id="jwt-payload"></pre></div>
+        </div>
+    </div>
+
+    <div class="pane" style="margin-top:.8rem">
+        <div class="pane-header">
+            <span>Signature</span>
+            <button class="btn btn-small" onclick="copyField('jwt-sig')"><i class="bi bi-clipboard"></i></button>
+        </div>
+        <div class="pane-body"><pre id="jwt-sig" style="word-break:break-all"></pre></div>
+    </div>
+
+    <div id="jwt-claims" style="margin-top:1rem;font-size:.9rem;color:var(--text-light)"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function b64urlDecode(s) {
+    s = s.replace(/-/g, "+").replace(/_/g, "/");
+    while (s.length % 4) s += "=";
+    const bin = atob(s);
+    const bytes = new Uint8Array([...bin].map(c => c.charCodeAt(0)));
+    return new TextDecoder("utf-8").decode(bytes);
+}
+
+function decode() {
+    const val = document.getElementById("jwt-input").value.trim();
+    const status = document.getElementById("jwt-status");
+    const claims = document.getElementById("jwt-claims");
+    ["jwt-header","jwt-payload","jwt-sig"].forEach(i => document.getElementById(i).textContent = "");
+    claims.innerHTML = "";
+
+    if (!val) { status.textContent = ""; return; }
+
+    const parts = val.split(".");
+    if (parts.length !== 3) {
+        status.innerHTML = '<span style="color:var(--danger)"><i class="bi bi-x-circle"></i> Invalid JWT: expected 3 dot-separated parts</span>';
+        return;
+    }
+
+    try {
+        const header = JSON.parse(b64urlDecode(parts[0]));
+        const payload = JSON.parse(b64urlDecode(parts[1]));
+        document.getElementById("jwt-header").textContent = JSON.stringify(header, null, 2);
+        document.getElementById("jwt-payload").textContent = JSON.stringify(payload, null, 2);
+        document.getElementById("jwt-sig").textContent = parts[2];
+
+        status.innerHTML = '<span style="color:var(--success)"><i class="bi bi-check-circle"></i> Decoded successfully (signature not verified)</span>';
+
+        const notes = [];
+        const now = Math.floor(Date.now() / 1000);
+        if (payload.exp) {
+            const d = new Date(payload.exp * 1000);
+            const expired = payload.exp < now;
+            notes.push(`<strong>exp:</strong> ${d.toLocaleString()} ${expired ? '<span style="color:var(--danger)">(EXPIRED)</span>' : '<span style="color:var(--success)">(valid)</span>'}`);
+        }
+        if (payload.iat) notes.push(`<strong>iat:</strong> ${new Date(payload.iat * 1000).toLocaleString()}`);
+        if (payload.nbf) notes.push(`<strong>nbf:</strong> ${new Date(payload.nbf * 1000).toLocaleString()}`);
+        if (payload.iss) notes.push(`<strong>iss:</strong> ${payload.iss}`);
+        if (payload.aud) notes.push(`<strong>aud:</strong> ${Array.isArray(payload.aud) ? payload.aud.join(", ") : payload.aud}`);
+        if (payload.sub) notes.push(`<strong>sub:</strong> ${payload.sub}`);
+        if (notes.length) claims.innerHTML = notes.join(" &middot; ");
+    } catch (e) {
+        status.innerHTML = `<span style="color:var(--danger)"><i class="bi bi-x-circle"></i> Decode error: ${e.message}</span>`;
+    }
+}
+
+function copyField(id) {
+    navigator.clipboard.writeText(document.getElementById(id).textContent);
+}
+</script>
+{% endblock %}

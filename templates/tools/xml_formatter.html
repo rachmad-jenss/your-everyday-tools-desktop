@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}XML Formatter - EveryTools{% endblock %}
+{% block top_title %}XML Formatter{% endblock %}
+
+{% block content %}
+<div class="client-tool">
+    <div class="tool-header">
+        <h1>XML Formatter</h1>
+        <p>Format, validate, and minify XML data</p>
+    </div>
+    <div class="split-pane">
+        <div class="pane">
+            <div class="pane-header">
+                <span>Input</span>
+                <div>
+                    <button class="btn btn-small" onclick="formatXML()">Format</button>
+                    <button class="btn btn-small" onclick="minifyXML()">Minify</button>
+                </div>
+            </div>
+            <div class="pane-body">
+                <textarea id="xml-input" placeholder="<root><item>value</item></root>"></textarea>
+            </div>
+        </div>
+        <div class="pane">
+            <div class="pane-header">
+                <span>Output</span>
+                <button class="btn btn-small" onclick="copyOutput()"><i class="bi bi-clipboard"></i> Copy</button>
+            </div>
+            <div class="pane-body">
+                <pre id="xml-output"></pre>
+            </div>
+        </div>
+    </div>
+    <div id="xml-status" style="margin-top:.5rem;font-size:.85rem"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function parseXML(src) {
+    const doc = new DOMParser().parseFromString(src, "application/xml");
+    const err = doc.querySelector("parsererror");
+    if (err) throw new Error(err.textContent.split("\n")[0]);
+    return doc;
+}
+
+function pretty(node, indent) {
+    const pad = "  ".repeat(indent);
+    if (node.nodeType === 3) {
+        const t = node.nodeValue.trim();
+        return t ? pad + t : "";
+    }
+    if (node.nodeType === 8) return pad + "<!--" + node.nodeValue + "-->";
+    if (node.nodeType !== 1) return "";
+
+    const attrs = [...node.attributes].map(a => ` ${a.name}="${a.value.replace(/"/g,'&quot;')}"`).join("");
+    const name = node.nodeName;
+    const kids = [...node.childNodes].filter(n => !(n.nodeType === 3 && !n.nodeValue.trim()));
+
+    if (!kids.length) return `${pad}<${name}${attrs}/>`;
+    if (kids.length === 1 && kids[0].nodeType === 3) {
+        return `${pad}<${name}${attrs}>${kids[0].nodeValue.trim()}</${name}>`;
+    }
+    const body = kids.map(k => pretty(k, indent + 1)).filter(Boolean).join("\n");
+    return `${pad}<${name}${attrs}>\n${body}\n${pad}</${name}>`;
+}
+
+function formatXML() {
+    const input = document.getElementById("xml-input").value;
+    const status = document.getElementById("xml-status");
+    try {
+        const doc = parseXML(input);
+        const result = pretty(doc.documentElement, 0);
+        const decl = input.trim().startsWith("<?xml") ? input.trim().match(/^<\?xml[^?]*\?>/)[0] + "\n" : "";
+        document.getElementById("xml-output").textContent = decl + result;
+        status.innerHTML = '<span style="color:var(--success)"><i class="bi bi-check-circle"></i> Valid XML</span>';
+    } catch (e) {
+        status.innerHTML = `<span style="color:var(--danger)"><i class="bi bi-x-circle"></i> ${e.message}</span>`;
+    }
+}
+
+function minifyXML() {
+    const input = document.getElementById("xml-input").value;
+    const status = document.getElementById("xml-status");
+    try {
+        parseXML(input);
+        const out = input.replace(/>\s+</g, "><").replace(/\s+/g, " ").trim();
+        document.getElementById("xml-output").textContent = out;
+        status.innerHTML = '<span style="color:var(--success)"><i class="bi bi-check-circle"></i> Valid XML (minified)</span>';
+    } catch (e) {
+        status.innerHTML = `<span style="color:var(--danger)"><i class="bi bi-x-circle"></i> ${e.message}</span>`;
+    }
+}
+
+function copyOutput() {
+    navigator.clipboard.writeText(document.getElementById("xml-output").textContent);
+}
+</script>
+{% endblock %}

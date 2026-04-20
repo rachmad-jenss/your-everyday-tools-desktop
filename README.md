@@ -1,9 +1,11 @@
 # Your Everyday Tools
 
-A lightweight, self-hosted web app that bundles 57 everyday utilities into a single interface. Built with Python + Flask, zero JavaScript frameworks, and minimal CSS — no bloat, just tools.
+A lightweight, self-hosted web app that bundles 77 everyday utilities into a single interface. Built with Python + Flask, zero JavaScript frameworks, and minimal CSS — no bloat, just tools.
 
 ![Python](https://img.shields.io/badge/Python-3.10+-blue)
 ![Flask](https://img.shields.io/badge/Flask-3.x-green)
+
+See [CHANGELOG.md](CHANGELOG.md) for release history and recent fixes.
 
 ---
 
@@ -107,6 +109,38 @@ A lightweight, self-hosted web app that bundles 57 everyday utilities into a sin
 |------|-------------|
 | **Password Generator** | Generate strong random passwords with configurable length, character types, and entropy display |
 | **Hash Generator** | Generate MD5, SHA-1, SHA-256, and SHA-512 hashes from text |
+| **File Hash** | Compute MD5, SHA-1, SHA-256, and SHA-512 hashes of an uploaded file (streamed, no size cap beyond upload limit) |
+
+### Developer Utilities
+| Tool | Description |
+|------|-------------|
+| **UUID Generator** | Generate v4 UUIDs — single or bulk (up to 1000), with uppercase, brace, and no-dash formatting |
+| **JWT Decoder** | Decode JSON Web Tokens client-side to inspect header, payload, and claims (decode only — does not verify signatures) |
+| **User-Agent Parser** | Parse browser, OS, device, and engine from any User-Agent string |
+| **SQL Formatter** | Pretty-print SQL with configurable keyword casing (UPPER / lower / Capitalize) and indentation — powered by `sqlparse` |
+| **XML Formatter** | Format, validate, and minify XML using the browser's native DOMParser |
+| **HTML Formatter** | Beautify or minify HTML source (void tags, inline tags, and `<script>` / `<style>` content handled correctly) |
+| **CSS Formatter** | Beautify or minify CSS rules with indent-aware output |
+| **JS Formatter** | Basic JavaScript beautifier and minifier (for complex code, use Prettier) |
+| **Cron Parser** | Validate cron expressions, see next upcoming run times, and get a field-by-field breakdown |
+| **JSONPath Tester** | Evaluate JSONPath expressions against JSON data — supports extended syntax via `jsonpath-ng` |
+
+### Archive Tools
+| Tool | Description |
+|------|-------------|
+| **Create ZIP** | Bundle multiple files into a single `.zip`, choose Deflate or Store compression |
+| **Extract ZIP** | Extract the contents of a `.zip` and re-download them (encrypted ZIPs not supported; 500 MB total cap) |
+| **ZIP Info** | List all entries in a `.zip` with uncompressed/compressed sizes, modified date, and overall compression ratio |
+
+### Audio & Video (requires `ffmpeg` on PATH)
+| Tool | Description |
+|------|-------------|
+| **Convert Audio** | Convert between MP3, WAV, OGG, FLAC, AAC, M4A, and Opus with adjustable bitrate |
+| **Convert Video** | Convert between MP4, WebM, MKV, MOV, and AVI (uses sensible codec defaults per target) |
+| **Extract Audio** | Pull the audio track out of a video file to MP3 / WAV / OGG / M4A |
+| **Trim Media** | Trim audio or video by start/end time (stream-copy first, re-encodes on keyframe mismatch) |
+| **Compress Video** | Re-encode video with H.264 at a chosen CRF and preset to shrink file size |
+| **Video to GIF** | Convert a clip to an animated GIF with configurable FPS, width, start, and duration |
 
 ---
 
@@ -153,6 +187,8 @@ The core app works out of the box with the main dependencies. Some features requ
 | `pdf2docx` | PDF to Word | Pure Python, but conversion quality depends on PDF complexity. |
 | `pytesseract` | Image to Text (OCR), OCR PDF | Requires the [Tesseract](https://github.com/tesseract-ocr/tesseract) binary installed on your system. For non-English OCR, download the matching `*.traineddata` language pack into your Tesseract `tessdata` folder. |
 | `ezdxf` + `matplotlib` | CAD to PDF/Image | Renders DXF drawings. For DWG support, also install the free [ODA File Converter](https://www.opendesign.com/guestfiles/oda_file_converter) and make sure it's on your `PATH`. |
+| `ffmpeg` (external) | All Audio & Video tools | Requires the [FFmpeg](https://ffmpeg.org/download.html) binary on your `PATH`. Each media tool page shows a green banner if FFmpeg is detected, with install instructions if not. |
+| `sqlparse`, `croniter`, `jsonpath-ng` | SQL Formatter, Cron Parser, JSONPath Tester | Small pure-Python packages included in `requirements.txt`. Everything else under *Developer Utilities* runs entirely in the browser. |
 
 If you only need the core tools, install the minimal set:
 
@@ -209,8 +245,11 @@ your-everyday-tools/
 │   ├── text_tools.py               # Text & data tool page routes
 │   ├── calculator_tools.py         # Calculator page routes
 │   ├── qr_tools.py                 # QR code endpoints
-│   ├── security_tools.py           # Security tool page routes
-│   └── spreadsheet_tools.py        # Excel / CSV / JSON workbook tools
+│   ├── security_tools.py           # Security tool page routes + file hash
+│   ├── spreadsheet_tools.py        # Excel / CSV / JSON workbook tools
+│   ├── dev_tools.py                # Developer utilities (UUID/JWT/UA/formatters/cron/jsonpath)
+│   ├── archive_tools.py            # ZIP create / extract / info
+│   └── media_tools.py              # FFmpeg-powered audio & video tools
 ├── templates/
 │   ├── base.html                   # Main layout (sidebar + content area)
 │   ├── index.html                  # Home page with tool cards
@@ -249,7 +288,7 @@ your-everyday-tools/
 - **Client-side tools** (text utilities, calculators, security tools) run entirely in the browser with vanilla JavaScript — zero server round-trips.
 - **In-memory processing** — all file operations use `BytesIO`. No temporary files are written to disk.
 - **No CSS framework** — custom CSS with CSS Grid, Flexbox, and CSS custom properties. The only external resource is Bootstrap Icons via CDN (~100 KB) for the icon set.
-- **Graceful degradation** — heavy optional packages (`rembg`, `pyzbar`, `pdf2docx`, `pytesseract`) are checked at import time. If missing, the affected tool shows a clear install instruction instead of crashing.
+- **Graceful degradation** — heavy optional packages (`rembg`, `pyzbar`, `pdf2docx`, `pytesseract`) and external binaries (ODA File Converter, FFmpeg) are probed at import time via `importlib` / `shutil.which`. If missing, the affected tool shows a clear install instruction instead of crashing.
 
 ---
 

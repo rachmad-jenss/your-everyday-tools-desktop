@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}UUID Generator - EveryTools{% endblock %}
+{% block top_title %}UUID Generator{% endblock %}
+
+{% block content %}
+<div class="client-tool" style="max-width:640px">
+    <div class="tool-header">
+        <h1>UUID Generator</h1>
+        <p>Generate v4 (random) and nil UUIDs. Optionally generate many at once.</p>
+    </div>
+
+    <div class="form-group" style="display:grid;grid-template-columns:1fr 150px;gap:.6rem;align-items:end">
+        <div>
+            <label>How many?</label>
+            <input type="number" id="uuid-count" value="1" min="1" max="1000">
+        </div>
+        <button class="btn btn-primary" onclick="generateUUIDs()"><i class="bi bi-arrow-repeat"></i> Generate</button>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:1rem">
+        <label class="checkbox-label"><input type="checkbox" id="uuid-upper" onchange="generateUUIDs()"><span>Uppercase</span></label>
+        <label class="checkbox-label"><input type="checkbox" id="uuid-braces" onchange="generateUUIDs()"><span>Wrap in braces { }</span></label>
+        <label class="checkbox-label"><input type="checkbox" id="uuid-nodash" onchange="generateUUIDs()"><span>Remove dashes</span></label>
+    </div>
+
+    <div class="pane">
+        <div class="pane-header">
+            <span>Output</span>
+            <button class="btn btn-small" onclick="copyOutput()"><i class="bi bi-clipboard"></i> Copy</button>
+        </div>
+        <div class="pane-body">
+            <pre id="uuid-output" style="white-space:pre-wrap;word-break:break-all"></pre>
+        </div>
+    </div>
+
+    <div style="margin-top:1rem;font-size:.85rem;color:var(--text-light)">
+        <p><strong>Special values:</strong>
+            <button class="btn btn-small" onclick="showNil()">Nil UUID</button>
+            <button class="btn btn-small" onclick="showMax()">Max UUID</button>
+        </p>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function uuidv4() {
+    if (crypto.randomUUID) return crypto.randomUUID();
+    const b = crypto.getRandomValues(new Uint8Array(16));
+    b[6] = (b[6] & 0x0f) | 0x40;
+    b[8] = (b[8] & 0x3f) | 0x80;
+    const h = [...b].map(x => x.toString(16).padStart(2, "0")).join("");
+    return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
+}
+
+function format(u) {
+    if (document.getElementById("uuid-nodash").checked) u = u.replace(/-/g, "");
+    if (document.getElementById("uuid-upper").checked) u = u.toUpperCase();
+    if (document.getElementById("uuid-braces").checked) u = "{" + u + "}";
+    return u;
+}
+
+function generateUUIDs() {
+    const n = Math.min(1000, Math.max(1, parseInt(document.getElementById("uuid-count").value) || 1));
+    const out = [];
+    for (let i = 0; i < n; i++) out.push(format(uuidv4()));
+    document.getElementById("uuid-output").textContent = out.join("\n");
+}
+
+function showNil() {
+    document.getElementById("uuid-output").textContent = format("00000000-0000-0000-0000-000000000000");
+}
+function showMax() {
+    document.getElementById("uuid-output").textContent = format("ffffffff-ffff-ffff-ffff-ffffffffffff");
+}
+function copyOutput() {
+    navigator.clipboard.writeText(document.getElementById("uuid-output").textContent);
+}
+generateUUIDs();
+</script>
+{% endblock %}

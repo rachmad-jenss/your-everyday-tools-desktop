@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}User-Agent Parser - EveryTools{% endblock %}
+{% block top_title %}User-Agent Parser{% endblock %}
+
+{% block content %}
+<div class="client-tool">
+    <div class="tool-header">
+        <h1>User-Agent Parser</h1>
+        <p>Extract browser, OS, and device info from a User-Agent string.</p>
+    </div>
+
+    <div class="form-group">
+        <label>User-Agent string <button class="btn btn-small" onclick="useMine()" style="margin-left:.5rem">Use mine</button></label>
+        <textarea id="ua-input" class="text-input" rows="3"
+            placeholder="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ..."
+            oninput="parseUA()"></textarea>
+    </div>
+
+    <div id="ua-results" style="display:grid;grid-template-columns:1fr 1fr;gap:.8rem"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function row(label, val) {
+    return `<div style="padding:.35rem .6rem;border-bottom:1px solid var(--border)">
+        <div style="font-size:.75rem;color:var(--text-light);text-transform:uppercase;letter-spacing:.03em">${label}</div>
+        <div style="font-weight:500">${val || "—"}</div>
+    </div>`;
+}
+
+function parseUA() {
+    const ua = document.getElementById("ua-input").value.trim();
+    const out = document.getElementById("ua-results");
+    if (!ua) { out.innerHTML = ""; return; }
+
+    let browser = "Unknown", browserVer = "";
+    let os = "Unknown", osVer = "";
+    let device = "Desktop";
+    let engine = "Unknown";
+
+    // Browser — order matters (more specific first)
+    const b = [
+        ["Edg/", "Edge"],
+        ["OPR/|Opera/", "Opera"],
+        ["Firefox/", "Firefox"],
+        ["Chrome/", "Chrome"],
+        ["Safari/", "Safari"],
+        ["MSIE |Trident/", "Internet Explorer"],
+    ];
+    for (const [pat, name] of b) {
+        const m = ua.match(new RegExp(`(?:${pat})([\\d.]+)`));
+        if (m) { browser = name; browserVer = m[1]; break; }
+    }
+
+    // OS
+    if (/Windows NT 10\.0/.test(ua)) { os = "Windows"; osVer = "10 / 11"; }
+    else if (/Windows NT 6\.3/.test(ua)) { os = "Windows"; osVer = "8.1"; }
+    else if (/Windows NT 6\.1/.test(ua)) { os = "Windows"; osVer = "7"; }
+    else if (/Mac OS X ([\d_.]+)/.test(ua)) { os = "macOS"; osVer = RegExp.$1.replace(/_/g, "."); }
+    else if (/Android ([\d.]+)/.test(ua)) { os = "Android"; osVer = RegExp.$1; device = "Mobile"; }
+    else if (/iPhone OS ([\d_]+)/.test(ua)) { os = "iOS"; osVer = RegExp.$1.replace(/_/g, "."); device = "Mobile"; }
+    else if (/iPad; CPU OS ([\d_]+)/.test(ua)) { os = "iPadOS"; osVer = RegExp.$1.replace(/_/g, "."); device = "Tablet"; }
+    else if (/CrOS/.test(ua)) { os = "ChromeOS"; }
+    else if (/Linux/.test(ua)) { os = "Linux"; }
+
+    // Device refine
+    if (/Mobile|iPhone|Android.*Mobile/.test(ua)) device = "Mobile";
+    else if (/iPad|Tablet/.test(ua)) device = "Tablet";
+    else if (/bot|crawler|spider|slurp/i.test(ua)) device = "Bot / Crawler";
+
+    // Engine
+    if (/Gecko\//.test(ua) && !/like Gecko/.test(ua)) engine = "Gecko";
+    else if (/AppleWebKit\//.test(ua)) engine = /Chrome|Chromium|Edg/.test(ua) ? "Blink" : "WebKit";
+    else if (/Trident\//.test(ua)) engine = "Trident";
+
+    out.innerHTML =
+        row("Browser", browser + (browserVer ? " " + browserVer : "")) +
+        row("OS", os + (osVer ? " " + osVer : "")) +
+        row("Device Type", device) +
+        row("Engine", engine);
+}
+
+function useMine() {
+    document.getElementById("ua-input").value = navigator.userAgent;
+    parseUA();
+}
+</script>
+{% endblock %}

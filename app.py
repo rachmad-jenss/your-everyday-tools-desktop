@@ -116,6 +116,47 @@ TOOL_CATEGORIES = [
         "tools": [
             {"id": "password-generator", "name": "Password Generator", "desc": "Generate strong random passwords", "icon": "bi-key-fill"},
             {"id": "hash-generator", "name": "Hash Generator", "desc": "Generate MD5, SHA hashes", "icon": "bi-fingerprint"},
+            {"id": "file-hash", "name": "File Hash", "desc": "Compute hashes of uploaded files", "icon": "bi-file-earmark-lock-fill"},
+        ],
+    },
+    {
+        "id": "dev",
+        "name": "Developer Utilities",
+        "icon": "bi-code-slash",
+        "tools": [
+            {"id": "uuid", "name": "UUID Generator", "desc": "Generate v4 UUIDs (bulk supported)", "icon": "bi-hash"},
+            {"id": "jwt", "name": "JWT Decoder", "desc": "Decode JWT tokens (client-side)", "icon": "bi-key"},
+            {"id": "user-agent", "name": "User-Agent Parser", "desc": "Parse browser, OS, and device info", "icon": "bi-window"},
+            {"id": "sql-format", "name": "SQL Formatter", "desc": "Pretty-print SQL with keyword casing", "icon": "bi-filetype-sql"},
+            {"id": "xml-format", "name": "XML Formatter", "desc": "Format, validate, and minify XML", "icon": "bi-filetype-xml"},
+            {"id": "html-format", "name": "HTML Formatter", "desc": "Beautify or minify HTML", "icon": "bi-filetype-html"},
+            {"id": "css-format", "name": "CSS Formatter", "desc": "Beautify or minify CSS", "icon": "bi-filetype-css"},
+            {"id": "js-format", "name": "JS Formatter", "desc": "Beautify or minify JavaScript", "icon": "bi-filetype-js"},
+            {"id": "cron", "name": "Cron Parser", "desc": "Validate cron and preview runs", "icon": "bi-calendar-week-fill"},
+            {"id": "jsonpath", "name": "JSONPath Tester", "desc": "Query JSON with JSONPath expressions", "icon": "bi-search"},
+        ],
+    },
+    {
+        "id": "archive",
+        "name": "Archive Tools",
+        "icon": "bi-file-zip-fill",
+        "tools": [
+            {"id": "zip", "name": "Create ZIP", "desc": "Bundle multiple files into a .zip", "icon": "bi-file-zip"},
+            {"id": "unzip", "name": "Extract ZIP", "desc": "Extract contents of a .zip archive", "icon": "bi-box-arrow-up"},
+            {"id": "zip-info", "name": "ZIP Info", "desc": "Inspect archive contents and sizes", "icon": "bi-info-circle-fill"},
+        ],
+    },
+    {
+        "id": "media",
+        "name": "Audio & Video",
+        "icon": "bi-camera-reels-fill",
+        "tools": [
+            {"id": "convert-audio", "name": "Convert Audio", "desc": "Change between audio formats", "icon": "bi-music-note-beamed"},
+            {"id": "convert-video", "name": "Convert Video", "desc": "Change between video formats", "icon": "bi-camera-video-fill"},
+            {"id": "extract-audio", "name": "Extract Audio", "desc": "Pull audio track from a video", "icon": "bi-mic-fill"},
+            {"id": "trim", "name": "Trim Media", "desc": "Cut audio or video by time range", "icon": "bi-scissors"},
+            {"id": "compress-video", "name": "Compress Video", "desc": "Re-encode to a smaller file", "icon": "bi-file-zip-fill"},
+            {"id": "video-to-gif", "name": "Video to GIF", "desc": "Convert clips to animated GIFs", "icon": "bi-file-earmark-play-fill"},
         ],
     },
 ]
@@ -150,6 +191,9 @@ from routes.calculator_tools import bp as calc_bp
 from routes.qr_tools import bp as qr_bp
 from routes.security_tools import bp as security_bp
 from routes.spreadsheet_tools import bp as spreadsheet_bp
+from routes.dev_tools import bp as dev_bp
+from routes.archive_tools import bp as archive_bp
+from routes.media_tools import bp as media_bp
 
 app.register_blueprint(convert_bp, url_prefix="/convert")
 app.register_blueprint(pdf_bp, url_prefix="/pdf")
@@ -159,6 +203,9 @@ app.register_blueprint(calc_bp, url_prefix="/calc")
 app.register_blueprint(qr_bp, url_prefix="/qr")
 app.register_blueprint(security_bp, url_prefix="/security")
 app.register_blueprint(spreadsheet_bp, url_prefix="/spreadsheet")
+app.register_blueprint(dev_bp, url_prefix="/dev")
+app.register_blueprint(archive_bp, url_prefix="/archive")
+app.register_blueprint(media_bp, url_prefix="/media")
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)

@@ -268,26 +268,37 @@ def compress():
 
     quality = request.form.get("quality", "medium")
     image_quality = {"low": 40, "medium": 65, "high": 85}.get(quality, 65)
+    max_dim = {"low": 1200, "medium": 1800, "high": 2400}.get(quality, 1800)
+
+    from PIL import Image
 
     doc = fitz.open(stream=files[0].read(), filetype="pdf")
+    processed_xrefs = set()
 
     for page in doc:
-        images = page.get_images(full=True)
-        for img_info in images:
+        for img_info in page.get_images(full=True):
             xref = img_info[0]
+            if xref in processed_xrefs:
+                continue
+            processed_xrefs.add(xref)
             try:
                 base_image = doc.extract_image(xref)
                 if not base_image:
                     continue
-                img_bytes = base_image["image"]
-                from PIL import Image
-                pil_img = Image.open(io.BytesIO(img_bytes))
-                if pil_img.mode in ("RGBA", "P"):
+                pil_img = Image.open(io.BytesIO(base_image["image"]))
+                if pil_img.mode in ("RGBA", "LA", "P"):
                     pil_img = pil_img.convert("RGB")
+                elif pil_img.mode not in ("RGB", "L"):
+                    pil_img = pil_img.convert("RGB")
+
+                if max(pil_img.size) > max_dim:
+                    pil_img.thumbnail((max_dim, max_dim), Image.LANCZOS)
+
                 buf = io.BytesIO()
                 pil_img.save(buf, format="JPEG", quality=image_quality, optimize=True)
-                doc._deleteObject(xref)
-                page.insert_image(page.rect, stream=buf.getvalue())
+
+                # Replace image in-place — preserves original placement & size.
+                page.replace_image(xref, stream=buf.getvalue())
             except Exception:
                 continue
 
@@ -334,21 +345,56 @@ def resize():
 
     mode = request.form.get("mode", "scale")
     doc = fitz.open(stream=files[0].read(), filetype="pdf")
+    new_doc = fitz.open()
 
     if mode == "scale":
-        scale = float(request.form.get("scale", 100)) / 100.0
+        try:
+            scale = float(request.form.get("scale", 100)) / 100.0
+        except ValueError:
+            scale = 1.0
+        if scale <= 0:
+            doc.close()
+            new_doc.close()
+            return jsonify(error="Scale must be greater than 0."), 400
+
         for page in doc:
             r = page.rect
-            new_rect = fitz.Rect(0, 0, r.width * scale, r.height * scale)
-            page.set_mediabox(new_rect)
+            new_w = r.width * scale
+            new_h = r.height * scale
+            new_page = new_doc.new_page(width=new_w, height=new_h)
+            new_page.show_pdf_page(new_page.rect, doc, page.number,
+                                   rotate=page.rotation)
+
     elif mode == "paper":
         paper = request.form.get("paper", "a4")
-        w, h = PAPER_SIZES.get(paper, PAPER_SIZES["a4"])
+        target_w, target_h = PAPER_SIZES.get(paper, PAPER_SIZES["a4"])
+
         for page in doc:
-            page.set_mediabox(fitz.Rect(0, 0, w, h))
+            r = page.rect
+            src_w, src_h = r.width, r.height
+
+            # Match target orientation to source orientation
+            if (src_w > src_h) != (target_w > target_h):
+                page_w, page_h = target_h, target_w
+            else:
+                page_w, page_h = target_w, target_h
+
+            # Fit source page into new page, preserving aspect ratio
+            fit = min(page_w / src_w, page_h / src_h)
+            content_w = src_w * fit
+            content_h = src_h * fit
+            x0 = (page_w - content_w) / 2
+            y0 = (page_h - content_h) / 2
+
+            new_page = new_doc.new_page(width=page_w, height=page_h)
+            new_page.show_pdf_page(
+                fitz.Rect(x0, y0, x0 + content_w, y0 + content_h),
+                doc, page.number, rotate=page.rotation
+            )
 
     output = io.BytesIO()
-    doc.save(output)
+    new_doc.save(output, garbage=4, deflate=True)
+    new_doc.close()
     doc.close()
     output.seek(0)
 

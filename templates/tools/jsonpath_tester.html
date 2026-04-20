@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}JSONPath Tester - EveryTools{% endblock %}
+{% block top_title %}JSONPath Tester{% endblock %}
+
+{% block content %}
+<div class="client-tool">
+    <div class="tool-header">
+        <h1>JSONPath Tester</h1>
+        <p>Query JSON data using JSONPath expressions</p>
+    </div>
+
+    <div style="display:flex;gap:.5rem;margin-bottom:.6rem;flex-wrap:wrap;align-items:center">
+        <label style="flex:1;min-width:240px">Path:
+            <input type="text" id="jp-path" value="$.store.book[*].title" style="font-family:monospace;width:100%">
+        </label>
+        <button class="btn btn-primary" onclick="runPath()"><i class="bi bi-play-circle"></i> Evaluate</button>
+    </div>
+
+    <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.6rem">
+        <button class="btn btn-small" onclick="setExample()">Load example</button>
+        <button class="btn btn-small" onclick="setPath('$..author')">All authors</button>
+        <button class="btn btn-small" onclick="setPath('$.store.book[?(@.price < 10)]')">Cheap books</button>
+        <button class="btn btn-small" onclick="setPath('$..book[0,1]')">First two books</button>
+        <button class="btn btn-small" onclick="setPath('$..*')">Everything</button>
+    </div>
+
+    <div class="split-pane">
+        <div class="pane">
+            <div class="pane-header"><span>JSON Input</span></div>
+            <div class="pane-body">
+                <textarea id="jp-input" placeholder='{"key": "value"}'></textarea>
+            </div>
+        </div>
+        <div class="pane">
+            <div class="pane-header">
+                <span>Matches</span>
+                <button class="btn btn-small" onclick="copyOutput()"><i class="bi bi-clipboard"></i> Copy</button>
+            </div>
+            <div class="pane-body"><pre id="jp-output"></pre></div>
+        </div>
+    </div>
+    <div id="jp-status" style="margin-top:.5rem;font-size:.85rem"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const EXAMPLE = {
+    store: {
+        book: [
+            {category: "fiction", author: "J.R.R. Tolkien", title: "The Hobbit", price: 14.99},
+            {category: "fiction", author: "George Orwell", title: "1984", price: 9.99},
+            {category: "reference", author: "Nigel Rees", title: "Sayings of the Century", price: 8.95},
+            {category: "fiction", author: "Evelyn Waugh", title: "Sword of Honour", price: 12.99}
+        ],
+        bicycle: {color: "red", price: 19.95}
+    }
+};
+
+function setExample() {
+    document.getElementById("jp-input").value = JSON.stringify(EXAMPLE, null, 2);
+}
+
+function setPath(p) {
+    document.getElementById("jp-path").value = p;
+    runPath();
+}
+
+async function runPath() {
+    const data = document.getElementById("jp-input").value;
+    const path = document.getElementById("jp-path").value;
+    const status = document.getElementById("jp-status");
+
+    if (!data.trim()) { status.textContent = "Provide JSON data."; return; }
+    if (!path.trim()) { status.textContent = "Provide a JSONPath expression."; return; }
+
+    try { JSON.parse(data); } catch (e) {
+        status.innerHTML = `<span style="color:var(--danger)"><i class="bi bi-x-circle"></i> Invalid JSON: ${e.message}</span>`;
+        return;
+    }
+
+    const fd = new FormData();
+    fd.append("data", data);
+    fd.append("path", path);
+
+    status.textContent = "Evaluating...";
+    try {
+        const r = await fetch("/dev/jsonpath", { method: "POST", body: fd });
+        const j = await r.json();
+        if (j.error) {
+            status.innerHTML = `<span style="color:var(--danger)"><i class="bi bi-x-circle"></i> ${j.error}</span>`;
+            document.getElementById("jp-output").textContent = "";
+        } else {
+            document.getElementById("jp-output").textContent = JSON.stringify(j.matches, null, 2);
+            status.innerHTML = `<span style="color:var(--success)"><i class="bi bi-check-circle"></i> ${j.count} match${j.count === 1 ? "" : "es"}</span>`;
+        }
+    } catch (e) {
+        status.innerHTML = `<span style="color:var(--danger)">Network error: ${e.message}</span>`;
+    }
+}
+
+function copyOutput() {
+    navigator.clipboard.writeText(document.getElementById("jp-output").textContent);
+}
+
+setExample();
+</script>
+{% endblock %}
