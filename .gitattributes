@@ -1,0 +1,8 @@
+* text=auto
+
+# Shell scripts must have LF line endings, even on Windows checkouts.
+*.sh       text eol=lf
+*.command  text eol=lf
+
+# Batch files are Windows-only.
+*.bat      text eol=crlf

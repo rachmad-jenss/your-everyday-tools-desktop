@@ -150,11 +150,21 @@ See [CHANGELOG.md](CHANGELOG.md) for release history and recent fixes.
 
 ## Quick Start
 
-### Prerequisites
+### Easy start (recommended — no command line needed)
 
-- **Python 3.10+**
+Install [Python 3.10+](https://www.python.org/downloads/) once (on Windows, tick **"Add Python to PATH"** during install), then:
 
-### Installation
+| OS | What to do |
+|----|-----------|
+| **Windows** | Double-click `run.bat` |
+| **macOS** | Double-click `run.command`. First time only, open Terminal in this folder and run `chmod +x run.command` (macOS strips the executable bit on downloads). |
+| **Linux** | `chmod +x run.sh && ./run.sh` |
+
+The launcher creates a virtual environment, installs dependencies, starts the server, and opens your browser automatically. Close the window to stop. Subsequent runs skip the setup step.
+
+### Manual install
+
+If you prefer full control:
 
 ```bash
 # Clone the repository
@@ -168,11 +178,8 @@ venv\Scripts\activate           # Windows
 
 # Install dependencies
 pip install -r requirements.txt
-```
 
-### Run
-
-```bash
+# Run
 python app.py
 ```
 

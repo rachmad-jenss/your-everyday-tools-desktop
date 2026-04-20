@@ -2,6 +2,12 @@
 
 All notable changes to **Your Everyday Tools** are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project loosely follows [Semantic Versioning](https://semver.org/).
 
+## [0.4.2] — 2026-04-20
+
+### Added
+- **Double-click launchers** — `run.bat` for Windows, `run.command` for macOS, and `run.sh` for Linux. Non-technical users only need to install Python once, then double-click the launcher. It auto-creates a virtual environment, installs dependencies, starts the server, and opens the browser. Close the window to stop.
+- `.gitattributes` pinning LF line endings on shell/command files so the launchers work after a Windows checkout.
+
 ## [0.4.1] — 2026-04-20
 
 ### Fixed
