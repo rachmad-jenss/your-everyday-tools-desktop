@@ -1,4 +1,5 @@
 import io
+import re
 import qrcode
 from flask import Blueprint, render_template, request, send_file, jsonify
 
@@ -8,6 +9,13 @@ try:
     HAS_PYZBAR = True
 except ImportError:
     HAS_PYZBAR = False
+
+try:
+    import barcode as pybarcode
+    from barcode.writer import ImageWriter, SVGWriter
+    HAS_BARCODE = True
+except ImportError:
+    HAS_BARCODE = False
 
 bp = Blueprint("qr", __name__)
 
@@ -100,3 +108,108 @@ def read():
 
     text = "\n".join(f"[{d['type']}] {d['data']}" for d in decoded)
     return jsonify(text=text)
+
+
+BARCODE_TYPES = [
+    {"value": "code128", "label": "Code 128 (general text)"},
+    {"value": "code39", "label": "Code 39 (uppercase/digits)"},
+    {"value": "ean13", "label": "EAN-13 (12 digits)"},
+    {"value": "ean8", "label": "EAN-8 (7 digits)"},
+    {"value": "upca", "label": "UPC-A (11 digits)"},
+    {"value": "isbn13", "label": "ISBN-13 (12 digits)"},
+    {"value": "isbn10", "label": "ISBN-10 (9 digits)"},
+    {"value": "issn", "label": "ISSN (7 digits)"},
+    {"value": "jan", "label": "JAN (12 digits)"},
+    {"value": "pzn", "label": "PZN (6 digits)"},
+]
+
+
+@bp.route("/barcode")
+def barcode_page():
+    return render_template("upload_tool.html",
+        title="Generate Barcode",
+        description="Create 1D barcodes (Code128, EAN13, UPC, ISBN, and more)",
+        endpoint="/qr/barcode",
+        text_input=True,
+        text_label="Barcode value",
+        text_placeholder="Enter digits or text (see selected type's requirements)...",
+        accept="",
+        multiple=False,
+        options=[
+            {"type": "select", "name": "btype", "label": "Barcode type",
+             "choices": BARCODE_TYPES},
+            {"type": "select", "name": "format", "label": "Output format",
+             "choices": [
+                 {"value": "png", "label": "PNG"},
+                 {"value": "svg", "label": "SVG (vector)"},
+             ]},
+            {"type": "checkbox", "name": "show_text", "label": "Show value below bars", "default": True},
+            {"type": "number", "name": "module_width", "label": "Bar width (mm)", "default": 0.2, "min": 0.1, "max": 1.0, "step": 0.1},
+            {"type": "number", "name": "module_height", "label": "Bar height (mm)", "default": 15, "min": 5, "max": 50},
+        ],
+        button_text="Generate Barcode")
+
+
+@bp.route("/barcode", methods=["POST"])
+def barcode_generate():
+    if not HAS_BARCODE:
+        return jsonify(error="Barcode generation requires 'python-barcode'. Install with: pip install python-barcode"), 400
+
+    text = request.form.get("text", "").strip()
+    if not text:
+        return jsonify(error="Please enter a value for the barcode."), 400
+
+    btype = request.form.get("btype", "code128").lower()
+    fmt = request.form.get("format", "png").lower()
+    show_text = request.form.get("show_text") in ("on", "true", "1")
+
+    try:
+        module_width = float(request.form.get("module_width", 0.2))
+    except (TypeError, ValueError):
+        module_width = 0.2
+    try:
+        module_height = float(request.form.get("module_height", 15))
+    except (TypeError, ValueError):
+        module_height = 15.0
+
+    valid = {k: v for k, v in [(c["value"], c["label"]) for c in BARCODE_TYPES]}
+    if btype not in valid:
+        return jsonify(error=f"Unknown barcode type: {btype}"), 400
+
+    try:
+        cls = pybarcode.get_barcode_class(btype)
+    except pybarcode.errors.BarcodeNotFoundError:
+        return jsonify(error=f"Barcode type {btype} not supported."), 400
+
+    writer = SVGWriter() if fmt == "svg" else ImageWriter()
+    options = {
+        "module_width": module_width,
+        "module_height": module_height,
+        "write_text": show_text,
+        "quiet_zone": 2.0,
+        "font_size": 8 if show_text else 0,
+        "text_distance": 3.0,
+    }
+
+    try:
+        bc = cls(text, writer=writer)
+    except (pybarcode.errors.IllegalCharacterError,
+            pybarcode.errors.NumberOfDigitsError) as e:
+        return jsonify(error=f"Invalid value for {valid[btype]}: {e}"), 400
+    except Exception as e:
+        return jsonify(error=f"Could not create barcode: {e}"), 400
+
+    buf = io.BytesIO()
+    try:
+        bc.write(buf, options=options)
+    except Exception as e:
+        return jsonify(error=f"Render failed: {e}"), 400
+
+    buf.seek(0)
+
+    safe = re.sub(r"[^A-Za-z0-9_.-]", "_", text)[:40] or "barcode"
+    if fmt == "svg":
+        return send_file(buf, mimetype="image/svg+xml",
+                         as_attachment=True, download_name=f"{safe}.svg")
+    return send_file(buf, mimetype="image/png",
+                     as_attachment=True, download_name=f"{safe}.png")

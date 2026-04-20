@@ -1,6 +1,6 @@
 # Your Everyday Tools
 
-A lightweight, self-hosted web app that bundles 78 everyday utilities into a single interface. Built with Python + Flask, zero JavaScript frameworks, and minimal CSS — no bloat, just tools.
+A lightweight, self-hosted web app that bundles 89 everyday utilities into a single interface. Built with Python + Flask, zero JavaScript frameworks, and minimal CSS — no bloat, just tools.
 
 ![Python](https://img.shields.io/badge/Python-3.10+-blue)
 ![Flask](https://img.shields.io/badge/Flask-3.x-green)
@@ -34,6 +34,8 @@ See [CHANGELOG.md](CHANGELOG.md) for release history and recent fixes.
 | **PDF to Text** | Extract all text content from a PDF |
 | **PDF to Excel** | Extract tables from a PDF into an `.xlsx` workbook — one sheet per table, per page, or all combined. Falls back to line-by-line text when no tables are detected. Uses PyMuPDF's native `find_tables()` (no extra dependencies). |
 | **HTML to PDF** | Convert HTML content to a PDF document |
+| **Markdown to PDF** | Paste or upload Markdown (.md) and download a formatted PDF. Choose page size and base font size. Uses PyMuPDF's `Story` API for proper multi-page pagination. |
+| **Markdown to Word** | Convert Markdown to a `.docx` document with correct heading, list, quote, and code styles |
 | **OCR PDF** | Make scanned PDFs searchable (image + hidden text layer) or extract text — 14 languages supported |
 | **CAD to PDF/Image** | Convert DXF drawings to PDF or PNG (DWG via optional ODA File Converter) |
 
@@ -46,6 +48,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release history and recent fixes.
 | **Merge Workbooks** | Combine multiple Excel files into a single workbook, optionally prefixing each sheet with its source filename |
 | **Split Sheets** | Export each sheet of a workbook as its own `.xlsx` (bundled as a ZIP if more than one) |
 | **Excel Info & Preview** | List sheet names, row/column counts, and preview the first N rows of every sheet |
+| **CSV Toolkit** | Filter, sort, and de-duplicate CSV rows. Auto-detects delimiter. Filter operators: `=`, `!=`, `contains`, `startswith`, `endswith`, `>`, `>=`, `<`, `<=`, `empty`, `notempty`. Full-row or by-column dedupe. |
 
 ### PDF Tools
 | Tool | Description |
@@ -59,6 +62,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release history and recent fixes.
 | **Extract Images** | Extract all embedded images from a PDF |
 | **Protect PDF** | Encrypt a PDF with user and owner passwords (AES-256) |
 | **Unlock PDF** | Remove password protection from a PDF |
+| **Sign PDF** | Stamp a signature image (PNG/JPG) onto selected pages with position, width, margin, and opacity control |
 
 ### Image Tools
 | Tool | Description |
@@ -74,6 +78,9 @@ See [CHANGELOG.md](CHANGELOG.md) for release history and recent fixes.
 | **Favicon Generator** | Create .ico favicons from any image with multiple size options |
 | **Image to Text (OCR)** | Extract text from images using optical character recognition |
 | **Animated WebP/GIF** | Convert between animated GIF and animated WebP (preserves per-frame timing) |
+| **Color Palette** | Extract a dominant color palette (2–16 colors) from an image via quantization or grid sampling. Includes swatch preview with hex codes. |
+| **SVG to PNG** | Rasterize SVG vectors to PNG at a chosen width, with optional transparent background |
+| **SVG Optimizer** | Strip comments, editor metadata (Inkscape/Sketch/Adobe namespaces), and round decimals to shrink SVG files |
 
 ### Text & Data (client-side, no upload needed)
 | Tool | Description |
@@ -103,11 +110,12 @@ See [CHANGELOG.md](CHANGELOG.md) for release history and recent fixes.
 | **Number Base Converter** | Convert between decimal, binary, octal, and hexadecimal |
 | **Pomodoro Timer** | Focus timer with configurable work/break intervals and session tracking |
 
-### QR Code
+### QR & Barcodes
 | Tool | Description |
 |------|-------------|
 | **Generate QR** | Create QR codes from text/URLs with custom size, border, and color |
 | **Read QR** | Decode QR codes from uploaded images |
+| **Generate Barcode** | Create 1D barcodes — Code128, Code39, EAN-13/8, UPC-A, ISBN-10/13, ISSN, JAN, PZN — as PNG or SVG |
 
 ### Security
 | Tool | Description |
@@ -146,6 +154,8 @@ See [CHANGELOG.md](CHANGELOG.md) for release history and recent fixes.
 | **Trim Media** | Trim audio or video by start/end time (stream-copy first, re-encodes on keyframe mismatch) |
 | **Compress Video** | Re-encode video with H.264 at a chosen CRF and preset to shrink file size |
 | **Video to GIF** | Convert a clip to an animated GIF with configurable FPS, width, start, and duration |
+| **Convert Subtitles** | Convert between SRT and WebVTT with optional time shift (positive or negative seconds) |
+| **Burn Subtitles** | Permanently render a `.srt`/`.vtt` into a video (hardsub) with font-size and quality control |
 
 ---
 
@@ -162,6 +172,12 @@ Install [Python 3.10+](https://www.python.org/downloads/) once (on Windows, tick
 | **Linux** | `chmod +x run.sh && ./run.sh` |
 
 The launcher creates a virtual environment, installs dependencies, starts the server, and opens your browser automatically. Close the window to stop. Subsequent runs skip the setup step.
+
+### Simple Use (Dockerfile + docker-compose)
+Click [here](https://www.mediafire.com/file/3v1gug1h8gtd5pw/your-everyday-tools-simple-use.rar/file) and just double-click `start.bat` without the need to install the prerequisites.
+
+Credit: [SyahrulMuchtaram](https://x.com/SyahrulMuchtarm) 
+
 
 ### Manual install
 

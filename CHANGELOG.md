@@ -2,6 +2,27 @@
 
 All notable changes to **Your Everyday Tools** are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project loosely follows [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] — 2026-04-20
+
+### Added — 10 new tools across 6 categories
+- **Sign PDF** *(PDF Tools)* — stamp a signature image (PNG/JPG) onto selected pages with position, width, margin, and opacity control.
+- **Markdown to PDF** *(Document Conversion)* — paste or upload Markdown, choose page size and font size, download a rendered PDF. Uses PyMuPDF's `Story` + `DocumentWriter` for proper multi-page pagination.
+- **Markdown to Word** *(Document Conversion)* — convert Markdown to a `.docx` document with proper heading, list, quote, and code styles.
+- **CSV Toolkit** *(Spreadsheet)* — filter, sort, and de-duplicate CSV rows. Auto-detects delimiter, supports `=`, `!=`, `contains`, `startswith`, `endswith`, `>`, `>=`, `<`, `<=`, `empty`, `notempty` filter operators; smart/text/number sort; full-row or by-column dedupe.
+- **Color Palette** *(Image Tools)* — extract a dominant color palette from an image (2–16 colors) with quantization or grid-sampling methods; returns a swatch preview with hex codes.
+- **SVG to PNG** *(Image Tools)* — rasterize SVG vectors to PNG at a chosen width, with optional transparent background.
+- **SVG Optimizer** *(Image Tools)* — strip comments, editor metadata (Inkscape/Sketch/Adobe namespaces), and round decimals to shrink SVG files. Reports savings.
+- **Generate Barcode** *(QR & Barcodes)* — create Code128, Code39, EAN-13/8, UPC-A, ISBN-10/13, ISSN, JAN, or PZN barcodes as PNG or SVG.
+- **Convert Subtitles** *(Audio & Video)* — convert between SRT and WebVTT with optional time shift (positive or negative seconds).
+- **Burn Subtitles** *(Audio & Video)* — permanently render a `.srt`/`.vtt` file into a video (hardsub) via FFmpeg, with font-size and quality control.
+
+### Changed
+- **QR Code** category renamed to **QR & Barcodes** to accommodate the new barcode generator.
+- Tool count now stands at **89** across 11 categories.
+
+### Dependencies
+- Added `python-barcode` (barcode generation) and `svglib` (SVG rasterization) to `requirements.txt`.
+
 ## [0.4.3] — 2026-04-20
 
 ### Added

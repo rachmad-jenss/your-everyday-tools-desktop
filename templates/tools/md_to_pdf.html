@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Markdown to PDF - EveryTools{% endblock %}
+{% block top_title %}Markdown to PDF{% endblock %}
+
+{% block content %}
+<div class="client-tool">
+    <div class="tool-header">
+        <h1>Markdown to PDF</h1>
+        <p>Paste or type Markdown and export it as a formatted PDF</p>
+    </div>
+
+    <div style="display:flex;gap:.5rem;margin-bottom:.6rem;flex-wrap:wrap;align-items:center">
+        <label>Page size:
+            <select id="page-size">
+                <option value="A4" selected>A4</option>
+                <option value="letter">Letter</option>
+                <option value="legal">Legal</option>
+                <option value="A5">A5</option>
+            </select>
+        </label>
+        <label>Base font size:
+            <input type="number" id="font-size" value="11" min="8" max="18" style="width:60px">
+        </label>
+        <label>File name:
+            <input type="text" id="file-name" value="document" style="width:160px">
+        </label>
+        <label style="margin-left:auto">
+            <input type="file" id="md-upload" accept=".md,.markdown,.txt" style="display:none"
+                onchange="loadFile(this.files[0])">
+            <button type="button" class="btn btn-small" onclick="document.getElementById('md-upload').click()">
+                <i class="bi bi-folder2-open"></i> Load .md file
+            </button>
+        </label>
+        <button class="btn btn-primary" onclick="convertMD()">
+            <i class="bi bi-file-pdf-fill"></i> Convert to PDF
+        </button>
+    </div>
+
+    <textarea id="md-input" placeholder="# My Document
+
+Paste your **Markdown** here.
+
+- Works with lists
+- *Emphasis* and **bold**
+- [Links](https://example.com)
+- `inline code`
+
+```
+code blocks too
+```
+
+> And blockquotes.
+" style="min-height:400px;width:100%;font-family:ui-monospace,Menlo,Consolas,monospace"></textarea>
+
+    <div id="md-status" style="margin-top:.6rem;font-size:.9rem"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function loadFile(f) {
+    if (!f) return;
+    const name = f.name.replace(/\.[^.]+$/, "");
+    document.getElementById("file-name").value = name;
+    const reader = new FileReader();
+    reader.onload = e => { document.getElementById("md-input").value = e.target.result; };
+    reader.readAsText(f);
+}
+
+async function convertMD() {
+    const md = document.getElementById("md-input").value;
+    const status = document.getElementById("md-status");
+    if (!md.trim()) { status.textContent = "Enter some Markdown first."; return; }
+
+    const fd = new FormData();
+    fd.append("markdown", md);
+    fd.append("page_size", document.getElementById("page-size").value);
+    fd.append("font_size", document.getElementById("font-size").value);
+    fd.append("file_name", document.getElementById("file-name").value || "document");
+
+    status.textContent = "Generating PDF...";
+    try {
+        const r = await fetch("/convert/md-to-pdf", { method: "POST", body: fd });
+        if (!r.ok) {
+            const j = await r.json().catch(() => ({}));
+            status.innerHTML = `<span style="color:var(--danger)"><i class="bi bi-x-circle"></i> ${j.error || "Conversion failed"}</span>`;
+            return;
+        }
+        const blob = await r.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = (document.getElementById("file-name").value || "document") + ".pdf";
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        status.innerHTML = '<span style="color:var(--success)"><i class="bi bi-check-circle"></i> PDF downloaded</span>';
+    } catch (e) {
+        status.innerHTML = `<span style="color:var(--danger)">Network error: ${e.message}</span>`;
+    }
+}
+</script>
+{% endblock %}

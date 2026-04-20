@@ -68,6 +68,11 @@
                 <input type="password" id="opt-{{ opt.name }}" name="{{ opt.name }}"
                     placeholder="{{ opt.placeholder|default('') }}">
 
+                {% elif opt.type == 'file' %}
+                <input type="file" id="opt-{{ opt.name }}" name="{{ opt.name }}"
+                    accept="{{ opt.accept|default('') }}"
+                    {{ 'required' if opt.required }}>
+
                 {% elif opt.type == 'checkbox' %}
                 <label class="checkbox-label">
                     <input type="checkbox" id="opt-{{ opt.name }}" name="{{ opt.name }}"

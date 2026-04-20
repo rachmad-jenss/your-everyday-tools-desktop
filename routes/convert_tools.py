@@ -93,6 +93,16 @@ def pdf_to_text_page():
         options=[])
 
 
+@bp.route("/md-to-pdf")
+def md_to_pdf_page():
+    return render_template("tools/md_to_pdf.html")
+
+
+@bp.route("/md-to-docx")
+def md_to_docx_page():
+    return render_template("tools/md_to_docx.html")
+
+
 @bp.route("/pdf-to-excel")
 def pdf_to_excel_page():
     return render_template("upload_tool.html",
@@ -635,6 +645,208 @@ def pdf_to_excel():
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         as_attachment=True,
         download_name=name,
+    )
+
+
+@bp.route("/md-to-pdf", methods=["POST"])
+def md_to_pdf():
+    import markdown as md_lib
+
+    md_text = request.form.get("markdown", "").strip()
+    if not md_text:
+        return jsonify(error="Please enter some Markdown."), 400
+
+    page_size = request.form.get("page_size", "A4").lower()
+    try:
+        font_size = max(8, min(18, int(request.form.get("font_size", 11))))
+    except ValueError:
+        font_size = 11
+
+    sizes_map = {
+        "a4": (595.28, 841.89),
+        "letter": (612, 792),
+        "legal": (612, 1008),
+        "a5": (419.53, 595.28),
+    }
+    page_w, page_h = sizes_map.get(page_size, sizes_map["a4"])
+
+    html = md_lib.markdown(
+        md_text,
+        extensions=["extra", "sane_lists", "nl2br", "fenced_code", "tables"],
+    )
+
+    margin = 54  # 0.75 inch
+    content_rect = fitz.Rect(margin, margin, page_w - margin, page_h - margin)
+
+    css = (
+        f"* {{ font-family: sans-serif; font-size: {font_size}pt; line-height: 1.45; }}"
+        "h1 { font-size: 1.8em; margin: 0.4em 0 0.3em; }"
+        "h2 { font-size: 1.5em; margin: 0.4em 0 0.3em; }"
+        "h3 { font-size: 1.2em; margin: 0.4em 0 0.3em; }"
+        "p { margin: 0.35em 0; }"
+        "ul, ol { margin: 0.3em 0 0.3em 1.2em; }"
+        "li { margin: 0.15em 0; }"
+        "code { font-family: monospace; background: #f2f2f2; padding: 1px 3px; }"
+        "pre { font-family: monospace; background: #f5f5f5; padding: 0.5em; white-space: pre-wrap; }"
+        "blockquote { margin: 0.5em 0; padding-left: 0.8em; border-left: 3px solid #bbb; color: #555; }"
+        "table { border-collapse: collapse; margin: 0.4em 0; }"
+        "th, td { border: 1px solid #999; padding: 0.2em 0.5em; }"
+        "hr { border: none; border-top: 1px solid #ccc; margin: 0.6em 0; }"
+    )
+
+    # Use PyMuPDF's Story + DocumentWriter for reliable multi-page HTML rendering
+    output = io.BytesIO()
+    mediabox = fitz.Rect(0, 0, page_w, page_h)
+    writer = fitz.DocumentWriter(output)
+    story = fitz.Story(html=html, user_css=css)
+    more = 1
+    safety = 0
+    while more and safety < 500:
+        dev = writer.begin_page(mediabox)
+        more, _ = story.place(content_rect)
+        story.draw(dev)
+        writer.end_page()
+        safety += 1
+    writer.close()
+    output.seek(0)
+
+    name = (request.form.get("file_name") or "document").strip() + ".pdf"
+    return send_file(output, mimetype="application/pdf",
+                     as_attachment=True, download_name=name)
+
+
+@bp.route("/md-to-docx", methods=["POST"])
+def md_to_docx():
+    """Markdown → .docx by walking an HTML tree built from Markdown."""
+    import markdown as md_lib
+    import re
+    from html.parser import HTMLParser
+    from docx.shared import Pt, RGBColor
+
+    md_text = request.form.get("markdown", "").strip()
+    if not md_text:
+        return jsonify(error="Please enter some Markdown."), 400
+
+    html = md_lib.markdown(
+        md_text,
+        extensions=["extra", "sane_lists", "fenced_code", "tables"],
+    )
+
+    docx = DocxDocument()
+
+    class MdHTMLParser(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.stack: list[str] = []
+            self.current_para = None
+            self.list_stack: list[str] = []  # "ul" or "ol"
+            self.in_pre = False
+            self.pending_href: str | None = None
+            self._run_formats: list[dict] = []
+
+        def _new_paragraph(self, style=None):
+            self.current_para = docx.add_paragraph(style=style) if style else docx.add_paragraph()
+            return self.current_para
+
+        def _add_run(self, text):
+            if not text:
+                return
+            p = self.current_para or self._new_paragraph()
+            run = p.add_run(text)
+            fmt = {}
+            for f in self._run_formats:
+                fmt.update(f)
+            if fmt.get("bold"): run.bold = True
+            if fmt.get("italic"): run.italic = True
+            if fmt.get("code") or self.in_pre:
+                run.font.name = "Consolas"
+                run.font.size = Pt(10)
+            if self.pending_href:
+                run.font.color.rgb = RGBColor(0x1A, 0x0D, 0xAB)
+                run.underline = True
+
+        def handle_starttag(self, tag, attrs):
+            self.stack.append(tag)
+            if tag in ("h1", "h2", "h3", "h4", "h5", "h6"):
+                level = min(int(tag[1]), 4)
+                self._new_paragraph(style=f"Heading {level}")
+            elif tag == "p":
+                if not (self.list_stack or self.in_pre):
+                    self._new_paragraph()
+            elif tag in ("ul", "ol"):
+                self.list_stack.append(tag)
+            elif tag == "li":
+                style = "List Number" if self.list_stack and self.list_stack[-1] == "ol" else "List Bullet"
+                try:
+                    self._new_paragraph(style=style)
+                except KeyError:
+                    self._new_paragraph()
+            elif tag in ("strong", "b"):
+                self._run_formats.append({"bold": True})
+            elif tag in ("em", "i"):
+                self._run_formats.append({"italic": True})
+            elif tag == "code":
+                self._run_formats.append({"code": True})
+            elif tag == "pre":
+                self.in_pre = True
+                self._new_paragraph()
+            elif tag == "blockquote":
+                try:
+                    self._new_paragraph(style="Intense Quote")
+                except KeyError:
+                    self._new_paragraph()
+            elif tag == "a":
+                href = dict(attrs).get("href", "")
+                self.pending_href = href
+            elif tag == "hr":
+                docx.add_paragraph("─" * 40)
+            elif tag == "br":
+                if self.current_para is not None:
+                    self.current_para.add_run().add_break()
+
+        def handle_endtag(self, tag):
+            if self.stack and self.stack[-1] == tag:
+                self.stack.pop()
+            if tag in ("ul", "ol") and self.list_stack:
+                self.list_stack.pop()
+            elif tag in ("strong", "b", "em", "i", "code"):
+                if self._run_formats:
+                    self._run_formats.pop()
+            elif tag == "pre":
+                self.in_pre = False
+            elif tag == "a":
+                if self.pending_href:
+                    self._add_run(f" ({self.pending_href})")
+                self.pending_href = None
+
+        def handle_data(self, data):
+            if not data:
+                return
+            if self.in_pre:
+                for line in data.splitlines():
+                    if self.current_para is None:
+                        self._new_paragraph()
+                    r = self.current_para.add_run(line)
+                    r.font.name = "Consolas"
+                    r.font.size = Pt(10)
+                    self.current_para.add_run().add_break()
+            else:
+                # Collapse whitespace like HTML does
+                text = re.sub(r"\s+", " ", data)
+                self._add_run(text)
+
+    parser = MdHTMLParser()
+    parser.feed(html)
+
+    output = io.BytesIO()
+    docx.save(output)
+    output.seek(0)
+
+    name = (request.form.get("file_name") or "document").strip() + ".docx"
+    return send_file(
+        output,
+        mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        as_attachment=True, download_name=name,
     )
 
 

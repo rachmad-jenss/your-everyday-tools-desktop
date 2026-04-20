@@ -3,8 +3,10 @@ Flask
 Pillow
 PyMuPDF
 qrcode[pil]
+python-barcode
 markdown
 reportlab
+svglib
 img2pdf
 python-docx
 openpyxl

@@ -467,8 +467,254 @@ def video_to_gif():
     )
 
 
+# ── Subtitle convert / shift ───────────────────────────
+
+import io as _io
+import re as _re
+
+
+def _parse_ts(s: str) -> float:
+    s = s.strip()
+    if not s:
+        raise ValueError("empty timestamp")
+    s = s.replace(",", ".")
+    parts = s.split(":")
+    if len(parts) == 3:
+        h, m, sec = parts
+        return int(h) * 3600 + int(m) * 60 + float(sec)
+    if len(parts) == 2:
+        m, sec = parts
+        return int(m) * 60 + float(sec)
+    return float(parts[0])
+
+
+def _fmt_srt(sec: float) -> str:
+    if sec < 0:
+        sec = 0.0
+    h = int(sec // 3600)
+    m = int((sec % 3600) // 60)
+    s = sec - h * 3600 - m * 60
+    whole = int(s)
+    ms = int(round((s - whole) * 1000))
+    if ms == 1000:
+        whole += 1; ms = 0
+    return f"{h:02d}:{m:02d}:{whole:02d},{ms:03d}"
+
+
+def _fmt_vtt(sec: float) -> str:
+    return _fmt_srt(sec).replace(",", ".")
+
+
+_CUE_RE = _re.compile(
+    r"(\d{1,2}:\d{2}:\d{2}[,.]\d{3})\s*-->\s*(\d{1,2}:\d{2}:\d{2}[,.]\d{3})"
+)
+
+
+def _parse_subs(text: str):
+    """Parse SRT or WebVTT. Returns list of (start_sec, end_sec, text)."""
+    if text.startswith("\ufeff"):
+        text = text.lstrip("\ufeff")
+    lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    cues = []
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+        if line.upper().startswith("WEBVTT"):
+            i += 1
+            continue
+        m = _CUE_RE.search(line)
+        if not m:
+            i += 1
+            continue
+        try:
+            start = _parse_ts(m.group(1))
+            end = _parse_ts(m.group(2))
+        except (ValueError, IndexError):
+            i += 1
+            continue
+        i += 1
+        body = []
+        while i < len(lines) and lines[i].strip() != "":
+            body.append(lines[i])
+            i += 1
+        cues.append((start, end, "\n".join(body).strip()))
+        while i < len(lines) and lines[i].strip() == "":
+            i += 1
+    return cues
+
+
+def _write_srt(cues) -> str:
+    parts = []
+    for idx, (start, end, body) in enumerate(cues, 1):
+        parts.append(f"{idx}\n{_fmt_srt(start)} --> {_fmt_srt(end)}\n{body}\n")
+    return "\n".join(parts).rstrip() + "\n"
+
+
+def _write_vtt(cues) -> str:
+    parts = ["WEBVTT", ""]
+    for start, end, body in cues:
+        parts.append(f"{_fmt_vtt(start)} --> {_fmt_vtt(end)}")
+        parts.append(body)
+        parts.append("")
+    return "\n".join(parts).rstrip() + "\n"
+
+
+@bp.route("/subtitle-convert", methods=["GET", "POST"])
+def subtitle_convert():
+    if request.method == "GET":
+        return render_template(
+            "upload_tool.html",
+            title="Convert Subtitles",
+            description="Convert subtitles between SRT and WebVTT. Also shift timing by a positive or negative offset (seconds).",
+            endpoint="/media/subtitle-convert",
+            accept=".srt,.vtt",
+            multiple=False,
+            options=[
+                {
+                    "name": "target",
+                    "label": "Target format",
+                    "type": "select",
+                    "default": "srt",
+                    "choices": [
+                        {"value": "srt", "label": "SubRip (.srt)"},
+                        {"value": "vtt", "label": "WebVTT (.vtt)"},
+                    ],
+                },
+                {
+                    "name": "offset",
+                    "label": "Time shift (seconds, can be negative, e.g. -1.5)",
+                    "type": "text",
+                    "default": "0",
+                },
+            ],
+            button_text="Convert",
+        )
+
+    f = request.files.get("files")
+    if not f:
+        return jsonify({"error": "No file uploaded."}), 400
+    target = request.form.get("target", "srt").lower()
+    if target not in ("srt", "vtt"):
+        return jsonify({"error": "Unsupported target format."}), 400
+    try:
+        offset = float(request.form.get("offset", "0"))
+    except ValueError:
+        return jsonify({"error": "Offset must be a number."}), 400
+
+    raw = f.read().decode("utf-8-sig", errors="replace")
+    cues = _parse_subs(raw)
+    if not cues:
+        return jsonify({"error": "No subtitle cues found in that file."}), 400
+
+    if offset:
+        cues = [(max(0.0, s + offset), max(0.0, e + offset), t) for s, e, t in cues]
+
+    out_text = _write_srt(cues) if target == "srt" else _write_vtt(cues)
+    base = f.filename.rsplit(".", 1)[0]
+    return send_file(
+        _bytes_io(out_text.encode("utf-8")),
+        mimetype="text/plain",
+        as_attachment=True,
+        download_name=f"{base}.{target}",
+    )
+
+
+# ── Burn subtitles ─────────────────────────────────────
+
+@bp.route("/burn-subtitles", methods=["GET", "POST"])
+def burn_subtitles():
+    if request.method == "GET":
+        return render_template(
+            "upload_tool.html",
+            title="Burn Subtitles",
+            description="Permanently render a subtitle file onto a video (hardsub).",
+            notes=_ffmpeg_available_notes()
+                + "<p>Upload the <strong>video</strong> as the main file, and select the <strong>.srt/.vtt</strong> file below.</p>",
+            endpoint="/media/burn-subtitles",
+            accept=".mp4,.webm,.mkv,.mov,.avi",
+            multiple=False,
+            options=[
+                {"type": "file", "name": "subtitle",
+                 "label": "Subtitle file (.srt or .vtt)",
+                 "accept": ".srt,.vtt", "required": True},
+                {
+                    "name": "font_size",
+                    "label": "Font size",
+                    "type": "number",
+                    "default": 22,
+                    "min": 10,
+                    "max": 72,
+                },
+                {
+                    "name": "quality",
+                    "label": "Output quality (CRF)",
+                    "type": "select",
+                    "default": "23",
+                    "choices": [
+                        {"value": "18", "label": "Best (18)"},
+                        {"value": "23", "label": "Good (23)"},
+                        {"value": "28", "label": "Smaller (28)"},
+                    ],
+                },
+            ],
+            button_text="Burn subtitles",
+        )
+
+    if not FFMPEG:
+        return jsonify({"error": "FFmpeg is not installed or not on PATH."}), 400
+
+    f = request.files.get("files")
+    if not f:
+        return jsonify({"error": "No video uploaded."}), 400
+    sub = request.files.get("subtitle")
+    if not sub or not sub.filename:
+        return jsonify({"error": "Please upload a subtitle file."}), 400
+
+    try:
+        font_size = max(10, min(72, int(request.form.get("font_size", 22))))
+    except ValueError:
+        font_size = 22
+    crf = request.form.get("quality", "23")
+    if crf not in ("18", "23", "28"):
+        crf = "23"
+
+    with tempfile.TemporaryDirectory() as tmp:
+        in_path = _save_upload(f, tmp)
+        sub_ext = sub.filename.rsplit(".", 1)[-1].lower() if "." in sub.filename else "srt"
+        sub_path = os.path.join(tmp, f"subs.{sub_ext}")
+        sub.save(sub_path)
+        out_path = os.path.join(tmp, "output.mp4")
+
+        sub_arg = sub_path.replace("\\", "/").replace(":", "\\:")
+        vf = (
+            f"subtitles='{sub_arg}':force_style='Fontsize={font_size},"
+            f"OutlineColour=&H80000000,BorderStyle=3,Outline=1,Shadow=0'"
+        )
+
+        args = [
+            "-i", in_path,
+            "-vf", vf,
+            "-c:v", "libx264", "-crf", crf, "-preset", "medium",
+            "-c:a", "copy",
+            out_path,
+        ]
+        _, err = _run_ffmpeg(args, timeout=1200)
+        if err:
+            return jsonify({"error": err}), 400
+
+        with open(out_path, "rb") as fp:
+            data = fp.read()
+
+    base = f.filename.rsplit(".", 1)[0]
+    return send_file(
+        _bytes_io(data),
+        mimetype="video/mp4",
+        as_attachment=True,
+        download_name=f"{base}_subs.mp4",
+    )
+
+
 # ── helpers ────────────────────────────────────────────
 
 def _bytes_io(data: bytes):
-    import io as _io
     return _io.BytesIO(data)

@@ -253,6 +253,60 @@ def ocr_page():
         options=[])
 
 
+@bp.route("/palette")
+def palette_page():
+    return render_template("upload_tool.html",
+        title="Color Palette",
+        description="Extract the dominant colors from an image",
+        endpoint="/image/palette",
+        accept=IMAGE_ACCEPT,
+        multiple=False,
+        options=[
+            {"type": "number", "name": "count", "label": "Number of colors", "default": 8, "min": 2, "max": 32},
+            {"type": "select", "name": "method", "label": "Method", "default": "quantize",
+             "choices": [
+                 {"value": "quantize", "label": "Pillow quantize (fast, median-cut)"},
+                 {"value": "grid", "label": "Grid sampling (broader spread)"},
+             ]},
+        ])
+
+
+@bp.route("/svg-to-png")
+def svg_to_png_page():
+    return render_template("upload_tool.html",
+        title="SVG to PNG",
+        description="Rasterise an SVG file to a PNG image",
+        endpoint="/image/svg-to-png",
+        accept=".svg",
+        multiple=False,
+        options=[
+            {"type": "number", "name": "width", "label": "Output width (pixels, 0 = native size)",
+             "default": 0, "min": 0, "max": 8192},
+            {"type": "checkbox", "name": "transparent", "label": "Background",
+             "default": True, "check_label": "Transparent (otherwise white)"},
+        ])
+
+
+@bp.route("/svg-optimize")
+def svg_optimize_page():
+    return render_template("upload_tool.html",
+        title="SVG Optimizer",
+        description="Strip comments, metadata, and whitespace from SVG files",
+        endpoint="/image/svg-optimize",
+        accept=".svg",
+        multiple=False,
+        options=[
+            {"type": "checkbox", "name": "strip_comments", "label": "Comments",
+             "default": True, "check_label": "Remove <!-- comments -->"},
+            {"type": "checkbox", "name": "strip_metadata", "label": "Metadata",
+             "default": True, "check_label": "Remove <metadata>, <title>, <desc>, editor namespaces"},
+            {"type": "checkbox", "name": "collapse_whitespace", "label": "Whitespace",
+             "default": True, "check_label": "Collapse whitespace between tags"},
+            {"type": "number", "name": "decimals", "label": "Max decimal places for numbers",
+             "default": 3, "min": 0, "max": 6},
+        ])
+
+
 @bp.route("/watermark")
 def watermark_page():
     return render_template("upload_tool.html",
@@ -662,3 +716,203 @@ def ocr():
     if not text.strip():
         return jsonify(text="(No text detected in image)")
     return jsonify(text=text)
+
+
+@bp.route("/palette", methods=["POST"])
+def palette():
+    files = request.files.getlist("files")
+    if not files or not files[0].filename:
+        return jsonify(error="No file uploaded."), 400
+
+    try:
+        count = max(2, min(32, int(request.form.get("count", 8))))
+    except ValueError:
+        count = 8
+    method = request.form.get("method", "quantize")
+
+    img = get_pil_image(files[0]).convert("RGBA")
+    # Composite onto white to ignore transparency for colour analysis
+    bg = Image.new("RGB", img.size, (255, 255, 255))
+    bg.paste(img, mask=img.split()[-1] if img.mode == "RGBA" else None)
+    img = bg
+
+    # Downsample large images for speed — quantization cost is O(pixels)
+    MAX_DIM = 600
+    if max(img.size) > MAX_DIM:
+        ratio = MAX_DIM / max(img.size)
+        img = img.resize((int(img.width * ratio), int(img.height * ratio)), Image.LANCZOS)
+
+    if method == "grid":
+        # Sample pixels on a grid, collapse close colours by 16-bucket quantization
+        samples: dict[tuple, int] = {}
+        step = max(1, int((img.width * img.height / 4000) ** 0.5))
+        for y in range(0, img.height, step):
+            for x in range(0, img.width, step):
+                r, g, b = img.getpixel((x, y))[:3]
+                key = (r // 16 * 16, g // 16 * 16, b // 16 * 16)
+                samples[key] = samples.get(key, 0) + 1
+        sorted_colours = sorted(samples.items(), key=lambda kv: -kv[1])[:count]
+        total = sum(c for _, c in sorted_colours) or 1
+        palette_list = [
+            {"hex": "#{:02x}{:02x}{:02x}".format(*rgb),
+             "rgb": list(rgb),
+             "percent": round(c * 100 / total, 1)}
+            for rgb, c in sorted_colours
+        ]
+    else:
+        quant = img.quantize(colors=count, method=Image.Quantize.MEDIANCUT)
+        pal_bytes = quant.getpalette()[: count * 3]
+        colour_counts = quant.getcolors() or []
+        counts_by_index = {idx: cnt for cnt, idx in colour_counts}
+        total = sum(counts_by_index.values()) or 1
+        palette_list = []
+        for i in range(count):
+            r, g, b = pal_bytes[i * 3], pal_bytes[i * 3 + 1], pal_bytes[i * 3 + 2]
+            palette_list.append({
+                "hex": f"#{r:02x}{g:02x}{b:02x}",
+                "rgb": [r, g, b],
+                "percent": round(counts_by_index.get(i, 0) * 100 / total, 1),
+            })
+        palette_list.sort(key=lambda p: -p["percent"])
+
+    # Build a preview swatch PNG (one column per colour, weighted widths)
+    swatch_w, swatch_h = 600, 120
+    swatch = Image.new("RGB", (swatch_w, swatch_h), (255, 255, 255))
+    draw = ImageDraw.Draw(swatch)
+    # Normalise widths so they sum to swatch_w
+    weights = [max(p["percent"], 3) for p in palette_list]  # floor so tiny colours are visible
+    total_w = sum(weights)
+    x = 0
+    for p, w in zip(palette_list, weights):
+        seg = int(swatch_w * w / total_w)
+        draw.rectangle([x, 0, x + seg, swatch_h], fill=tuple(p["rgb"]))
+        x += seg
+    if x < swatch_w:
+        draw.rectangle([x, 0, swatch_w, swatch_h], fill=tuple(palette_list[-1]["rgb"]))
+
+    swatch_buf = io.BytesIO()
+    swatch.save(swatch_buf, format="PNG")
+    import base64
+    swatch_b64 = base64.b64encode(swatch_buf.getvalue()).decode()
+
+    lines = ["Color palette:"]
+    for p in palette_list:
+        lines.append(f"  {p['hex']}  rgb({p['rgb'][0]}, {p['rgb'][1]}, {p['rgb'][2]})   {p['percent']}%")
+    lines.append("")
+    lines.append(f"<img src='data:image/png;base64,{swatch_b64}' style='max-width:100%;border-radius:6px;margin-top:.6rem'>")
+
+    return jsonify(text="\n".join(lines))
+
+
+@bp.route("/svg-to-png", methods=["POST"])
+def svg_to_png():
+    from svglib.svglib import svg2rlg
+    from reportlab.graphics import renderPM
+
+    files = request.files.getlist("files")
+    if not files or not files[0].filename:
+        return jsonify(error="No SVG uploaded."), 400
+
+    svg_bytes = files[0].read()
+    svg_stream = io.BytesIO(svg_bytes)
+    try:
+        drawing = svg2rlg(svg_stream)
+    except Exception as e:
+        return jsonify(error=f"Could not parse SVG: {e}"), 400
+    if drawing is None:
+        return jsonify(error="SVG parser returned no drawing — is the file valid?"), 400
+
+    try:
+        target_w = int(request.form.get("width", 0))
+    except ValueError:
+        target_w = 0
+    transparent = request.form.get("transparent") == "on"
+
+    if target_w > 0 and drawing.width > 0:
+        scale = target_w / drawing.width
+        drawing.width *= scale
+        drawing.height *= scale
+        drawing.scale(scale, scale)
+
+    bg_hex = None if transparent else "white"
+    png_bytes = renderPM.drawToString(drawing, fmt="PNG", bg=0xffffff if bg_hex == "white" else 0xffffff)
+    # Pillow post-process to add transparency if requested (renderPM always outputs white bg)
+    if transparent:
+        img = Image.open(io.BytesIO(png_bytes)).convert("RGBA")
+        datas = img.getdata()
+        new_data = [
+            (r, g, b, 0) if (r, g, b) == (255, 255, 255) else (r, g, b, a)
+            for (r, g, b, a) in datas
+        ]
+        img.putdata(new_data)
+        buf = io.BytesIO()
+        img.save(buf, format="PNG", optimize=True)
+        buf.seek(0)
+        out_bytes = buf.getvalue()
+    else:
+        out_bytes = png_bytes
+
+    name = files[0].filename.rsplit(".", 1)[0] + ".png"
+    return send_file(io.BytesIO(out_bytes), mimetype="image/png",
+                     as_attachment=True, download_name=name)
+
+
+@bp.route("/svg-optimize", methods=["POST"])
+def svg_optimize():
+    import re
+
+    files = request.files.getlist("files")
+    if not files or not files[0].filename:
+        return jsonify(error="No SVG uploaded."), 400
+
+    raw = files[0].read()
+    try:
+        svg = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        svg = raw.decode("utf-8", errors="ignore")
+
+    original_size = len(raw)
+
+    strip_comments = request.form.get("strip_comments") == "on"
+    strip_metadata = request.form.get("strip_metadata") == "on"
+    collapse_ws = request.form.get("collapse_whitespace") == "on"
+    try:
+        decimals = max(0, min(6, int(request.form.get("decimals", 3))))
+    except ValueError:
+        decimals = 3
+
+    if strip_comments:
+        svg = re.sub(r"<!--[\s\S]*?-->", "", svg)
+
+    if strip_metadata:
+        for tag in ("metadata", "title", "desc"):
+            svg = re.sub(rf"<{tag}\b[^>]*>[\s\S]*?</{tag}>", "", svg, flags=re.IGNORECASE)
+            svg = re.sub(rf"<{tag}\b[^/]*/>", "", svg, flags=re.IGNORECASE)
+        # Strip common editor-specific namespaces (inkscape, sodipodi, adobe, sketch)
+        svg = re.sub(r"\s+(sodipodi|inkscape|adobe|sketch):[a-zA-Z_-]+\s*=\s*\"[^\"]*\"", "", svg)
+        svg = re.sub(r"\s+xmlns:(sodipodi|inkscape|adobe|sketch)\s*=\s*\"[^\"]*\"", "", svg)
+
+    # Round numbers to `decimals` places
+    def _round(m):
+        num = float(m.group(0))
+        if num == int(num):
+            return str(int(num))
+        s = f"{num:.{decimals}f}".rstrip("0").rstrip(".")
+        return s or "0"
+    svg = re.sub(r"-?\d+\.\d+", _round, svg)
+
+    if collapse_ws:
+        svg = re.sub(r">\s+<", "><", svg)
+        svg = re.sub(r"\s{2,}", " ", svg)
+        svg = svg.strip()
+
+    optimized_bytes = svg.encode("utf-8")
+    saved_pct = round((original_size - len(optimized_bytes)) * 100 / original_size, 1) if original_size else 0
+
+    name = files[0].filename.rsplit(".", 1)[0] + "_optimized.svg"
+    resp = send_file(io.BytesIO(optimized_bytes), mimetype="image/svg+xml",
+                     as_attachment=True, download_name=name)
+    resp.headers["X-Original-Size"] = str(original_size)
+    resp.headers["X-Optimized-Size"] = str(len(optimized_bytes))
+    resp.headers["X-Saved-Percent"] = str(saved_pct)
+    return resp

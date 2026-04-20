@@ -149,6 +149,39 @@ def protect_page():
         ])
 
 
+@bp.route("/sign")
+def sign_page():
+    return render_template("upload_tool.html",
+        title="Sign PDF",
+        description="Stamp a signature image onto one or more pages of a PDF",
+        notes=(
+            "<p><strong>Tip:</strong> upload a transparent PNG of your signature for best results. "
+            "A white-background JPG will look like a sticker on the page.</p>"
+            "<p>This tool stamps a visible signature — it does <em>not</em> apply a cryptographic digital signature.</p>"
+        ),
+        endpoint="/pdf/sign",
+        accept=".pdf",
+        multiple=False,
+        options=[
+            {"type": "file", "name": "signature", "label": "Signature image (PNG / JPG)",
+             "accept": "image/png,image/jpeg", "required": True},
+            {"type": "text", "name": "pages", "label": "Pages to sign (leave empty for all)",
+             "placeholder": "e.g. 1, 3, 5-7"},
+            {"type": "select", "name": "position", "label": "Position", "default": "bottom-right",
+             "choices": [
+                 {"value": "bottom-right", "label": "Bottom Right"},
+                 {"value": "bottom-center", "label": "Bottom Center"},
+                 {"value": "bottom-left", "label": "Bottom Left"},
+                 {"value": "top-right", "label": "Top Right"},
+                 {"value": "top-center", "label": "Top Center"},
+                 {"value": "top-left", "label": "Top Left"},
+             ]},
+            {"type": "number", "name": "width", "label": "Signature width (points)", "default": 140, "min": 30, "max": 400},
+            {"type": "number", "name": "margin", "label": "Margin from edge (points)", "default": 36, "min": 0, "max": 200},
+            {"type": "number", "name": "opacity", "label": "Opacity (%)", "default": 100, "min": 10, "max": 100},
+        ])
+
+
 @bp.route("/unlock")
 def unlock_page():
     return render_template("upload_tool.html",
@@ -507,6 +540,88 @@ def protect():
     output.seek(0)
 
     name = files[0].filename.rsplit(".", 1)[0] + "_protected.pdf"
+    return send_file(output, mimetype="application/pdf",
+                     as_attachment=True, download_name=name)
+
+
+@bp.route("/sign", methods=["POST"])
+def sign():
+    from PIL import Image
+
+    files = request.files.getlist("files")
+    if not files or not files[0].filename:
+        return jsonify(error="No PDF uploaded."), 400
+
+    sig_file = request.files.get("signature")
+    if not sig_file or not sig_file.filename:
+        return jsonify(error="Please upload a signature image (PNG or JPG)."), 400
+
+    position = request.form.get("position", "bottom-right")
+    try:
+        sig_width = float(request.form.get("width", 140))
+        margin = float(request.form.get("margin", 36))
+        opacity = max(10, min(100, int(request.form.get("opacity", 100)))) / 100.0
+    except ValueError:
+        return jsonify(error="Invalid numeric option."), 400
+
+    page_spec = request.form.get("pages", "").strip()
+
+    # Load & normalise signature image → PNG bytes (with opacity applied)
+    try:
+        sig_img = Image.open(sig_file).convert("RGBA")
+    except Exception as e:
+        return jsonify(error=f"Could not read signature image: {e}"), 400
+
+    if opacity < 1.0:
+        r, g, b, a = sig_img.split()
+        a = a.point(lambda v: int(v * opacity))
+        sig_img = Image.merge("RGBA", (r, g, b, a))
+
+    sig_buf = io.BytesIO()
+    sig_img.save(sig_buf, format="PNG")
+    sig_bytes = sig_buf.getvalue()
+
+    # Derive aspect-preserving height
+    sig_ratio = sig_img.height / sig_img.width if sig_img.width else 1.0
+    sig_h = sig_width * sig_ratio
+
+    doc = fitz.open(stream=files[0].read(), filetype="pdf")
+    try:
+        target = parse_page_ranges(page_spec, len(doc))
+    except ValueError:
+        doc.close()
+        return jsonify(error="Invalid page range format."), 400
+    if not target:
+        doc.close()
+        return jsonify(error="No valid pages selected."), 400
+
+    for pno in target:
+        page = doc[pno]
+        r = page.rect
+
+        if "right" in position:
+            x0 = r.width - margin - sig_width
+        elif "center" in position:
+            x0 = (r.width - sig_width) / 2
+        else:
+            x0 = margin
+
+        if "bottom" in position:
+            y0 = r.height - margin - sig_h
+        else:
+            y0 = margin
+
+        page.insert_image(
+            fitz.Rect(x0, y0, x0 + sig_width, y0 + sig_h),
+            stream=sig_bytes, keep_proportion=True, overlay=True,
+        )
+
+    output = io.BytesIO()
+    doc.save(output, garbage=4, deflate=True)
+    doc.close()
+    output.seek(0)
+
+    name = files[0].filename.rsplit(".", 1)[0] + "_signed.pdf"
     return send_file(output, mimetype="application/pdf",
                      as_attachment=True, download_name=name)
 

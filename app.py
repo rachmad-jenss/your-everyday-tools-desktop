@@ -16,6 +16,8 @@ TOOL_CATEGORIES = [
             {"id": "pdf-to-text", "name": "PDF to Text", "desc": "Extract text content from PDF", "icon": "bi-file-text-fill"},
             {"id": "pdf-to-excel", "name": "PDF to Excel", "desc": "Extract tables from PDF into an .xlsx", "icon": "bi-file-earmark-spreadsheet-fill"},
             {"id": "html-to-pdf", "name": "HTML to PDF", "desc": "Convert HTML content to PDF", "icon": "bi-filetype-html"},
+            {"id": "md-to-pdf", "name": "Markdown to PDF", "desc": "Convert Markdown text or files to PDF", "icon": "bi-markdown-fill"},
+            {"id": "md-to-docx", "name": "Markdown to Word", "desc": "Convert Markdown to a Word .docx document", "icon": "bi-file-word-fill"},
             {"id": "ocr-pdf", "name": "OCR PDF", "desc": "Make scanned PDFs searchable or extract text", "icon": "bi-file-earmark-text-fill"},
             {"id": "cad-to-pdf", "name": "CAD to PDF/Image", "desc": "Convert DXF/DWG drawings to PDF or PNG", "icon": "bi-rulers"},
         ],
@@ -34,6 +36,7 @@ TOOL_CATEGORIES = [
             {"id": "extract-images", "name": "Extract Images", "desc": "Extract images from PDF", "icon": "bi-images"},
             {"id": "protect", "name": "Protect PDF", "desc": "Add password protection to PDF", "icon": "bi-lock-fill"},
             {"id": "unlock", "name": "Unlock PDF", "desc": "Remove PDF password", "icon": "bi-unlock-fill"},
+            {"id": "sign", "name": "Sign PDF", "desc": "Stamp a signature image onto PDF pages", "icon": "bi-pen-fill"},
         ],
     },
     {
@@ -47,6 +50,7 @@ TOOL_CATEGORIES = [
             {"id": "merge", "name": "Merge Workbooks", "desc": "Combine multiple Excel files into one", "icon": "bi-union"},
             {"id": "split", "name": "Split Sheets", "desc": "Export each sheet as its own .xlsx", "icon": "bi-scissors"},
             {"id": "info", "name": "Excel Info & Preview", "desc": "List sheets, counts, and preview rows", "icon": "bi-info-circle-fill"},
+            {"id": "csv-tools", "name": "CSV Toolkit", "desc": "Filter, sort, and deduplicate CSV rows", "icon": "bi-funnel-fill"},
         ],
     },
     {
@@ -65,6 +69,9 @@ TOOL_CATEGORIES = [
             {"id": "favicon", "name": "Favicon Generator", "desc": "Create .ico favicons from images", "icon": "bi-app-indicator"},
             {"id": "ocr", "name": "Image to Text", "desc": "Extract text from images (OCR)", "icon": "bi-card-text"},
             {"id": "animated", "name": "Animated WebP/GIF", "desc": "Convert between animated WebP and GIF", "icon": "bi-film"},
+            {"id": "palette", "name": "Color Palette", "desc": "Extract a color palette from an image", "icon": "bi-palette2"},
+            {"id": "svg-to-png", "name": "SVG to PNG", "desc": "Rasterize SVG vector files to PNG", "icon": "bi-filetype-svg"},
+            {"id": "svg-optimize", "name": "SVG Optimizer", "desc": "Strip metadata and shrink SVG files", "icon": "bi-file-minus-fill"},
         ],
     },
     {
@@ -103,11 +110,12 @@ TOOL_CATEGORIES = [
     },
     {
         "id": "qr",
-        "name": "QR Code",
+        "name": "QR & Barcodes",
         "icon": "bi-qr-code",
         "tools": [
             {"id": "generate", "name": "Generate QR", "desc": "Create QR codes from text or URLs", "icon": "bi-qr-code"},
             {"id": "read", "name": "Read QR", "desc": "Decode QR codes from images", "icon": "bi-qr-code-scan"},
+            {"id": "barcode", "name": "Generate Barcode", "desc": "Code128, EAN, UPC, ISBN and more", "icon": "bi-upc-scan"},
         ],
     },
     {
@@ -158,6 +166,8 @@ TOOL_CATEGORIES = [
             {"id": "trim", "name": "Trim Media", "desc": "Cut audio or video by time range", "icon": "bi-scissors"},
             {"id": "compress-video", "name": "Compress Video", "desc": "Re-encode to a smaller file", "icon": "bi-file-zip-fill"},
             {"id": "video-to-gif", "name": "Video to GIF", "desc": "Convert clips to animated GIFs", "icon": "bi-file-earmark-play-fill"},
+            {"id": "subtitle-convert", "name": "Convert Subtitles", "desc": "SRT ↔ VTT with optional time shift", "icon": "bi-badge-cc-fill"},
+            {"id": "burn-subtitles", "name": "Burn Subtitles", "desc": "Permanently render subtitles onto a video", "icon": "bi-fire"},
         ],
     },
 ]

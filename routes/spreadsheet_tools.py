@@ -188,6 +188,59 @@ def info_page():
         ])
 
 
+@bp.route("/csv-tools")
+def csv_tools_page():
+    return render_template("upload_tool.html",
+        title="CSV Toolkit",
+        description="Sort, filter, or de-duplicate rows in a CSV file",
+        notes=(
+            "<p>Operations run in order: <strong>filter → dedupe → sort</strong>. "
+            "Use <code>column_name</code> or a 1-based column number. "
+            "Filter operators: <code>=</code>, <code>!=</code>, <code>contains</code>, "
+            "<code>startswith</code>, <code>endswith</code>, <code>&gt;</code>, "
+            "<code>&gt;=</code>, <code>&lt;</code>, <code>&lt;=</code>, "
+            "<code>empty</code>, <code>notempty</code>.</p>"
+        ),
+        endpoint="/spreadsheet/csv-tools",
+        accept=".csv,.tsv,.txt",
+        multiple=False,
+        options=[
+            {"type": "checkbox", "name": "has_header", "label": "Header row",
+             "default": True, "check_label": "First row is a header"},
+            {"type": "select", "name": "delimiter", "label": "Delimiter", "default": "auto",
+             "choices": [
+                 {"value": "auto",  "label": "Auto-detect"},
+                 {"value": ",",     "label": "Comma"},
+                 {"value": ";",     "label": "Semicolon"},
+                 {"value": "\\t",   "label": "Tab"},
+                 {"value": "|",     "label": "Pipe"},
+             ]},
+            {"type": "text", "name": "filter", "label": "Filter (optional)",
+             "placeholder": "e.g. status = active    |    age >= 18    |    city contains London"},
+            {"type": "text", "name": "sort_by", "label": "Sort by (optional)",
+             "placeholder": "column_name or 1-based column number"},
+            {"type": "select", "name": "sort_dir", "label": "Sort direction", "default": "asc",
+             "choices": [
+                 {"value": "asc", "label": "Ascending"},
+                 {"value": "desc", "label": "Descending"},
+             ]},
+            {"type": "select", "name": "sort_type", "label": "Sort as", "default": "smart",
+             "choices": [
+                 {"value": "smart",  "label": "Smart (number if numeric, else text)"},
+                 {"value": "text",   "label": "Text"},
+                 {"value": "number", "label": "Number"},
+             ]},
+            {"type": "select", "name": "dedupe", "label": "Remove duplicates", "default": "none",
+             "choices": [
+                 {"value": "none",   "label": "Keep all rows"},
+                 {"value": "full",   "label": "On full row"},
+                 {"value": "bycol",  "label": "On selected columns (below)"},
+             ]},
+            {"type": "text", "name": "dedupe_cols", "label": "Dedupe columns (comma-separated)",
+             "placeholder": "e.g. email, phone"},
+        ])
+
+
 # ── Processing Routes ───────────────────────────
 
 @bp.route("/excel-to-csv", methods=["POST"])
@@ -556,3 +609,176 @@ def info():
         lines.append("")
 
     return jsonify(text="\n".join(lines).rstrip())
+
+
+@bp.route("/csv-tools", methods=["POST"])
+def csv_tools():
+    import re
+
+    files = request.files.getlist("files")
+    if not files or not files[0].filename:
+        return jsonify(error="No file uploaded."), 400
+
+    raw = files[0].read()
+    try:
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        text = raw.decode("utf-8", errors="replace")
+
+    # Delimiter
+    delim = request.form.get("delimiter", "auto")
+    if delim == "\\t":
+        delim = "\t"
+    if delim == "auto":
+        try:
+            delim = csv.Sniffer().sniff(text[:4096], delimiters=",;\t|").delimiter
+        except csv.Error:
+            delim = ","
+
+    reader = csv.reader(io.StringIO(text), delimiter=delim)
+    rows = [row for row in reader]
+    if not rows:
+        return jsonify(error="CSV appears to be empty."), 400
+
+    has_header = request.form.get("has_header") == "on"
+    header = rows[0] if has_header else [f"col{i + 1}" for i in range(len(rows[0]))]
+    data = rows[1:] if has_header else rows
+    ncols = len(header)
+
+    def _col_idx(ref: str) -> int:
+        ref = ref.strip()
+        if not ref:
+            return -1
+        # Try 1-based numeric
+        if ref.isdigit():
+            n = int(ref) - 1
+            if 0 <= n < ncols:
+                return n
+        # Case-insensitive header match
+        for i, h in enumerate(header):
+            if h.strip().lower() == ref.lower():
+                return i
+        return -1
+
+    def _as_num(s: str):
+        try:
+            return float(str(s).replace(",", "").strip())
+        except (ValueError, TypeError):
+            return None
+
+    # ── Filter ───────────────────────────────────
+    filter_expr = request.form.get("filter", "").strip()
+    if filter_expr:
+        # Parse "col OP value" with OP in our set
+        ops = ["!=", ">=", "<=", "=", ">", "<", "contains", "startswith", "endswith", "empty", "notempty"]
+        # Try binary ops first (longest match)
+        matched = None
+        for op in ops:
+            if op in ("empty", "notempty"):
+                m = re.match(rf"^\s*(.+?)\s+{op}\s*$", filter_expr, re.IGNORECASE)
+                if m:
+                    matched = (m.group(1), op, "")
+                    break
+            else:
+                m = re.match(rf"^\s*(.+?)\s*{re.escape(op)}\s*(.*)$", filter_expr)
+                if m:
+                    matched = (m.group(1), op, m.group(2))
+                    break
+        if not matched:
+            return jsonify(error=f"Could not parse filter '{filter_expr}'."), 400
+
+        col_ref, op, value = matched
+        ci = _col_idx(col_ref)
+        if ci < 0:
+            return jsonify(error=f"Filter column '{col_ref}' not found."), 400
+
+        def _keep(row):
+            if ci >= len(row):
+                cell = ""
+            else:
+                cell = str(row[ci])
+            if op == "empty":
+                return cell.strip() == ""
+            if op == "notempty":
+                return cell.strip() != ""
+            if op == "contains":
+                return value.lower() in cell.lower()
+            if op == "startswith":
+                return cell.lower().startswith(value.lower())
+            if op == "endswith":
+                return cell.lower().endswith(value.lower())
+            if op == "=":
+                return cell == value
+            if op == "!=":
+                return cell != value
+            # Numeric comparisons
+            cn, vn = _as_num(cell), _as_num(value)
+            if cn is None or vn is None:
+                return False
+            if op == ">": return cn > vn
+            if op == ">=": return cn >= vn
+            if op == "<": return cn < vn
+            if op == "<=": return cn <= vn
+            return False
+
+        data = [r for r in data if _keep(r)]
+
+    # ── Dedupe ───────────────────────────────────
+    dedupe = request.form.get("dedupe", "none")
+    if dedupe == "full":
+        seen, unique = set(), []
+        for r in data:
+            key = tuple(r)
+            if key not in seen:
+                seen.add(key); unique.append(r)
+        data = unique
+    elif dedupe == "bycol":
+        col_refs = [c.strip() for c in request.form.get("dedupe_cols", "").split(",") if c.strip()]
+        indices = [_col_idx(c) for c in col_refs]
+        if any(i < 0 for i in indices):
+            bad = [c for c, i in zip(col_refs, indices) if i < 0]
+            return jsonify(error=f"Dedupe column(s) not found: {', '.join(bad)}"), 400
+        if not indices:
+            return jsonify(error="Please list at least one dedupe column."), 400
+        seen, unique = set(), []
+        for r in data:
+            key = tuple(r[i] if i < len(r) else "" for i in indices)
+            if key not in seen:
+                seen.add(key); unique.append(r)
+        data = unique
+
+    # ── Sort ─────────────────────────────────────
+    sort_by = request.form.get("sort_by", "").strip()
+    if sort_by:
+        si = _col_idx(sort_by)
+        if si < 0:
+            return jsonify(error=f"Sort column '{sort_by}' not found."), 400
+        sort_type = request.form.get("sort_type", "smart")
+        desc = request.form.get("sort_dir", "asc") == "desc"
+
+        def _key(row):
+            v = row[si] if si < len(row) else ""
+            if sort_type == "text":
+                return (0, str(v))
+            n = _as_num(v)
+            if sort_type == "number":
+                return (0 if n is not None else 1, n if n is not None else 0)
+            # smart: numbers first, lexicographic fallback
+            if n is not None:
+                return (0, n)
+            return (1, str(v).lower())
+
+        data.sort(key=_key, reverse=desc)
+
+    # ── Write back ───────────────────────────────
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=delim, lineterminator="\n")
+    if has_header:
+        writer.writerow(header)
+    for r in data:
+        writer.writerow(r)
+
+    out_bytes = output.getvalue().encode("utf-8-sig")
+    name = files[0].filename.rsplit(".", 1)[0] + "_processed.csv"
+    return send_file(io.BytesIO(out_bytes), mimetype="text/csv",
+                     as_attachment=True, download_name=name)
