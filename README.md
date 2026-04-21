@@ -369,12 +369,3 @@ waitress-serve --port=8000 app:app
 
 ---
 
-## Support
-
-This project is free and always will be — no features are gated and there's no roadmap item that requires funding. If you've found it useful and want to send a tip as a thank-you, you can via **QRIS** (Indonesia's QR payment standard, also accepted across several ASEAN countries):
-
-<p align="center">
-  <img src="images/qris_new.png" alt="QRIS payment code" width="260">
-</p>
-
-Completely optional. Bug reports, suggestions, and pull requests are just as welcome — and free.
