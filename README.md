@@ -10,7 +10,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release history and recent fixes.
 **Mirrors** (pick whichever you prefer — same code, same branch):
 - Codeberg: https://codeberg.org/listyantidewi/your-everyday-tools
 - Bitbucket: https://bitbucket.org/your-everyday-tools/your-every-tools
-- GitHub: https://github.com/listyantidewi1/your-everyday-tools *(currently under review by GitHub Support — use a mirror in the meantime)*
+- GitHub: https://github.com/listyantidewi1/your-everyday-tools
 
 ---
 
@@ -188,9 +188,10 @@ If you prefer full control:
 
 ```bash
 # Clone the repository (pick any mirror — they track the same branch)
-git clone https://codeberg.org/listyantidewi/your-everyday-tools.git
+git clone https://github.com/listyantidewi1/your-everyday-tools.git
+# or: git clone https://codeberg.org/listyantidewi/your-everyday-tools.git
 # or: git clone https://bitbucket.org/your-everyday-tools/your-every-tools.git
-# GitHub mirror (listyantidewi1/your-everyday-tools) is temporarily unavailable.
+# (Optional) SSH: git clone git@github.com:listyantidewi1/your-everyday-tools.git
 cd your-everyday-tools
 
 # Create a virtual environment (recommended)
