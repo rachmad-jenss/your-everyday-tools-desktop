@@ -7,6 +7,11 @@ A lightweight, self-hosted web app that bundles 89 everyday utilities into a sin
 
 See [CHANGELOG.md](CHANGELOG.md) for release history and recent fixes.
 
+**Mirrors** (pick whichever you prefer — same code, same branch):
+- Codeberg: https://codeberg.org/listyantidewi/your-everyday-tools
+- Bitbucket: https://bitbucket.org/your-everyday-tools/your-every-tools
+- GitHub: https://github.com/listyantidewi1/your-everyday-tools *(currently under review by GitHub Support — use a mirror in the meantime)*
+
 ---
 
 ## Screenshots
@@ -182,8 +187,10 @@ Credit: [SyahrulMuchtaram](https://x.com/SyahrulMuchtarm)
 If you prefer full control:
 
 ```bash
-# Clone the repository
-git clone https://github.com/listyantidewi1/your-everyday-tools
+# Clone the repository (pick any mirror — they track the same branch)
+git clone https://codeberg.org/listyantidewi/your-everyday-tools.git
+# or: git clone https://bitbucket.org/your-everyday-tools/your-every-tools.git
+# GitHub mirror (listyantidewi1/your-everyday-tools) is temporarily unavailable.
 cd your-everyday-tools
 
 # Create a virtual environment (recommended)
