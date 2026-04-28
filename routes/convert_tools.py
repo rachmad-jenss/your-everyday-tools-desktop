@@ -17,6 +17,14 @@ try:
 except ImportError:
     HAS_PDF2DOCX = False
 
+# Marker is loaded lazily inside the route to avoid the ~2GB model preload
+# on server start. We only check importability here.
+try:
+    import marker  # type: ignore
+    HAS_MARKER = True
+except ImportError:
+    HAS_MARKER = False
+
 try:
     import pytesseract
     HAS_TESSERACT = True
@@ -146,16 +154,27 @@ def to_pdf_page():
 
 @bp.route("/pdf-to-word")
 def pdf_to_word_page():
+    marker_status = (
+        '<li><strong>Marker (ML)</strong> — uses an ML model for structure understanding. '
+        'Best fidelity for academic papers, books, and complex documents. <em>'
+        + ('Detected and ready.' if HAS_MARKER else 'Not installed — run <code>pip install marker-pdf</code>. '
+           'First run downloads ~2 GB of models. Conversion is slow on CPU (30–60s/page).')
+        + '</em></li>'
+    )
     return render_template("upload_tool.html",
         title="PDF to Word",
         description="Convert PDF documents to Word (.docx) format",
         notes=(
-            '<p><strong>Two conversion modes:</strong></p>'
+            '<p><strong>Four conversion modes — pick the one that fits your document:</strong></p>'
             '<ul style="margin:.4rem 0 .6rem 1.2rem">'
             '<li><strong>Layout (default)</strong> — uses <code>pdf2docx</code> to preserve tables, columns, and figure positions. '
-            'Best for forms, reports, and academic papers. Multi-column layouts and footnotes can occasionally misalign.</li>'
-            '<li><strong>Flowing text</strong> — extracts text in reading order and emits one paragraph per PDF paragraph, dropping tables and figures. '
-            'Best for essays, articles, or when Layout mode produces a mess. Output is always clean, never garbled.</li>'
+            'Best for forms, reports, invoices.</li>'
+            '<li><strong>Smart structure</strong> — analyses font sizes to detect headings, lists, and paragraphs, '
+            'and emits a Word doc with proper heading styles (visible in Word\'s navigation pane). '
+            'Best for articles, blog posts, books, and documentation. Drops tables and figures.</li>'
+            '<li><strong>Flowing text</strong> — extracts text in reading order, emits one paragraph per block. '
+            'No structure detection. Always produces clean output even on awkward PDFs.</li>'
+            f'{marker_status}'
             '</ul>'
             '<p style="font-size:.9em;color:var(--muted)">If your PDF is a scan, run it through <a href="/convert/ocr-pdf">OCR PDF</a> first.</p>'
         ),
@@ -165,9 +184,17 @@ def pdf_to_word_page():
         options=[
             {"type": "select", "name": "mode", "label": "Mode", "default": "layout",
              "choices": [
-                 {"value": "layout", "label": "Layout — preserve tables, columns, figures"},
-                 {"value": "text",   "label": "Flowing text — clean paragraphs only"},
+                 {"value": "layout",    "label": "Layout — preserve tables, columns, figures"},
+                 {"value": "structure", "label": "Smart structure — detect headings & lists"},
+                 {"value": "text",      "label": "Flowing text — clean paragraphs, no structure"},
+                 {"value": "marker",    "label": "Marker (ML) — best fidelity, slow, needs install"},
              ]},
+            {"type": "text", "name": "pages", "label": "Pages (blank = all)",
+             "placeholder": "e.g. 1-3, 5, 8-10"},
+            {"type": "checkbox", "name": "extract_tables",
+             "label": "Layout mode: detect borderless tables",
+             "check_label": "Try harder to find tables (slower, sometimes invents tables)",
+             "default": False},
         ])
 
 
@@ -529,48 +556,68 @@ def pdf_to_word():
 
     mode = request.form.get("mode", "layout")
     pdf_data = files[0].read()
+    pages_spec = (request.form.get("pages") or "").strip()
+    extract_borderless_tables = request.form.get("extract_tables") == "on"
+    base = files[0].filename.rsplit(".", 1)[0]
+    docx_mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+
+    # Pre-resolve page range against the PDF (used by all modes)
+    try:
+        with fitz.open(stream=pdf_data, filetype="pdf") as probe:
+            total_pages = len(probe)
+            if pages_spec:
+                from routes.pdf_tools import parse_page_ranges
+                target_pages = parse_page_ranges(pages_spec, total_pages)
+                if not target_pages:
+                    return jsonify(error="No valid pages selected."), 400
+            else:
+                target_pages = list(range(total_pages))
+    except (ValueError, IndexError):
+        return jsonify(error="Invalid page range. Use e.g. '1-3, 5, 8-10'."), 400
+    except Exception as e:
+        log_error(e, "pdf-to-word probe")
+        return jsonify(error="Could not open PDF (the file may be corrupted or password-protected)."), 400
+
+    # ── Mode dispatch ──────────────────────────────────────
 
     if mode == "text":
-        # ── Flowing-text mode ────────────────────────────
-        # Extract text in reading order via PyMuPDF and emit clean paragraphs.
-        # Always produces a sane document, but loses tables / images / columns.
-        from docx import Document as DocxDocument
         try:
-            with fitz.open(stream=pdf_data, filetype="pdf") as src:
-                doc = DocxDocument()
-                for i, page in enumerate(src):
-                    if i > 0:
-                        doc.add_page_break()
-                    blocks = page.get_text("blocks") or []
-                    # Sort top-to-bottom, left-to-right
-                    blocks.sort(key=lambda b: (round(b[1], 1), round(b[0], 1)))
-                    for b in blocks:
-                        text = (b[4] if len(b) > 4 else "").strip()
-                        if not text:
-                            continue
-                        # Heuristic: collapse internal newlines that aren't paragraph breaks.
-                        text = "\n".join(p.strip() for p in text.split("\n") if p.strip())
-                        for para in text.split("\n\n"):
-                            para = para.replace("\n", " ").strip()
-                            if para:
-                                doc.add_paragraph(para)
-
-                buf = io.BytesIO()
-                doc.save(buf)
+            buf = _pdf_to_docx_flowing_text(pdf_data, target_pages)
         except Exception as e:
             log_error(e, "pdf-to-word text")
             return jsonify(error="Could not extract text from the PDF (it may be a scan — try OCR PDF first)."), 400
+        return send_file(io.BytesIO(buf), mimetype=docx_mime,
+                         as_attachment=True, download_name=f"{base}.docx")
 
-        result = io.BytesIO(buf.getvalue())
-        result.seek(0)
-        name = files[0].filename.rsplit(".", 1)[0] + ".docx"
-        return send_file(result,
-            mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            as_attachment=True, download_name=name)
+    if mode == "structure":
+        try:
+            buf = _pdf_to_docx_smart_structure(pdf_data, target_pages)
+        except ValueError as e:
+            return jsonify(error=str(e)), 400
+        except Exception as e:
+            log_error(e, "pdf-to-word structure")
+            return jsonify(error="Smart-structure analysis failed. Try Flowing text mode instead."), 400
+        return send_file(io.BytesIO(buf), mimetype=docx_mime,
+                         as_attachment=True, download_name=f"{base}.docx")
+
+    if mode == "marker":
+        if not HAS_MARKER:
+            return jsonify(error=(
+                "Marker mode requires the 'marker-pdf' package. Run: "
+                "pip install marker-pdf — first run will download ~2 GB of models."
+            )), 400
+        try:
+            buf = _pdf_to_docx_via_marker(pdf_data, target_pages)
+        except Exception as e:
+            log_error(e, "pdf-to-word marker")
+            return jsonify(error="Marker conversion failed. Check the server log; "
+                           "first run downloads ~2 GB and may need extra time."), 400
+        return send_file(io.BytesIO(buf), mimetype=docx_mime,
+                         as_attachment=True, download_name=f"{base}.docx")
 
     # ── Layout mode (default) ──────────────────────────────
     if not HAS_PDF2DOCX:
-        return jsonify(error="Layout mode requires pdf2docx. Run: pip install pdf2docx — or switch to 'Flowing text' mode."), 400
+        return jsonify(error="Layout mode requires pdf2docx. Run: pip install pdf2docx — or switch to 'Flowing text' or 'Smart structure' mode."), 400
 
     import tempfile, os
 
@@ -581,16 +628,23 @@ def pdf_to_word():
         with open(pdf_path, "wb") as f:
             f.write(pdf_data)
 
+        # Translate target_pages (set of 0-based) to start/end if contiguous.
+        # pdf2docx supports a `pages` list arg directly, which is cleaner.
+        cv_kwargs = {"multi_processing": False}
+        if pages_spec:
+            cv_kwargs["pages"] = target_pages
+        if extract_borderless_tables:
+            cv_kwargs["parse_stream_table"] = True
+
         try:
             cv = Pdf2DocxConverter(pdf_path)
             try:
-                # multi_processing speeds up multi-page PDFs and is safe on Windows here
-                cv.convert(docx_path, multi_processing=False)
+                cv.convert(docx_path, **cv_kwargs)
             finally:
                 cv.close()
         except Exception as e:
-            log_error(e, "pdf-to-word")
-            return jsonify(error="Layout conversion failed. Try 'Flowing text' mode instead, or check that the PDF isn't password-protected."), 400
+            log_error(e, "pdf-to-word layout")
+            return jsonify(error="Layout conversion failed. Try Smart structure or Flowing text mode instead, or check that the PDF isn't password-protected."), 400
 
         with open(docx_path, "rb") as f:
             result = io.BytesIO(f.read())
@@ -599,6 +653,221 @@ def pdf_to_word():
     name = files[0].filename.rsplit(".", 1)[0] + ".docx"
     return send_file(result, mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                      as_attachment=True, download_name=name)
+
+
+# ── PDF → Word helpers (one per non-pdf2docx mode) ─────────
+
+def _pdf_to_docx_flowing_text(pdf_data: bytes, target_pages: list[int]) -> bytes:
+    """Reading-order text extraction → one paragraph per block. No structure."""
+    from docx import Document as DocxDocument
+
+    with fitz.open(stream=pdf_data, filetype="pdf") as src:
+        doc = DocxDocument()
+        for idx, pno in enumerate(target_pages):
+            if idx > 0:
+                doc.add_page_break()
+            page = src[pno]
+            blocks = page.get_text("blocks") or []
+            blocks.sort(key=lambda b: (round(b[1], 1), round(b[0], 1)))
+            for b in blocks:
+                text = (b[4] if len(b) > 4 else "").strip()
+                if not text:
+                    continue
+                text = "\n".join(p.strip() for p in text.split("\n") if p.strip())
+                for para in text.split("\n\n"):
+                    para = para.replace("\n", " ").strip()
+                    if para:
+                        doc.add_paragraph(para)
+        buf = io.BytesIO()
+        doc.save(buf)
+        return buf.getvalue()
+
+
+def _pdf_to_docx_smart_structure(pdf_data: bytes, target_pages: list[int]) -> bytes:
+    """Detect headings (by font size), bullet/numbered lists (by line prefix),
+    and paragraphs. Emit a .docx with proper Word heading and list styles.
+
+    Drops tables and figures (those need Layout or Marker mode).
+    """
+    import re
+    from collections import Counter
+    from docx import Document as DocxDocument
+
+    BULLET_RE = re.compile(r"^[•▪●·\-\*]\s+")
+    NUMBER_RE = re.compile(r"^(\d+|[a-zA-Z])[\.\)]\s+")
+
+    with fitz.open(stream=pdf_data, filetype="pdf") as src:
+        # Pass 1: collect font sizes to determine the body baseline.
+        sizes: list[float] = []
+        for pno in target_pages:
+            page = src[pno]
+            for block in page.get_text("dict")["blocks"]:
+                if "lines" not in block:
+                    continue
+                for line in block["lines"]:
+                    for span in line["spans"]:
+                        sizes.append(round(span["size"], 1))
+
+        if not sizes:
+            raise ValueError("No text found in the selected pages. If the PDF is a scan, run OCR PDF first.")
+
+        body_size = Counter(sizes).most_common(1)[0][0]
+
+        # Pass 2: build the document.
+        doc = DocxDocument()
+        for idx, pno in enumerate(target_pages):
+            if idx > 0:
+                doc.add_page_break()
+            page = src[pno]
+            blocks = [b for b in page.get_text("dict")["blocks"] if "lines" in b]
+            # Reading order: top-to-bottom, then left-to-right within tolerance
+            blocks.sort(key=lambda b: (round(b["bbox"][1] / 5) * 5, round(b["bbox"][0])))
+
+            for block in blocks:
+                lines = []
+                spans_meta: list[tuple[float, bool]] = []
+                for line in block["lines"]:
+                    line_text = "".join(s["text"] for s in line["spans"])
+                    if line_text.strip():
+                        lines.append(line_text)
+                        for s in line["spans"]:
+                            # PyMuPDF flag bit 4 (0x10) = bold
+                            spans_meta.append((s["size"], bool(s["flags"] & 16)))
+
+                if not lines:
+                    continue
+
+                avg_size = sum(s for s, _ in spans_meta) / len(spans_meta)
+                bold_ratio = sum(1 for _, b in spans_meta if b) / len(spans_meta)
+                full_text = " ".join(line.strip() for line in lines).strip()
+
+                # Heading detection by relative font size
+                if avg_size >= body_size * 1.6:
+                    doc.add_heading(full_text, level=1)
+                elif avg_size >= body_size * 1.3:
+                    doc.add_heading(full_text, level=2)
+                elif avg_size >= body_size * 1.15 or (
+                    avg_size >= body_size * 1.05 and bold_ratio > 0.6 and len(full_text) < 120
+                ):
+                    doc.add_heading(full_text, level=3)
+                # List detection by line prefix
+                elif BULLET_RE.match(full_text):
+                    doc.add_paragraph(BULLET_RE.sub("", full_text), style="List Bullet")
+                elif NUMBER_RE.match(full_text):
+                    doc.add_paragraph(NUMBER_RE.sub("", full_text), style="List Number")
+                else:
+                    doc.add_paragraph(full_text)
+
+        buf = io.BytesIO()
+        doc.save(buf)
+        return buf.getvalue()
+
+
+def _pdf_to_docx_via_marker(pdf_data: bytes, target_pages: list[int]) -> bytes:
+    """Use Marker (ML) to extract structured Markdown, then convert to .docx."""
+    import os
+    import tempfile
+    from marker.converters.pdf import PdfConverter
+    from marker.models import create_model_dict
+    from marker.output import text_from_rendered
+
+    # If specific pages requested, build a subset PDF first so Marker only
+    # processes what's needed (it's slow per page).
+    if len(target_pages) != _count_pages(pdf_data):
+        pdf_data = _extract_pages(pdf_data, target_pages)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        pdf_path = os.path.join(tmp, "input.pdf")
+        with open(pdf_path, "wb") as f:
+            f.write(pdf_data)
+
+        converter = PdfConverter(artifact_dict=create_model_dict())
+        rendered = converter(pdf_path)
+        markdown_text, _, _ = text_from_rendered(rendered)
+
+    # Convert the markdown to docx via a reusable HTML→docx walker
+    import markdown as md_lib
+    html = md_lib.markdown(
+        markdown_text,
+        extensions=["extra", "sane_lists", "nl2br", "fenced_code", "tables"],
+    )
+    return _md_html_to_docx_bytes(html)
+
+
+def _count_pages(pdf_data: bytes) -> int:
+    with fitz.open(stream=pdf_data, filetype="pdf") as d:
+        return len(d)
+
+
+def _extract_pages(pdf_data: bytes, page_indices: list[int]) -> bytes:
+    """Build a new PDF containing only the listed page indices (0-based)."""
+    with fitz.open(stream=pdf_data, filetype="pdf") as src:
+        with fitz.open() as out:
+            for idx in page_indices:
+                out.insert_pdf(src, from_page=idx, to_page=idx)
+            buf = io.BytesIO()
+            out.save(buf)
+            return buf.getvalue()
+
+
+def _md_html_to_docx_bytes(html: str) -> bytes:
+    """Use the same HTML-walking parser md_to_docx uses, but as a callable
+    helper so the marker mode can reuse it. Returns docx bytes.
+    """
+    # We avoid circular imports — import lazily.
+    from html.parser import HTMLParser as _HP
+    from docx import Document as DocxDocument
+
+    doc = DocxDocument()
+
+    class _P(_HP):
+        def __init__(self):
+            super().__init__()
+            self.cur_para = None
+            self.list_stack = []
+            self.in_pre = False
+
+        def handle_starttag(self, tag, attrs):
+            if tag in ("h1", "h2", "h3", "h4"):
+                self.cur_para = doc.add_heading("", level=int(tag[1]))
+            elif tag == "p":
+                self.cur_para = doc.add_paragraph()
+            elif tag == "li":
+                style = "List Number" if (self.list_stack and self.list_stack[-1] == "ol") else "List Bullet"
+                self.cur_para = doc.add_paragraph(style=style)
+            elif tag in ("ul", "ol"):
+                self.list_stack.append(tag)
+            elif tag in ("strong", "b", "em", "i", "code"):
+                pass  # handled in handle_data
+            elif tag == "pre":
+                self.in_pre = True
+                self.cur_para = doc.add_paragraph(style="Intense Quote")
+            elif tag == "hr":
+                doc.add_paragraph("─" * 40)
+
+        def handle_endtag(self, tag):
+            if tag in ("ul", "ol") and self.list_stack:
+                self.list_stack.pop()
+            if tag == "pre":
+                self.in_pre = False
+                self.cur_para = None
+            if tag in ("h1", "h2", "h3", "h4", "p", "li"):
+                self.cur_para = None
+
+        def handle_data(self, data):
+            if self.cur_para is None:
+                if data.strip():
+                    self.cur_para = doc.add_paragraph()
+                else:
+                    return
+            self.cur_para.add_run(data)
+
+    parser = _P()
+    parser.feed(html)
+
+    buf = io.BytesIO()
+    doc.save(buf)
+    return buf.getvalue()
 
 
 @bp.route("/pdf-to-images", methods=["POST"])
