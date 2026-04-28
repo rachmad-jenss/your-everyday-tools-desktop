@@ -38,15 +38,17 @@ def read_workbook(file_data: bytes, filename: str) -> dict[str, list[list]]:
     ext = _ext(filename)
     if ext in ("xlsx", "xlsm"):
         wb = load_workbook(io.BytesIO(file_data), data_only=True, read_only=True)
-        sheets = {}
-        for name in wb.sheetnames:
-            ws = wb[name]
-            rows = []
-            for row in ws.iter_rows(values_only=True):
-                rows.append([_normalize_cell(v) for v in row])
-            sheets[name] = rows
-        wb.close()
-        return sheets
+        try:
+            sheets = {}
+            for name in wb.sheetnames:
+                ws = wb[name]
+                rows = []
+                for row in ws.iter_rows(values_only=True):
+                    rows.append([_normalize_cell(v) for v in row])
+                sheets[name] = rows
+            return sheets
+        finally:
+            wb.close()
 
     if ext == "xls":
         if not HAS_XLRD:
@@ -255,7 +257,9 @@ def excel_to_csv():
     try:
         sheets = read_workbook(files[0].read(), files[0].filename)
     except Exception as e:
-        return jsonify(error=f"Could not read workbook: {e}"), 400
+        from routes._helpers import log_error
+        log_error(e, "spreadsheet read_workbook")
+        return jsonify(error="Could not read workbook (file may be corrupted or unsupported format)."), 400
 
     if target_sheet:
         if target_sheet not in sheets:
@@ -408,13 +412,15 @@ def _autosize_columns(ws, rows, max_width=60):
 
 @bp.route("/excel-to-pdf", methods=["POST"])
 def excel_to_pdf():
+    from routes._helpers import safe_int, log_error, NO_FILE_SINGLE
+
     files = request.files.getlist("files")
     if not files or not files[0].filename:
-        return jsonify(error="No file uploaded."), 400
+        return jsonify(error=NO_FILE_SINGLE), 400
 
     size_name = request.form.get("size", "A4")
     orientation = request.form.get("orientation", "landscape")
-    fontsize = int(request.form.get("fontsize", 8))
+    fontsize = safe_int(request.form.get("fontsize"), 8, min_val=4, max_val=24)
 
     page_size_map = {"A4": A4, "A3": A3, "letter": letter, "legal": legal}
     page_size = page_size_map.get(size_name, A4)
@@ -424,7 +430,8 @@ def excel_to_pdf():
     try:
         sheets = read_workbook(files[0].read(), files[0].filename)
     except Exception as e:
-        return jsonify(error=f"Could not read workbook: {e}"), 400
+        log_error(e, "excel-to-pdf read")
+        return jsonify(error="Could not read workbook (file may be corrupted or unsupported format)."), 400
 
     buf = io.BytesIO()
     pdf = SimpleDocTemplate(buf, pagesize=page_size,
@@ -551,7 +558,9 @@ def split():
     try:
         sheets = read_workbook(files[0].read(), files[0].filename)
     except Exception as e:
-        return jsonify(error=f"Could not read workbook: {e}"), 400
+        from routes._helpers import log_error
+        log_error(e, "spreadsheet read_workbook")
+        return jsonify(error="Could not read workbook (file may be corrupted or unsupported format)."), 400
 
     if not sheets:
         return jsonify(error="Workbook contains no sheets."), 400
@@ -585,16 +594,19 @@ def _safe_filename(name: str) -> str:
 
 @bp.route("/info", methods=["POST"])
 def info():
+    from routes._helpers import safe_int, log_error, NO_FILE_SINGLE
+
     files = request.files.getlist("files")
     if not files or not files[0].filename:
-        return jsonify(error="No file uploaded."), 400
+        return jsonify(error=NO_FILE_SINGLE), 400
 
-    preview = int(request.form.get("preview_rows", 10))
+    preview = safe_int(request.form.get("preview_rows"), 10, min_val=0, max_val=200)
 
     try:
         sheets = read_workbook(files[0].read(), files[0].filename)
     except Exception as e:
-        return jsonify(error=f"Could not read workbook: {e}"), 400
+        log_error(e, "spreadsheet info")
+        return jsonify(error="Could not read workbook (file may be corrupted or unsupported format)."), 400
 
     lines = [f"File: {files[0].filename}", f"Sheets: {len(sheets)}", ""]
     for name, rows in sheets.items():

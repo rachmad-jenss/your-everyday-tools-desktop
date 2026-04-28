@@ -9,6 +9,7 @@ reportlab
 svglib
 img2pdf
 python-docx
+python-pptx
 openpyxl
 xlrd
 sqlparse

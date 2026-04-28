@@ -4,6 +4,8 @@ import subprocess
 import tempfile
 from flask import Blueprint, render_template, request, send_file, jsonify
 
+from routes._helpers import safe_int, safe_float, log_error, NO_FILE_SINGLE
+
 bp = Blueprint("media", __name__)
 
 FFMPEG = shutil.which("ffmpeg")
@@ -102,7 +104,7 @@ def convert_audio():
 
     f = request.files.get("files")
     if not f:
-        return jsonify({"error": "No file uploaded."}), 400
+        return jsonify({"error": NO_FILE_SINGLE}), 400
     fmt = request.form.get("format", "mp3")
     if fmt not in AUDIO_FORMATS:
         return jsonify({"error": "Unsupported target format."}), 400
@@ -161,7 +163,7 @@ def convert_video():
 
     f = request.files.get("files")
     if not f:
-        return jsonify({"error": "No file uploaded."}), 400
+        return jsonify({"error": NO_FILE_SINGLE}), 400
     fmt = request.form.get("format", "mp4")
     if fmt not in VIDEO_FORMATS:
         return jsonify({"error": "Unsupported target format."}), 400
@@ -226,7 +228,7 @@ def extract_audio():
 
     f = request.files.get("files")
     if not f:
-        return jsonify({"error": "No file uploaded."}), 400
+        return jsonify({"error": NO_FILE_SINGLE}), 400
     fmt = request.form.get("format", "mp3")
     if fmt not in ("mp3", "wav", "ogg", "m4a"):
         return jsonify({"error": "Unsupported audio format."}), 400
@@ -290,7 +292,7 @@ def trim():
 
     f = request.files.get("files")
     if not f:
-        return jsonify({"error": "No file uploaded."}), 400
+        return jsonify({"error": NO_FILE_SINGLE}), 400
 
     start = (request.form.get("start") or "0").strip()
     end = (request.form.get("end") or "").strip()
@@ -371,7 +373,7 @@ def compress_video():
 
     f = request.files.get("files")
     if not f:
-        return jsonify({"error": "No file uploaded."}), 400
+        return jsonify({"error": NO_FILE_SINGLE}), 400
 
     crf = request.form.get("quality", "28")
     preset = request.form.get("preset", "medium")
@@ -427,13 +429,10 @@ def video_to_gif():
 
     f = request.files.get("files")
     if not f:
-        return jsonify({"error": "No file uploaded."}), 400
+        return jsonify({"error": NO_FILE_SINGLE}), 400
 
-    try:
-        fps = max(1, min(30, int(request.form.get("fps", 15))))
-        width = max(100, min(1920, int(request.form.get("width", 480))))
-    except ValueError:
-        return jsonify({"error": "FPS and width must be integers."}), 400
+    fps = safe_int(request.form.get("fps"), 15, min_val=1, max_val=30)
+    width = safe_int(request.form.get("width"), 480, min_val=100, max_val=1920)
 
     start = (request.form.get("start") or "0").strip()
     duration = (request.form.get("duration") or "").strip()
@@ -592,14 +591,12 @@ def subtitle_convert():
 
     f = request.files.get("files")
     if not f:
-        return jsonify({"error": "No file uploaded."}), 400
+        return jsonify({"error": NO_FILE_SINGLE}), 400
     target = request.form.get("target", "srt").lower()
     if target not in ("srt", "vtt"):
         return jsonify({"error": "Unsupported target format."}), 400
-    try:
-        offset = float(request.form.get("offset", "0"))
-    except ValueError:
-        return jsonify({"error": "Offset must be a number."}), 400
+    offset = safe_float(request.form.get("offset"), 0.0,
+                        min_val=-3600.0, max_val=3600.0)
 
     raw = f.read().decode("utf-8-sig", errors="replace")
     cues = _parse_subs(raw)
@@ -670,10 +667,7 @@ def burn_subtitles():
     if not sub or not sub.filename:
         return jsonify({"error": "Please upload a subtitle file."}), 400
 
-    try:
-        font_size = max(10, min(72, int(request.form.get("font_size", 22))))
-    except ValueError:
-        font_size = 22
+    font_size = safe_int(request.form.get("font_size"), 22, min_val=10, max_val=72)
     crf = request.form.get("quality", "23")
     if crf not in ("18", "23", "28"):
         crf = "23"

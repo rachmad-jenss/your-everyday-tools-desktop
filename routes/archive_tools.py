@@ -4,6 +4,7 @@ from datetime import datetime
 from flask import Blueprint, render_template, request, send_file, jsonify
 
 from utils.file_utils import make_zip
+from routes._helpers import log_error, NO_FILE_SINGLE, NO_FILE_MULTIPLE
 
 bp = Blueprint("archive", __name__)
 
@@ -43,17 +44,22 @@ def zip_create():
         )
 
     files = request.files.getlist("files")
-    if not files:
-        return jsonify({"error": "No files uploaded."}), 400
+    if not files or not any(f.filename for f in files):
+        return jsonify({"error": NO_FILE_MULTIPLE}), 400
 
     method = zipfile.ZIP_DEFLATED if request.form.get("compression", "deflated") == "deflated" else zipfile.ZIP_STORED
     name = (request.form.get("archive_name") or "archive").strip() or "archive"
     if name.lower().endswith(".zip"):
         name = name[:-4]
+    # Sanitize archive name (no path separators, length cap)
+    import re
+    name = re.sub(r"[^\w.\- ]+", "_", name)[:60] or "archive"
 
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", method) as zf:
         for f in files:
+            if not f.filename:
+                continue
             data = f.read()
             zf.writestr(f.filename, data)
     buf.seek(0)
@@ -76,16 +82,22 @@ def zip_extract():
             button_text="Extract",
         )
 
-    if "files" not in request.files:
-        return jsonify({"error": "No file uploaded."}), 400
+    files = request.files.getlist("files")
+    if not files or not files[0].filename:
+        return jsonify({"error": NO_FILE_SINGLE}), 400
 
-    f = request.files["files"]
+    f = files[0]
     if not f.filename.lower().endswith(".zip"):
         return jsonify({"error": "Please upload a .zip file."}), 400
 
     try:
         data = f.read()
         with zipfile.ZipFile(io.BytesIO(data)) as zf:
+            # Detect encryption up-front (clearer than catching it during read)
+            for info in zf.infolist():
+                if info.flag_bits & 0x1:
+                    return jsonify({"error": "Password-protected ZIPs are not supported."}), 400
+
             total = 0
             out = []
             for info in zf.infolist():
@@ -99,10 +111,9 @@ def zip_extract():
                 out.append((info.filename, zf.read(info)))
     except zipfile.BadZipFile:
         return jsonify({"error": "Not a valid ZIP archive."}), 400
-    except RuntimeError as e:
-        if "password" in str(e).lower() or "encrypted" in str(e).lower():
-            return jsonify({"error": "Password-protected ZIPs are not supported."}), 400
-        return jsonify({"error": f"Extraction failed: {e}"}), 400
+    except (RuntimeError, NotImplementedError) as e:
+        log_error(e, "unzip")
+        return jsonify({"error": "Extraction failed (archive may be corrupted or use unsupported features)."}), 400
 
     if not out:
         return jsonify({"error": "Archive is empty."}), 400
@@ -125,10 +136,11 @@ def zip_info():
             button_text="Inspect",
         )
 
-    if "files" not in request.files:
-        return jsonify({"error": "No file uploaded."}), 400
+    files = request.files.getlist("files")
+    if not files or not files[0].filename:
+        return jsonify({"error": NO_FILE_SINGLE}), 400
 
-    f = request.files["files"]
+    f = files[0]
     if not f.filename.lower().endswith(".zip"):
         return jsonify({"error": "Please upload a .zip file."}), 400
 

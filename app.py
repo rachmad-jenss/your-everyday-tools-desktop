@@ -18,6 +18,8 @@ TOOL_CATEGORIES = [
             {"id": "html-to-pdf", "name": "HTML to PDF", "desc": "Convert HTML content to PDF", "icon": "bi-filetype-html"},
             {"id": "md-to-pdf", "name": "Markdown to PDF", "desc": "Convert Markdown text or files to PDF", "icon": "bi-markdown-fill"},
             {"id": "md-to-docx", "name": "Markdown to Word", "desc": "Convert Markdown to a Word .docx document", "icon": "bi-file-word-fill"},
+            {"id": "pdf-to-pptx", "name": "PDF to PowerPoint", "desc": "Each PDF page becomes a slide image", "icon": "bi-file-earmark-slides-fill"},
+            {"id": "pptx-to-pdf", "name": "PowerPoint to PDF", "desc": "Convert .pptx / .ppt / .odp to PDF (needs LibreOffice)", "icon": "bi-file-earmark-pdf-fill"},
             {"id": "ocr-pdf", "name": "OCR PDF", "desc": "Make scanned PDFs searchable or extract text", "icon": "bi-file-earmark-text-fill"},
             {"id": "cad-to-pdf", "name": "CAD to PDF/Image", "desc": "Convert DXF/DWG drawings to PDF or PNG", "icon": "bi-rulers"},
         ],

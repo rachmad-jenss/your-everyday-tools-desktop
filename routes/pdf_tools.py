@@ -2,8 +2,18 @@ import io
 import fitz  # PyMuPDF
 from flask import Blueprint, render_template, request, send_file, jsonify
 from utils.file_utils import make_zip
+from routes._helpers import safe_int, safe_float, log_error, NO_FILE_SINGLE, NO_FILE_MULTIPLE
 
 bp = Blueprint("pdf", __name__)
+
+
+def _open_pdf(data: bytes):
+    """Open a PDF from bytes, raising a friendly ValueError on failure."""
+    try:
+        return fitz.open(stream=data, filetype="pdf")
+    except Exception as e:
+        log_error(e, "fitz.open")
+        raise ValueError("Could not open PDF (the file may be corrupted, encrypted, or not a PDF).")
 
 
 # ── Page Routes ──────────────────────────────────
@@ -234,18 +244,21 @@ def merge():
         return jsonify(error="Please upload at least 2 PDF files."), 400
 
     result = fitz.open()
-    for f in files:
-        try:
-            doc = fitz.open(stream=f.read(), filetype="pdf")
-            result.insert_pdf(doc)
-            doc.close()
-        except Exception as e:
-            return jsonify(error=f"Error reading {f.filename}: {str(e)}"), 400
+    try:
+        for f in files:
+            try:
+                with fitz.open(stream=f.read(), filetype="pdf") as doc:
+                    result.insert_pdf(doc)
+            except Exception as e:
+                log_error(e, f"merge: {f.filename}")
+                return jsonify(error=f"Could not read '{f.filename}' (corrupted or not a PDF)."), 400
 
-    output = io.BytesIO()
-    result.save(output)
-    result.close()
-    output.seek(0)
+        output = io.BytesIO()
+        result.save(output)
+        output.seek(0)
+    finally:
+        result.close()
+
     return send_file(output, mimetype="application/pdf",
                      as_attachment=True, download_name="merged.pdf")
 
@@ -254,40 +267,42 @@ def merge():
 def split():
     files = request.files.getlist("files")
     if not files or not files[0].filename:
-        return jsonify(error="No file uploaded."), 400
+        return jsonify(error=NO_FILE_SINGLE), 400
 
     page_spec = request.form.get("pages", "").strip()
-    doc = fitz.open(stream=files[0].read(), filetype="pdf")
+    try:
+        doc = _open_pdf(files[0].read())
+    except ValueError as e:
+        return jsonify(error=str(e)), 400
 
     try:
-        pages = parse_page_ranges(page_spec, len(doc))
-    except ValueError:
-        return jsonify(error="Invalid page range format."), 400
+        try:
+            pages = parse_page_ranges(page_spec, len(doc))
+        except (ValueError, IndexError):
+            return jsonify(error="Invalid page range. Use e.g. '1-3, 5, 7-10'."), 400
 
-    if not pages:
-        return jsonify(error="No valid pages selected."), 400
+        if not pages:
+            return jsonify(error="No valid pages selected."), 400
 
-    if len(pages) == 1:
-        single = fitz.open()
-        single.insert_pdf(doc, from_page=pages[0], to_page=pages[0])
-        output = io.BytesIO()
-        single.save(output)
-        single.close()
+        if len(pages) == 1:
+            with fitz.open() as single:
+                single.insert_pdf(doc, from_page=pages[0], to_page=pages[0])
+                output = io.BytesIO()
+                single.save(output)
+            output.seek(0)
+            return send_file(output, mimetype="application/pdf",
+                             as_attachment=True, download_name=f"page_{pages[0]+1}.pdf")
+
+        parts = []
+        for p in pages:
+            with fitz.open() as part:
+                part.insert_pdf(doc, from_page=p, to_page=p)
+                buf = io.BytesIO()
+                part.save(buf)
+            parts.append((f"page_{p + 1}.pdf", buf.getvalue()))
+    finally:
         doc.close()
-        output.seek(0)
-        return send_file(output, mimetype="application/pdf",
-                         as_attachment=True, download_name=f"page_{pages[0]+1}.pdf")
 
-    parts = []
-    for p in pages:
-        part = fitz.open()
-        part.insert_pdf(doc, from_page=p, to_page=p)
-        buf = io.BytesIO()
-        part.save(buf)
-        part.close()
-        parts.append((f"page_{p + 1}.pdf", buf.getvalue()))
-
-    doc.close()
     zip_buf = make_zip(parts)
     return send_file(zip_buf, mimetype="application/zip",
                      as_attachment=True, download_name="split_pages.zip")
@@ -297,7 +312,7 @@ def split():
 def compress():
     files = request.files.getlist("files")
     if not files or not files[0].filename:
-        return jsonify(error="No file uploaded."), 400
+        return jsonify(error=NO_FILE_SINGLE), 400
 
     quality = request.form.get("quality", "medium")
     image_quality = {"low": 40, "medium": 65, "high": 85}.get(quality, 65)
@@ -305,40 +320,45 @@ def compress():
 
     from PIL import Image
 
-    doc = fitz.open(stream=files[0].read(), filetype="pdf")
-    processed_xrefs = set()
+    try:
+        doc = _open_pdf(files[0].read())
+    except ValueError as e:
+        return jsonify(error=str(e)), 400
 
-    for page in doc:
-        for img_info in page.get_images(full=True):
-            xref = img_info[0]
-            if xref in processed_xrefs:
-                continue
-            processed_xrefs.add(xref)
-            try:
-                base_image = doc.extract_image(xref)
-                if not base_image:
+    try:
+        processed_xrefs = set()
+        for page in doc:
+            for img_info in page.get_images(full=True):
+                xref = img_info[0]
+                if xref in processed_xrefs:
                     continue
-                pil_img = Image.open(io.BytesIO(base_image["image"]))
-                if pil_img.mode in ("RGBA", "LA", "P"):
-                    pil_img = pil_img.convert("RGB")
-                elif pil_img.mode not in ("RGB", "L"):
-                    pil_img = pil_img.convert("RGB")
+                processed_xrefs.add(xref)
+                try:
+                    base_image = doc.extract_image(xref)
+                    if not base_image:
+                        continue
+                    with Image.open(io.BytesIO(base_image["image"])) as pil_img:
+                        if pil_img.mode != "RGB":
+                            pil_img = pil_img.convert("RGB")
 
-                if max(pil_img.size) > max_dim:
-                    pil_img.thumbnail((max_dim, max_dim), Image.LANCZOS)
+                        if max(pil_img.size) > max_dim:
+                            pil_img.thumbnail((max_dim, max_dim), Image.LANCZOS)
 
-                buf = io.BytesIO()
-                pil_img.save(buf, format="JPEG", quality=image_quality, optimize=True)
+                        buf = io.BytesIO()
+                        pil_img.save(buf, format="JPEG",
+                                     quality=image_quality, optimize=True)
 
-                # Replace image in-place — preserves original placement & size.
-                page.replace_image(xref, stream=buf.getvalue())
-            except Exception:
-                continue
+                    # Replace image in-place — preserves original placement & size.
+                    page.replace_image(xref, stream=buf.getvalue())
+                except Exception as e:
+                    log_error(e, f"compress xref={xref}")
+                    continue
 
-    output = io.BytesIO()
-    doc.save(output, garbage=4, deflate=True, clean=True)
-    doc.close()
-    output.seek(0)
+        output = io.BytesIO()
+        doc.save(output, garbage=4, deflate=True, clean=True)
+        output.seek(0)
+    finally:
+        doc.close()
 
     name = files[0].filename.rsplit(".", 1)[0] + "_compressed.pdf"
     return send_file(output, mimetype="application/pdf",
@@ -349,21 +369,32 @@ def compress():
 def rotate():
     files = request.files.getlist("files")
     if not files or not files[0].filename:
-        return jsonify(error="No file uploaded."), 400
+        return jsonify(error=NO_FILE_SINGLE), 400
 
-    angle = int(request.form.get("angle", 90))
+    angle = safe_int(request.form.get("angle"), 90)
+    if angle not in (90, 180, 270):
+        return jsonify(error="Rotation must be 90, 180, or 270."), 400
     page_spec = request.form.get("pages", "").strip()
 
-    doc = fitz.open(stream=files[0].read(), filetype="pdf")
-    pages = parse_page_ranges(page_spec, len(doc))
+    try:
+        doc = _open_pdf(files[0].read())
+    except ValueError as e:
+        return jsonify(error=str(e)), 400
 
-    for p in pages:
-        doc[p].set_rotation((doc[p].rotation + angle) % 360)
+    try:
+        try:
+            pages = parse_page_ranges(page_spec, len(doc))
+        except (ValueError, IndexError):
+            return jsonify(error="Invalid page range. Use e.g. '1-3, 5, 7-10'."), 400
 
-    output = io.BytesIO()
-    doc.save(output)
-    doc.close()
-    output.seek(0)
+        for p in pages:
+            doc[p].set_rotation((doc[p].rotation + angle) % 360)
+
+        output = io.BytesIO()
+        doc.save(output)
+        output.seek(0)
+    finally:
+        doc.close()
 
     name = files[0].filename.rsplit(".", 1)[0] + "_rotated.pdf"
     return send_file(output, mimetype="application/pdf",
@@ -374,62 +405,63 @@ def rotate():
 def resize():
     files = request.files.getlist("files")
     if not files or not files[0].filename:
-        return jsonify(error="No file uploaded."), 400
+        return jsonify(error=NO_FILE_SINGLE), 400
 
     mode = request.form.get("mode", "scale")
-    doc = fitz.open(stream=files[0].read(), filetype="pdf")
+    try:
+        doc = _open_pdf(files[0].read())
+    except ValueError as e:
+        return jsonify(error=str(e)), 400
+
     new_doc = fitz.open()
+    try:
+        if mode == "scale":
+            scale_pct = safe_float(request.form.get("scale"), 100.0,
+                                   min_val=10.0, max_val=500.0)
+            scale = scale_pct / 100.0
 
-    if mode == "scale":
-        try:
-            scale = float(request.form.get("scale", 100)) / 100.0
-        except ValueError:
-            scale = 1.0
-        if scale <= 0:
-            doc.close()
-            new_doc.close()
-            return jsonify(error="Scale must be greater than 0."), 400
+            for page in doc:
+                r = page.rect
+                new_page = new_doc.new_page(width=r.width * scale,
+                                            height=r.height * scale)
+                new_page.show_pdf_page(new_page.rect, doc, page.number,
+                                       rotate=page.rotation)
 
-        for page in doc:
-            r = page.rect
-            new_w = r.width * scale
-            new_h = r.height * scale
-            new_page = new_doc.new_page(width=new_w, height=new_h)
-            new_page.show_pdf_page(new_page.rect, doc, page.number,
-                                   rotate=page.rotation)
+        elif mode == "paper":
+            paper = request.form.get("paper", "a4")
+            target_w, target_h = PAPER_SIZES.get(paper, PAPER_SIZES["a4"])
 
-    elif mode == "paper":
-        paper = request.form.get("paper", "a4")
-        target_w, target_h = PAPER_SIZES.get(paper, PAPER_SIZES["a4"])
+            for page in doc:
+                r = page.rect
+                src_w, src_h = r.width, r.height
 
-        for page in doc:
-            r = page.rect
-            src_w, src_h = r.width, r.height
+                # Match target orientation to source orientation
+                if (src_w > src_h) != (target_w > target_h):
+                    page_w, page_h = target_h, target_w
+                else:
+                    page_w, page_h = target_w, target_h
 
-            # Match target orientation to source orientation
-            if (src_w > src_h) != (target_w > target_h):
-                page_w, page_h = target_h, target_w
-            else:
-                page_w, page_h = target_w, target_h
+                # Fit source page into new page, preserving aspect ratio
+                fit = min(page_w / src_w, page_h / src_h)
+                content_w = src_w * fit
+                content_h = src_h * fit
+                x0 = (page_w - content_w) / 2
+                y0 = (page_h - content_h) / 2
 
-            # Fit source page into new page, preserving aspect ratio
-            fit = min(page_w / src_w, page_h / src_h)
-            content_w = src_w * fit
-            content_h = src_h * fit
-            x0 = (page_w - content_w) / 2
-            y0 = (page_h - content_h) / 2
+                new_page = new_doc.new_page(width=page_w, height=page_h)
+                new_page.show_pdf_page(
+                    fitz.Rect(x0, y0, x0 + content_w, y0 + content_h),
+                    doc, page.number, rotate=page.rotation
+                )
+        else:
+            return jsonify(error="Unknown resize mode."), 400
 
-            new_page = new_doc.new_page(width=page_w, height=page_h)
-            new_page.show_pdf_page(
-                fitz.Rect(x0, y0, x0 + content_w, y0 + content_h),
-                doc, page.number, rotate=page.rotation
-            )
-
-    output = io.BytesIO()
-    new_doc.save(output, garbage=4, deflate=True)
-    new_doc.close()
-    doc.close()
-    output.seek(0)
+        output = io.BytesIO()
+        new_doc.save(output, garbage=4, deflate=True)
+        output.seek(0)
+    finally:
+        new_doc.close()
+        doc.close()
 
     name = files[0].filename.rsplit(".", 1)[0] + "_resized.pdf"
     return send_file(output, mimetype="application/pdf",
@@ -440,37 +472,41 @@ def resize():
 def page_numbers():
     files = request.files.getlist("files")
     if not files or not files[0].filename:
-        return jsonify(error="No file uploaded."), 400
+        return jsonify(error=NO_FILE_SINGLE), 400
 
     position = request.form.get("position", "bottom-center")
-    start = int(request.form.get("start", 1))
-    fontsize = int(request.form.get("fontsize", 11))
+    start = safe_int(request.form.get("start"), 1, min_val=0, max_val=100000)
+    fontsize = safe_int(request.form.get("fontsize"), 11, min_val=6, max_val=72)
 
-    doc = fitz.open(stream=files[0].read(), filetype="pdf")
+    try:
+        doc = _open_pdf(files[0].read())
+    except ValueError as e:
+        return jsonify(error=str(e)), 400
 
-    for i, page in enumerate(doc):
-        num = start + i
-        r = page.rect
-        margin = 36  # 0.5 inch
+    try:
+        for i, page in enumerate(doc):
+            num = start + i
+            r = page.rect
+            margin = 36  # 0.5 inch
 
-        pos_map = {
-            "bottom-center": fitz.Point(r.width / 2, r.height - margin),
-            "bottom-right": fitz.Point(r.width - margin, r.height - margin),
-            "bottom-left": fitz.Point(margin, r.height - margin),
-            "top-center": fitz.Point(r.width / 2, margin + fontsize),
-            "top-right": fitz.Point(r.width - margin, margin + fontsize),
-            "top-left": fitz.Point(margin, margin + fontsize),
-        }
-        point = pos_map.get(position, pos_map["bottom-center"])
+            pos_map = {
+                "bottom-center": fitz.Point(r.width / 2, r.height - margin),
+                "bottom-right": fitz.Point(r.width - margin, r.height - margin),
+                "bottom-left": fitz.Point(margin, r.height - margin),
+                "top-center": fitz.Point(r.width / 2, margin + fontsize),
+                "top-right": fitz.Point(r.width - margin, margin + fontsize),
+                "top-left": fitz.Point(margin, margin + fontsize),
+            }
+            point = pos_map.get(position, pos_map["bottom-center"])
 
-        align = 1 if "center" in position else (2 if "right" in position else 0)
-        page.insert_text(point, str(num), fontsize=fontsize,
-                         fontname="helv", color=(0.3, 0.3, 0.3))
+            page.insert_text(point, str(num), fontsize=fontsize,
+                             fontname="helv", color=(0.3, 0.3, 0.3))
 
-    output = io.BytesIO()
-    doc.save(output)
-    doc.close()
-    output.seek(0)
+        output = io.BytesIO()
+        doc.save(output)
+        output.seek(0)
+    finally:
+        doc.close()
 
     name = files[0].filename.rsplit(".", 1)[0] + "_numbered.pdf"
     return send_file(output, mimetype="application/pdf",
@@ -481,24 +517,30 @@ def page_numbers():
 def extract_images():
     files = request.files.getlist("files")
     if not files or not files[0].filename:
-        return jsonify(error="No file uploaded."), 400
+        return jsonify(error=NO_FILE_SINGLE), 400
 
-    doc = fitz.open(stream=files[0].read(), filetype="pdf")
+    try:
+        doc = _open_pdf(files[0].read())
+    except ValueError as e:
+        return jsonify(error=str(e)), 400
+
     images = []
-
-    for i, page in enumerate(doc):
-        for img_idx, img_info in enumerate(page.get_images(full=True)):
-            xref = img_info[0]
-            try:
-                base_image = doc.extract_image(xref)
-                if not base_image:
+    try:
+        for i, page in enumerate(doc):
+            for img_idx, img_info in enumerate(page.get_images(full=True)):
+                xref = img_info[0]
+                try:
+                    base_image = doc.extract_image(xref)
+                    if not base_image:
+                        continue
+                    ext = base_image.get("ext", "png")
+                    images.append((f"page{i+1}_img{img_idx+1}.{ext}",
+                                   base_image["image"]))
+                except Exception as e:
+                    log_error(e, f"extract_images xref={xref}")
                     continue
-                ext = base_image.get("ext", "png")
-                images.append((f"page{i+1}_img{img_idx+1}.{ext}", base_image["image"]))
-            except Exception:
-                continue
-
-    doc.close()
+    finally:
+        doc.close()
 
     if not images:
         return jsonify(error="No images found in the PDF."), 400
@@ -519,7 +561,7 @@ def extract_images():
 def protect():
     files = request.files.getlist("files")
     if not files or not files[0].filename:
-        return jsonify(error="No file uploaded."), 400
+        return jsonify(error=NO_FILE_SINGLE), 400
 
     user_pw = request.form.get("user_password", "")
     owner_pw = request.form.get("owner_password", "") or user_pw
@@ -527,17 +569,23 @@ def protect():
     if not user_pw:
         return jsonify(error="Please enter a password."), 400
 
-    doc = fitz.open(stream=files[0].read(), filetype="pdf")
-    perm = fitz.PDF_PERM_PRINT | fitz.PDF_PERM_COPY
+    try:
+        doc = _open_pdf(files[0].read())
+    except ValueError as e:
+        return jsonify(error=str(e)), 400
 
-    output = io.BytesIO()
-    doc.save(output,
-             encryption=fitz.PDF_ENCRYPT_AES_256,
-             user_pw=user_pw,
-             owner_pw=owner_pw,
-             permissions=perm)
-    doc.close()
-    output.seek(0)
+    try:
+        perm = fitz.PDF_PERM_PRINT | fitz.PDF_PERM_COPY
+
+        output = io.BytesIO()
+        doc.save(output,
+                 encryption=fitz.PDF_ENCRYPT_AES_256,
+                 user_pw=user_pw,
+                 owner_pw=owner_pw,
+                 permissions=perm)
+        output.seek(0)
+    finally:
+        doc.close()
 
     name = files[0].filename.rsplit(".", 1)[0] + "_protected.pdf"
     return send_file(output, mimetype="application/pdf",
@@ -550,27 +598,29 @@ def sign():
 
     files = request.files.getlist("files")
     if not files or not files[0].filename:
-        return jsonify(error="No PDF uploaded."), 400
+        return jsonify(error="Please upload a PDF."), 400
 
     sig_file = request.files.get("signature")
     if not sig_file or not sig_file.filename:
         return jsonify(error="Please upload a signature image (PNG or JPG)."), 400
 
     position = request.form.get("position", "bottom-right")
-    try:
-        sig_width = float(request.form.get("width", 140))
-        margin = float(request.form.get("margin", 36))
-        opacity = max(10, min(100, int(request.form.get("opacity", 100)))) / 100.0
-    except ValueError:
-        return jsonify(error="Invalid numeric option."), 400
+    sig_width = safe_float(request.form.get("width"), 140.0,
+                           min_val=30.0, max_val=600.0)
+    margin = safe_float(request.form.get("margin"), 36.0,
+                        min_val=0.0, max_val=300.0)
+    opacity_pct = safe_int(request.form.get("opacity"), 100,
+                           min_val=10, max_val=100)
+    opacity = opacity_pct / 100.0
 
     page_spec = request.form.get("pages", "").strip()
 
-    # Load & normalise signature image → PNG bytes (with opacity applied)
     try:
-        sig_img = Image.open(sig_file).convert("RGBA")
+        with Image.open(sig_file) as raw:
+            sig_img = raw.convert("RGBA")
     except Exception as e:
-        return jsonify(error=f"Could not read signature image: {e}"), 400
+        log_error(e, "sign: signature image")
+        return jsonify(error="Could not read signature image (file may be corrupted or not an image)."), 400
 
     if opacity < 1.0:
         r, g, b, a = sig_img.split()
@@ -581,45 +631,49 @@ def sign():
     sig_img.save(sig_buf, format="PNG")
     sig_bytes = sig_buf.getvalue()
 
-    # Derive aspect-preserving height
     sig_ratio = sig_img.height / sig_img.width if sig_img.width else 1.0
     sig_h = sig_width * sig_ratio
+    sig_img.close()
 
-    doc = fitz.open(stream=files[0].read(), filetype="pdf")
     try:
-        target = parse_page_ranges(page_spec, len(doc))
-    except ValueError:
+        doc = _open_pdf(files[0].read())
+    except ValueError as e:
+        return jsonify(error=str(e)), 400
+
+    try:
+        try:
+            target = parse_page_ranges(page_spec, len(doc))
+        except (ValueError, IndexError):
+            return jsonify(error="Invalid page range. Use e.g. '1, 3, 5-7'."), 400
+        if not target:
+            return jsonify(error="No valid pages selected."), 400
+
+        for pno in target:
+            page = doc[pno]
+            r = page.rect
+
+            if "right" in position:
+                x0 = r.width - margin - sig_width
+            elif "center" in position:
+                x0 = (r.width - sig_width) / 2
+            else:
+                x0 = margin
+
+            if "bottom" in position:
+                y0 = r.height - margin - sig_h
+            else:
+                y0 = margin
+
+            page.insert_image(
+                fitz.Rect(x0, y0, x0 + sig_width, y0 + sig_h),
+                stream=sig_bytes, keep_proportion=True, overlay=True,
+            )
+
+        output = io.BytesIO()
+        doc.save(output, garbage=4, deflate=True)
+        output.seek(0)
+    finally:
         doc.close()
-        return jsonify(error="Invalid page range format."), 400
-    if not target:
-        doc.close()
-        return jsonify(error="No valid pages selected."), 400
-
-    for pno in target:
-        page = doc[pno]
-        r = page.rect
-
-        if "right" in position:
-            x0 = r.width - margin - sig_width
-        elif "center" in position:
-            x0 = (r.width - sig_width) / 2
-        else:
-            x0 = margin
-
-        if "bottom" in position:
-            y0 = r.height - margin - sig_h
-        else:
-            y0 = margin
-
-        page.insert_image(
-            fitz.Rect(x0, y0, x0 + sig_width, y0 + sig_h),
-            stream=sig_bytes, keep_proportion=True, overlay=True,
-        )
-
-    output = io.BytesIO()
-    doc.save(output, garbage=4, deflate=True)
-    doc.close()
-    output.seek(0)
 
     name = files[0].filename.rsplit(".", 1)[0] + "_signed.pdf"
     return send_file(output, mimetype="application/pdf",
@@ -630,22 +684,24 @@ def sign():
 def unlock():
     files = request.files.getlist("files")
     if not files or not files[0].filename:
-        return jsonify(error="No file uploaded."), 400
+        return jsonify(error=NO_FILE_SINGLE), 400
 
     password = request.form.get("password", "")
-    pdf_data = files[0].read()
+    try:
+        doc = _open_pdf(files[0].read())
+    except ValueError as e:
+        return jsonify(error=str(e)), 400
 
-    doc = fitz.open(stream=pdf_data, filetype="pdf")
+    try:
+        if doc.needs_pass:
+            if not doc.authenticate(password):
+                return jsonify(error="Incorrect password."), 400
 
-    if doc.needs_pass:
-        if not doc.authenticate(password):
-            doc.close()
-            return jsonify(error="Incorrect password."), 400
-
-    output = io.BytesIO()
-    doc.save(output)
-    doc.close()
-    output.seek(0)
+        output = io.BytesIO()
+        doc.save(output)
+        output.seek(0)
+    finally:
+        doc.close()
 
     name = files[0].filename.rsplit(".", 1)[0] + "_unlocked.pdf"
     return send_file(output, mimetype="application/pdf",

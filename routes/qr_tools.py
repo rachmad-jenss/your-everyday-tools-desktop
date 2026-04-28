@@ -3,6 +3,8 @@ import re
 import qrcode
 from flask import Blueprint, render_template, request, send_file, jsonify
 
+from routes._helpers import safe_int, safe_float, log_error, NO_FILE_SINGLE
+
 try:
     from pyzbar.pyzbar import decode as pyzbar_decode
     from PIL import Image
@@ -62,8 +64,8 @@ def generate():
     if not text:
         return jsonify(error="Please enter text or a URL."), 400
 
-    box_size = int(request.form.get("size", 10))
-    border = int(request.form.get("border", 4))
+    box_size = safe_int(request.form.get("size"), 10, min_val=1, max_val=50)
+    border = safe_int(request.form.get("border"), 4, min_val=0, max_val=20)
     color = request.form.get("color", "black")
 
     qr = qrcode.QRCode(
@@ -91,9 +93,13 @@ def read():
 
     files = request.files.getlist("files")
     if not files or not files[0].filename:
-        return jsonify(error="No file uploaded."), 400
+        return jsonify(error=NO_FILE_SINGLE), 400
 
-    img = Image.open(io.BytesIO(files[0].read()))
+    try:
+        img = Image.open(io.BytesIO(files[0].read()))
+    except Exception as e:
+        log_error(e, "qr-read")
+        return jsonify(error="Could not read image (file may be corrupted or not an image)."), 400
     results = pyzbar_decode(img)
 
     if not results:
@@ -163,14 +169,10 @@ def barcode_generate():
     fmt = request.form.get("format", "png").lower()
     show_text = request.form.get("show_text") in ("on", "true", "1")
 
-    try:
-        module_width = float(request.form.get("module_width", 0.2))
-    except (TypeError, ValueError):
-        module_width = 0.2
-    try:
-        module_height = float(request.form.get("module_height", 15))
-    except (TypeError, ValueError):
-        module_height = 15.0
+    module_width = safe_float(request.form.get("module_width"), 0.2,
+                              min_val=0.1, max_val=1.0)
+    module_height = safe_float(request.form.get("module_height"), 15.0,
+                               min_val=5.0, max_val=50.0)
 
     valid = {k: v for k, v in [(c["value"], c["label"]) for c in BARCODE_TYPES]}
     if btype not in valid:

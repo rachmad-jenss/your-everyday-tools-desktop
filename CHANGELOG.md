@@ -2,6 +2,32 @@
 
 All notable changes to **Your Everyday Tools** are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project loosely follows [Semantic Versioning](https://semver.org/).
 
+## [0.5.1] — 2026-04-28
+
+### Added
+- **PDF to PowerPoint** *(Document Conversion)* — render each PDF page as an image and drop it onto its own slide in a `.pptx`. Choose between 16:9, 4:3, or A4 slide sizes, set DPI, and optionally restrict to a page range. Aspect-fit math centers each page on the slide.
+- **PowerPoint to PDF** *(Document Conversion)* — convert `.pptx`, `.ppt`, or `.odp` presentations to PDF via LibreOffice (`soffice`). Detection note on the page tells the user whether LibreOffice is on PATH and how to install it if not — same UX as the FFmpeg-backed media tools.
+
+### Fixed — layout fidelity in document conversions
+
+User reports of "messy layout after conversion" traced to three weak engines. All three now optionally route through LibreOffice for a major fidelity jump, falling back to the previous engine when LibreOffice isn't installed.
+
+- **Files to PDF (Word documents)** — `.docx`/`.doc`/`.odt` files now convert via `soffice --headless --convert-to pdf` when LibreOffice is available, preserving fonts, tables, columns, headers/footers, and image placement. Falls back to the previous python-docx + reportlab rebuilder for `.docx` only when soffice is missing. Now also accepts `.doc` and `.odt` (LibreOffice path).
+- **HTML to PDF** — switched primary renderer to LibreOffice for proper CSS, table, and styled-content support. Falls back to PyMuPDF's `insert_htmlbox` when soffice is missing. The previous renderer was producing unstyled output for anything beyond plain text + simple tables.
+- **PDF to Word** — added a **Flowing text** mode alongside the existing **Layout** (pdf2docx) mode. Layout mode is best for forms, reports, and figure-heavy PDFs; Flowing text mode extracts text in reading order and emits clean paragraphs, sacrificing tables/figures but guaranteeing readable output. The page now explains the tradeoff up-front, so users with multi-column or footnote-heavy PDFs can pick the mode that suits them. Layout mode also now closes its `Pdf2DocxConverter` in a try/finally.
+
+### Changed — comprehensive quality pass across all file-handling routes
+- **Bounds-checked numeric input** — all `int(request.form.get(...))` and `float(request.form.get(...))` calls now go through new `safe_int()` / `safe_float()` helpers in `routes/_helpers.py` that clamp to sensible ranges and fall back to defaults on bad input. Replaces 25+ unguarded conversions across `pdf_tools`, `image_tools`, `convert_tools`, `spreadsheet_tools`, `media_tools`, and `qr_tools`. POSTing `dpi=99999` or `quality=abc` now returns a sensible result instead of crashing.
+- **Resource cleanup** — every `fitz.open()`, `Image.open()`, `load_workbook()`, and `zipfile.ZipFile()` is now wrapped in either a `with` block or try/finally so document handles are closed even when processing throws. Prevents file-handle and memory leaks under error conditions.
+- **Sanitized error responses** — exception text from PyMuPDF / Pillow / openpyxl / Tesseract / svglib is no longer surfaced raw to users (was leaking stack-trace fragments and internal file paths). Friendly messages now go to the client; full exceptions are logged via `app.logger`. Affected routes: every PDF/image/conversion/OCR endpoint.
+- **Standardized "no file uploaded" messages** — single new helper string `NO_FILE_SINGLE` ("Please upload a file.") replaces eight different ad-hoc variants across the routes.
+- **Encrypted-ZIP detection** — `archive_tools.unzip` now inspects ZIP entry flag bits up-front to detect password-protected archives, replacing fragile string-matching on RuntimeError messages.
+- **Crop bounds clamping** — `image_tools.crop` now clamps custom crop coordinates to the image bounds (was accepting negative values and out-of-bounds rectangles).
+- **Palette extractor stability** — fixed an `IndexError` crash on single-color or low-color images where PIL's quantizer returns fewer palette entries than requested.
+
+### Dependencies
+- Added `python-pptx` to `requirements.txt` for the PDF→PPT slide builder.
+
 ## [0.5.0] — 2026-04-20
 
 ### Added — 10 new tools across 6 categories

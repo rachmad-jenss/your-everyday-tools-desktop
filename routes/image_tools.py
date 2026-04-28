@@ -3,6 +3,8 @@ from flask import Blueprint, render_template, request, send_file, jsonify
 from PIL import Image, ImageDraw, ImageFont
 from PIL.ExifTags import TAGS
 
+from routes._helpers import safe_int, safe_float, log_error, NO_FILE_SINGLE
+
 try:
     from rembg import remove as rembg_remove
     HAS_REMBG = True
@@ -21,7 +23,24 @@ IMAGE_ACCEPT = ".jpg,.jpeg,.png,.bmp,.tiff,.webp"
 
 
 def get_pil_image(file):
+    """Open an uploaded image. Caller is responsible for closing.
+
+    Used by routes that need a single in-memory PIL.Image. Routes that should
+    properly close the image on error paths use _safe_open_image() instead.
+    """
     return Image.open(io.BytesIO(file.read()))
+
+
+def _safe_open_image(file):
+    """Open a Werkzeug FileStorage as a PIL.Image, raising ValueError on failure.
+
+    Returns the opened image (caller should close or use as a context manager).
+    """
+    try:
+        return Image.open(io.BytesIO(file.read()))
+    except Exception as e:
+        log_error(e, "Image.open")
+        raise ValueError("Could not read image (file may be corrupted or not an image).")
 
 
 def image_to_bytes(img, fmt, quality=85):
@@ -338,35 +357,42 @@ def watermark_page():
 def resize():
     files = request.files.getlist("files")
     if not files or not files[0].filename:
-        return jsonify(error="No file uploaded."), 400
+        return jsonify(error=NO_FILE_SINGLE), 400
 
-    img = get_pil_image(files[0])
+    try:
+        img = _safe_open_image(files[0])
+    except ValueError as e:
+        return jsonify(error=str(e)), 400
+
     mode = request.form.get("mode", "percentage")
 
     if mode == "percentage":
-        pct = float(request.form.get("percentage", 50)) / 100.0
-        new_size = (int(img.width * pct), int(img.height * pct))
+        pct = safe_float(request.form.get("percentage"), 50.0,
+                         min_val=1.0, max_val=1000.0) / 100.0
+        new_size = (max(1, int(img.width * pct)),
+                    max(1, int(img.height * pct)))
     else:
-        w = request.form.get("width", "")
-        h = request.form.get("height", "")
+        w_raw = request.form.get("width", "").strip()
+        h_raw = request.form.get("height", "").strip()
         keep_ratio = request.form.get("keep_ratio") == "on"
 
-        if not w and not h:
-            return jsonify(error="Enter at least width or height."), 400
+        if not w_raw and not h_raw:
+            return jsonify(error="Enter at least a width or a height."), 400
 
-        w = int(w) if w else None
-        h = int(h) if h else None
+        w = safe_int(w_raw, 0, min_val=1, max_val=20000) if w_raw else None
+        h = safe_int(h_raw, 0, min_val=1, max_val=20000) if h_raw else None
 
         if keep_ratio:
             if w and h:
                 ratio = min(w / img.width, h / img.height)
-                new_size = (int(img.width * ratio), int(img.height * ratio))
+                new_size = (max(1, int(img.width * ratio)),
+                            max(1, int(img.height * ratio)))
             elif w:
                 ratio = w / img.width
-                new_size = (w, int(img.height * ratio))
+                new_size = (w, max(1, int(img.height * ratio)))
             else:
                 ratio = h / img.height
-                new_size = (int(img.width * ratio), h)
+                new_size = (max(1, int(img.width * ratio)), h)
         else:
             new_size = (w or img.width, h or img.height)
 
@@ -384,10 +410,13 @@ def resize():
 def compress():
     files = request.files.getlist("files")
     if not files or not files[0].filename:
-        return jsonify(error="No file uploaded."), 400
+        return jsonify(error=NO_FILE_SINGLE), 400
 
-    quality = int(request.form.get("quality", 70))
-    img = get_pil_image(files[0])
+    quality = safe_int(request.form.get("quality"), 70, min_val=1, max_val=100)
+    try:
+        img = _safe_open_image(files[0])
+    except ValueError as e:
+        return jsonify(error=str(e)), 400
 
     # Always output as JPEG for best compression
     buf = image_to_bytes(img, "JPEG", quality=quality)
@@ -400,12 +429,16 @@ def compress():
 def convert():
     files = request.files.getlist("files")
     if not files or not files[0].filename:
-        return jsonify(error="No file uploaded."), 400
+        return jsonify(error=NO_FILE_SINGLE), 400
 
     target = request.form.get("format", "png")
     fmt_info = FORMAT_MAP.get(target, FORMAT_MAP["png"])
 
-    img = get_pil_image(files[0])
+    try:
+        img = _safe_open_image(files[0])
+    except ValueError as e:
+        return jsonify(error=str(e)), 400
+
     buf = image_to_bytes(img, fmt_info[0])
 
     name = files[0].filename.rsplit(".", 1)[0] + f".{fmt_info[2]}"
@@ -419,10 +452,14 @@ def remove_bg():
 
     files = request.files.getlist("files")
     if not files or not files[0].filename:
-        return jsonify(error="No file uploaded."), 400
+        return jsonify(error=NO_FILE_SINGLE), 400
 
     input_data = files[0].read()
-    output_data = rembg_remove(input_data)
+    try:
+        output_data = rembg_remove(input_data)
+    except Exception as e:
+        log_error(e, "remove_bg")
+        return jsonify(error="Background removal failed (the file may not be a valid image)."), 400
 
     name = files[0].filename.rsplit(".", 1)[0] + "_nobg.png"
     return send_file(io.BytesIO(output_data), mimetype="image/png",
@@ -433,14 +470,23 @@ def remove_bg():
 def crop():
     files = request.files.getlist("files")
     if not files or not files[0].filename:
-        return jsonify(error="No file uploaded."), 400
+        return jsonify(error=NO_FILE_SINGLE), 400
 
-    img = get_pil_image(files[0])
+    try:
+        img = _safe_open_image(files[0])
+    except ValueError as e:
+        return jsonify(error=str(e)), 400
+
     mode = request.form.get("mode", "ratio")
 
     if mode == "ratio":
         ratio_str = request.form.get("ratio", "1:1")
-        rw, rh = [int(x) for x in ratio_str.split(":")]
+        try:
+            rw, rh = [int(x) for x in ratio_str.split(":")]
+            if rw <= 0 or rh <= 0:
+                raise ValueError
+        except (TypeError, ValueError):
+            return jsonify(error="Invalid ratio. Use a value like 1:1, 4:3, or 16:9."), 400
         target_ratio = rw / rh
         current_ratio = img.width / img.height
 
@@ -453,10 +499,14 @@ def crop():
             top = (img.height - new_h) // 2
             box = (0, top, img.width, top + new_h)
     else:
-        left = int(request.form.get("left", 0))
-        top = int(request.form.get("top", 0))
-        right = int(request.form.get("right", img.width))
-        bottom = int(request.form.get("bottom", img.height))
+        left = safe_int(request.form.get("left"), 0,
+                        min_val=0, max_val=img.width - 1)
+        top = safe_int(request.form.get("top"), 0,
+                       min_val=0, max_val=img.height - 1)
+        right = safe_int(request.form.get("right"), img.width,
+                         min_val=left + 1, max_val=img.width)
+        bottom = safe_int(request.form.get("bottom"), img.height,
+                          min_val=top + 1, max_val=img.height)
         box = (left, top, right, bottom)
 
     img = img.crop(box)
@@ -473,10 +523,13 @@ def crop():
 def rotate():
     files = request.files.getlist("files")
     if not files or not files[0].filename:
-        return jsonify(error="No file uploaded."), 400
+        return jsonify(error=NO_FILE_SINGLE), 400
 
     action = request.form.get("action", "90")
-    img = get_pil_image(files[0])
+    try:
+        img = _safe_open_image(files[0])
+    except ValueError as e:
+        return jsonify(error=str(e)), 400
 
     if action == "90":
         img = img.rotate(-90, expand=True)
@@ -501,17 +554,20 @@ def rotate():
 def watermark():
     files = request.files.getlist("files")
     if not files or not files[0].filename:
-        return jsonify(error="No file uploaded."), 400
+        return jsonify(error=NO_FILE_SINGLE), 400
 
     text = request.form.get("text", "Watermark")
     if not text:
         return jsonify(error="Please enter watermark text."), 400
 
     position = request.form.get("position", "center")
-    opacity = int(request.form.get("opacity", 40))
-    fontsize = int(request.form.get("fontsize", 36))
+    opacity = safe_int(request.form.get("opacity"), 40, min_val=1, max_val=100)
+    fontsize = safe_int(request.form.get("fontsize"), 36, min_val=8, max_val=400)
 
-    img = get_pil_image(files[0]).convert("RGBA")
+    try:
+        img = _safe_open_image(files[0]).convert("RGBA")
+    except ValueError as e:
+        return jsonify(error=str(e)), 400
     overlay = Image.new("RGBA", img.size, (255, 255, 255, 0))
     draw = ImageDraw.Draw(overlay)
 
@@ -558,10 +614,13 @@ def watermark():
 def exif():
     files = request.files.getlist("files")
     if not files or not files[0].filename:
-        return jsonify(error="No file uploaded."), 400
+        return jsonify(error=NO_FILE_SINGLE), 400
 
     action = request.form.get("action", "view")
-    img = get_pil_image(files[0])
+    try:
+        img = _safe_open_image(files[0])
+    except ValueError as e:
+        return jsonify(error=str(e)), 400
 
     if action == "view":
         exif_data = {}
@@ -599,7 +658,7 @@ def exif():
 def favicon():
     files = request.files.getlist("files")
     if not files or not files[0].filename:
-        return jsonify(error="No file uploaded."), 400
+        return jsonify(error=NO_FILE_SINGLE), 400
 
     size_opt = request.form.get("sizes", "all")
     size_map = {
@@ -610,7 +669,10 @@ def favicon():
     }
     sizes = size_map.get(size_opt, size_map["all"])
 
-    img = get_pil_image(files[0]).convert("RGBA")
+    try:
+        img = _safe_open_image(files[0]).convert("RGBA")
+    except ValueError as e:
+        return jsonify(error=str(e)), 400
     icons = []
     for s in sizes:
         icons.append(img.resize((s, s), Image.LANCZOS))
@@ -628,17 +690,17 @@ def favicon():
 def animated():
     files = request.files.getlist("files")
     if not files or not files[0].filename:
-        return jsonify(error="No file uploaded."), 400
+        return jsonify(error=NO_FILE_SINGLE), 400
 
     target = request.form.get("target", "webp").lower()
-    quality = int(request.form.get("quality", 80))
-    fps_override = int(request.form.get("fps", 0))
+    quality = safe_int(request.form.get("quality"), 80, min_val=1, max_val=100)
+    fps_override = safe_int(request.form.get("fps"), 0, min_val=0, max_val=60)
     lossless = request.form.get("lossless") == "on"
 
     try:
-        src = Image.open(io.BytesIO(files[0].read()))
-    except Exception as e:
-        return jsonify(error=f"Could not read image: {e}"), 400
+        src = _safe_open_image(files[0])
+    except ValueError as e:
+        return jsonify(error=str(e)), 400
 
     frames = []
     durations = []
@@ -708,10 +770,18 @@ def ocr():
 
     files = request.files.getlist("files")
     if not files or not files[0].filename:
-        return jsonify(error="No file uploaded."), 400
+        return jsonify(error=NO_FILE_SINGLE), 400
 
-    img = get_pil_image(files[0])
-    text = pytesseract.image_to_string(img)
+    try:
+        img = _safe_open_image(files[0])
+    except ValueError as e:
+        return jsonify(error=str(e)), 400
+
+    try:
+        text = pytesseract.image_to_string(img)
+    except Exception as e:
+        log_error(e, "ocr")
+        return jsonify(error="OCR failed (Tesseract may not be installed correctly)."), 400
 
     if not text.strip():
         return jsonify(text="(No text detected in image)")
@@ -722,15 +792,15 @@ def ocr():
 def palette():
     files = request.files.getlist("files")
     if not files or not files[0].filename:
-        return jsonify(error="No file uploaded."), 400
+        return jsonify(error=NO_FILE_SINGLE), 400
 
-    try:
-        count = max(2, min(32, int(request.form.get("count", 8))))
-    except ValueError:
-        count = 8
+    count = safe_int(request.form.get("count"), 8, min_val=2, max_val=32)
     method = request.form.get("method", "quantize")
 
-    img = get_pil_image(files[0]).convert("RGBA")
+    try:
+        img = _safe_open_image(files[0]).convert("RGBA")
+    except ValueError as e:
+        return jsonify(error=str(e)), 400
     # Composite onto white to ignore transparency for colour analysis
     bg = Image.new("RGB", img.size, (255, 255, 255))
     bg.paste(img, mask=img.split()[-1] if img.mode == "RGBA" else None)
@@ -761,18 +831,21 @@ def palette():
         ]
     else:
         quant = img.quantize(colors=count, method=Image.Quantize.MEDIANCUT)
-        pal_bytes = quant.getpalette()[: count * 3]
+        pal_bytes = quant.getpalette() or []
         colour_counts = quant.getcolors() or []
         counts_by_index = {idx: cnt for cnt, idx in colour_counts}
         total = sum(counts_by_index.values()) or 1
+        actual_count = min(count, len(pal_bytes) // 3)
         palette_list = []
-        for i in range(count):
+        for i in range(actual_count):
             r, g, b = pal_bytes[i * 3], pal_bytes[i * 3 + 1], pal_bytes[i * 3 + 2]
             palette_list.append({
                 "hex": f"#{r:02x}{g:02x}{b:02x}",
                 "rgb": [r, g, b],
                 "percent": round(counts_by_index.get(i, 0) * 100 / total, 1),
             })
+        # Drop entries with 0% (uninhabited palette slots)
+        palette_list = [p for p in palette_list if p["percent"] > 0] or palette_list[:1]
         palette_list.sort(key=lambda p: -p["percent"])
 
     # Build a preview swatch PNG (one column per colour, weighted widths)
@@ -811,21 +884,19 @@ def svg_to_png():
 
     files = request.files.getlist("files")
     if not files or not files[0].filename:
-        return jsonify(error="No SVG uploaded."), 400
+        return jsonify(error="Please upload an SVG file."), 400
 
     svg_bytes = files[0].read()
     svg_stream = io.BytesIO(svg_bytes)
     try:
         drawing = svg2rlg(svg_stream)
     except Exception as e:
-        return jsonify(error=f"Could not parse SVG: {e}"), 400
+        log_error(e, "svg-to-png parse")
+        return jsonify(error="Could not parse SVG (file may be malformed)."), 400
     if drawing is None:
         return jsonify(error="SVG parser returned no drawing — is the file valid?"), 400
 
-    try:
-        target_w = int(request.form.get("width", 0))
-    except ValueError:
-        target_w = 0
+    target_w = safe_int(request.form.get("width"), 0, min_val=0, max_val=10000)
     transparent = request.form.get("transparent") == "on"
 
     if target_w > 0 and drawing.width > 0:
@@ -863,7 +934,7 @@ def svg_optimize():
 
     files = request.files.getlist("files")
     if not files or not files[0].filename:
-        return jsonify(error="No SVG uploaded."), 400
+        return jsonify(error="Please upload an SVG file."), 400
 
     raw = files[0].read()
     try:
@@ -876,10 +947,7 @@ def svg_optimize():
     strip_comments = request.form.get("strip_comments") == "on"
     strip_metadata = request.form.get("strip_metadata") == "on"
     collapse_ws = request.form.get("collapse_whitespace") == "on"
-    try:
-        decimals = max(0, min(6, int(request.form.get("decimals", 3))))
-    except ValueError:
-        decimals = 3
+    decimals = safe_int(request.form.get("decimals"), 3, min_val=0, max_val=6)
 
     if strip_comments:
         svg = re.sub(r"<!--[\s\S]*?-->", "", svg)

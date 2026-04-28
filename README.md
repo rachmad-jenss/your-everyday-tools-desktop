@@ -1,6 +1,6 @@
 # Your Everyday Tools
 
-A lightweight, self-hosted web app that bundles 89 everyday utilities into a single interface. Built with Python + Flask, zero JavaScript frameworks, and minimal CSS — no bloat, just tools.
+A lightweight, self-hosted web app that bundles 91 everyday utilities into a single interface. Built with Python + Flask, zero JavaScript frameworks, and minimal CSS — no bloat, just tools.
 
 ![Python](https://img.shields.io/badge/Python-3.10+-blue)
 ![Flask](https://img.shields.io/badge/Flask-3.x-green)
@@ -33,14 +33,16 @@ See [CHANGELOG.md](CHANGELOG.md) for release history and recent fixes.
 
 | Tool                 | Description                                                                                                                                                                                                                      |
 | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Files to PDF**     | Convert images (JPG, PNG, BMP, TIFF, WebP), Word documents (.docx), and text files to PDF                                                                                                                                        |
-| **PDF to Word**      | Convert PDF documents to `.docx` format                                                                                                                                                                                          |
+| **Files to PDF**     | Convert images (JPG, PNG, BMP, TIFF, WebP), Word documents (.docx, .doc, .odt), and text files to PDF. Word files use LibreOffice for full-fidelity layout when available, with a built-in fallback for `.docx`.                 |
+| **PDF to Word**      | Convert PDF documents to `.docx`. Two modes: **Layout** (preserves tables, columns, figures) and **Flowing text** (clean paragraphs only — never garbled, even on complex PDFs).                                                 |
 | **PDF to Images**    | Export each PDF page as PNG or JPG (configurable DPI)                                                                                                                                                                            |
 | **PDF to Text**      | Extract all text content from a PDF                                                                                                                                                                                              |
 | **PDF to Excel**     | Extract tables from a PDF into an `.xlsx` workbook — one sheet per table, per page, or all combined. Falls back to line-by-line text when no tables are detected. Uses PyMuPDF's native `find_tables()` (no extra dependencies). |
-| **HTML to PDF**      | Convert HTML content to a PDF document                                                                                                                                                                                           |
+| **HTML to PDF**      | Convert HTML content to a PDF document. Uses LibreOffice for full CSS / table / image support when available; falls back to a minimal renderer otherwise.                                                                       |
 | **Markdown to PDF**  | Paste or upload Markdown (.md) and download a formatted PDF. Choose page size and base font size. Uses PyMuPDF's `Story` API for proper multi-page pagination.                                                                   |
 | **Markdown to Word** | Convert Markdown to a `.docx` document with correct heading, list, quote, and code styles                                                                                                                                        |
+| **PDF to PowerPoint** | Render each PDF page as an image and place it on its own slide in a `.pptx`. Choose 16:9 / 4:3 / A4 slide size, page range, and DPI.                                                                                            |
+| **PowerPoint to PDF** | Convert `.pptx` / `.ppt` / `.odp` presentations to PDF (requires LibreOffice on PATH)                                                                                                                                            |
 | **OCR PDF**          | Make scanned PDFs searchable (image + hidden text layer) or extract text — 14 languages supported                                                                                                                                |
 | **CAD to PDF/Image** | Convert DXF drawings to PDF or PNG (DWG via optional ODA File Converter)                                                                                                                                                         |
 
