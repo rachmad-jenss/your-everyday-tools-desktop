@@ -206,6 +206,42 @@ def unlock_page():
         ])
 
 
+@bp.route("/redact")
+def redact_page():
+    return render_template("upload_tool.html",
+        title="Redact PDF",
+        description="Permanently black-out sensitive text in a PDF",
+        notes=(
+            '<p><strong>How it works:</strong> enter one or more search terms or regex patterns '
+            '(one per line). Every occurrence on every page is found, then permanently '
+            'overlaid with a solid black rectangle. The underlying text is also stripped '
+            'from the PDF\'s content stream so it cannot be recovered with copy-paste.</p>'
+            '<p style="font-size:.9em;color:var(--muted)"><strong>Common patterns:</strong> '
+            '<code>\\b\\d{16}\\b</code> (credit-card numbers), '
+            '<code>[\\w.-]+@[\\w.-]+\\.[\\w]+</code> (emails), '
+            '<code>\\b\\d{3}-\\d{2}-\\d{4}\\b</code> (US SSN-like). '
+            'Plain text is matched literally unless you tick &ldquo;Treat as regex&rdquo;.</p>'
+        ),
+        endpoint="/pdf/redact",
+        accept=".pdf",
+        multiple=False,
+        options=[
+            {"type": "text", "name": "patterns",
+             "label": "Patterns (one per line)",
+             "placeholder": "e.g. john@example.com  /  4111-?\\d{4}-?\\d{4}-?\\d{4}"},
+            {"type": "checkbox", "name": "is_regex",
+             "label": "Pattern type",
+             "check_label": "Treat each line as a regular expression",
+             "default": False},
+            {"type": "checkbox", "name": "case_sensitive",
+             "label": "Case sensitivity",
+             "check_label": "Match case exactly",
+             "default": False},
+            {"type": "text", "name": "pages", "label": "Pages (blank = all)",
+             "placeholder": "e.g. 1-3, 5"},
+        ])
+
+
 # ── Processing Routes ────────────────────────────
 
 def parse_page_ranges(spec: str, total: int) -> list[int]:
@@ -678,6 +714,110 @@ def sign():
     name = files[0].filename.rsplit(".", 1)[0] + "_signed.pdf"
     return send_file(output, mimetype="application/pdf",
                      as_attachment=True, download_name=name)
+
+
+@bp.route("/redact", methods=["POST"])
+def redact():
+    import re
+
+    files = request.files.getlist("files")
+    if not files or not files[0].filename:
+        return jsonify(error=NO_FILE_SINGLE), 400
+
+    patterns_raw = request.form.get("patterns", "").strip()
+    if not patterns_raw:
+        return jsonify(error="Enter at least one search term or pattern."), 400
+
+    is_regex = request.form.get("is_regex") == "on"
+    case_sensitive = request.form.get("case_sensitive") == "on"
+    page_spec = request.form.get("pages", "").strip()
+
+    patterns = [p for p in patterns_raw.splitlines() if p.strip()]
+    if not patterns:
+        return jsonify(error="Enter at least one search term or pattern."), 400
+
+    # Validate regex patterns up-front so the user gets a clean error message.
+    flags = 0 if case_sensitive else re.IGNORECASE
+    if is_regex:
+        compiled: list[re.Pattern] = []
+        for p in patterns:
+            try:
+                compiled.append(re.compile(p, flags))
+            except re.error as e:
+                return jsonify(error=f"Invalid regex {p!r}: {e}"), 400
+
+    try:
+        doc = _open_pdf(files[0].read())
+    except ValueError as e:
+        return jsonify(error=str(e)), 400
+
+    try:
+        try:
+            target = parse_page_ranges(page_spec, len(doc))
+        except (ValueError, IndexError):
+            return jsonify(error="Invalid page range. Use e.g. '1-3, 5, 7-10'."), 400
+        if not target:
+            return jsonify(error="No valid pages selected."), 400
+
+        total_redactions = 0
+        for pno in target:
+            page = doc[pno]
+            rects: list[fitz.Rect] = []
+
+            if is_regex:
+                # Regex path: walk the page text, locate each match, then map
+                # the character range back to bounding boxes via search_for.
+                page_text = page.get_text()
+                for pat in compiled:
+                    for m in pat.finditer(page_text):
+                        snippet = m.group(0)
+                        if not snippet.strip():
+                            continue
+                        # search_for handles word-wrap and returns one rect per
+                        # visual hit on the page.
+                        for r in page.search_for(snippet, quads=False):
+                            rects.append(r)
+            else:
+                for term in patterns:
+                    if not term.strip():
+                        continue
+                    flags_arg = 0 if case_sensitive else fitz.TEXT_PRESERVE_LIGATURES  # search_for is case-insensitive by default
+                    found = page.search_for(term)
+                    rects.extend(found)
+
+            # De-duplicate near-identical rectangles
+            uniq: list[fitz.Rect] = []
+            for r in rects:
+                if not any(abs(r.x0 - u.x0) < 0.5 and abs(r.y0 - u.y0) < 0.5
+                           and abs(r.x1 - u.x1) < 0.5 and abs(r.y1 - u.y1) < 0.5
+                           for u in uniq):
+                    uniq.append(r)
+
+            for r in uniq:
+                page.add_redact_annot(r, fill=(0, 0, 0))
+            total_redactions += len(uniq)
+
+            # apply_redactions actually removes the underlying text; the
+            # IMAGE_PIXELS option preserves images on the page.
+            page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE)
+
+        if total_redactions == 0:
+            return jsonify(error=(
+                "No matches found. Check spelling, toggle case-sensitivity, "
+                "or try a different pattern."
+            )), 400
+
+        output = io.BytesIO()
+        doc.save(output, garbage=4, deflate=True, clean=True)
+        output.seek(0)
+    finally:
+        doc.close()
+
+    name = files[0].filename.rsplit(".", 1)[0] + "_redacted.pdf"
+    resp = send_file(output, mimetype="application/pdf",
+                     as_attachment=True, download_name=name)
+    resp.headers["X-Redactions-Applied"] = str(total_redactions)
+    return resp
 
 
 @bp.route("/unlock", methods=["POST"])

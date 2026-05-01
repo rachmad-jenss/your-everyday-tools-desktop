@@ -15,6 +15,7 @@ xlrd
 sqlparse
 croniter
 jsonpath-ng
+cryptography
 
 # Optional (app works without these, shows install message if missing)
 rembg
@@ -23,3 +24,5 @@ pdf2docx
 pytesseract
 ezdxf
 matplotlib
+pillow-heif
+openai-whisper

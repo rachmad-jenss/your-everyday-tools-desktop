@@ -2,6 +2,27 @@
 
 All notable changes to **Your Everyday Tools** are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project loosely follows [Semantic Versioning](https://semver.org/).
 
+## [0.6.0] — 2026-04-29
+
+### Added — 8 new tools across 6 categories (total now 99)
+
+- **HEIC Converter** *(Image Tools)* — convert iPhone `.heic` / `.heif` photos to JPG, PNG, or WebP, single or bulk → ZIP. Once `pillow-heif` is installed, **every other image tool** in the app (resize, crop, palette, watermark, OCR, etc.) also auto-accepts HEIC inputs.
+- **Line Tools** *(Text & Data)* — client-side bundle: sort A→Z / Z→A / numerically, dedupe (keep order or alphabetic), shuffle, reverse, trim, drop empty, number lines, count words/chars. All in-browser.
+- **Extract Patterns** *(Text & Data)* — client-side regex extractor for emails, URLs, phone numbers, IPv4/IPv6, hashtags, @mentions, and numbers. Toggle dedupe + sort, output as separate sections or merged list.
+- **Redact PDF** *(PDF Tools)* — permanently black-out sensitive text by literal match or regex. Underlying text is removed from the PDF content stream so it cannot be recovered with copy-paste; image-rendering pixels are also covered. Supports page-range scoping and case sensitivity toggles. Returns 400 with a friendly error if no patterns match (rather than silently returning the original).
+- **WiFi QR Code** *(QR & Barcodes)* — generate a scan-to-join WiFi QR (WPA / WEP / open / hidden), with proper escaping of `\\`, `;`, `,`, `:`, and `"` in SSID and password per the WIFI: URI scheme. Uses high error-correction so printed/photographed QRs still scan.
+- **Encrypt File / Decrypt File** *(Security)* — AES-256-CBC file encryption with PBKDF2-HMAC-SHA256 key derivation (600,000 iterations + 8-byte random salt). Output is byte-identical to `openssl enc -aes-256-cbc -pbkdf2 -iter 600000`, so users can decrypt with the OpenSSL CLI too. Wrong passphrase returns a clean error rather than corrupted output.
+- **Normalize Audio** *(Audio & Video)* — FFmpeg `loudnorm` (EBU R128) with one-button presets for streaming (-14 LUFS), Apple Podcasts (-16), broadcast (-23, -24). Output format can match input or transcode to MP3 / WAV / FLAC.
+- **Speech to Text** *(Audio & Video)* — local Whisper transcription to plain text, SRT, or WebVTT. Five model sizes (tiny → large), optional language hint. Optional install (`pip install openai-whisper`); model is cached in-memory after first load to avoid re-downloading. Honest UI guidance about CPU vs GPU speed.
+
+### Changed
+- Image tool inputs now include `.heic` / `.heif` automatically when `pillow-heif` is installed.
+- Tool count: 91 → 99.
+
+### Dependencies
+- Added `cryptography` to core (used by Encrypt/Decrypt File).
+- Added `pillow-heif` and `openai-whisper` to optional dependencies.
+
 ## [0.5.1] — 2026-04-28
 
 ### Added

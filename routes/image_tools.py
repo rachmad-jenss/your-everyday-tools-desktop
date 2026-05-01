@@ -17,9 +17,19 @@ try:
 except ImportError:
     HAS_TESSERACT = False
 
+# Register HEIF/HEIC opener so every PIL.Image.open call across the app
+# transparently handles iPhone-format photos. This is a no-op if the
+# package isn't installed.
+try:
+    import pillow_heif  # type: ignore
+    pillow_heif.register_heif_opener()
+    HAS_HEIF = True
+except ImportError:
+    HAS_HEIF = False
+
 bp = Blueprint("image", __name__)
 
-IMAGE_ACCEPT = ".jpg,.jpeg,.png,.bmp,.tiff,.webp"
+IMAGE_ACCEPT = ".jpg,.jpeg,.png,.bmp,.tiff,.webp" + (",.heic,.heif" if HAS_HEIF else "")
 
 
 def get_pil_image(file):
@@ -984,3 +994,95 @@ def svg_optimize():
     resp.headers["X-Optimized-Size"] = str(len(optimized_bytes))
     resp.headers["X-Saved-Percent"] = str(saved_pct)
     return resp
+
+
+# ── HEIC / HEIF Converter ──────────────────────────────────
+
+@bp.route("/heic-convert")
+def heic_convert_page():
+    if HAS_HEIF:
+        notes = (
+            '<p><i class="bi bi-check-circle-fill" style="color:#2ec4b6"></i> '
+            '<strong>HEIF/HEIC support is active.</strong> '
+            'iPhone photos (<code>.heic</code> / <code>.heif</code>) can be converted to JPG, PNG, or WebP. '
+            'Note: most other image tools in this app already accept HEIC inputs too.</p>'
+        )
+    else:
+        notes = (
+            '<p><i class="bi bi-exclamation-triangle-fill" style="color:#ffb703"></i> '
+            '<strong>HEIF/HEIC support is missing.</strong> '
+            'Install with <code>pip install pillow-heif</code> and restart the server.</p>'
+        )
+    return render_template("upload_tool.html",
+        title="HEIC to JPG / PNG",
+        description="Convert iPhone HEIC / HEIF photos to a standard image format",
+        notes=notes,
+        endpoint="/image/heic-convert",
+        accept=".heic,.heif,.HEIC,.HEIF",
+        multiple=True,
+        options=[
+            {"type": "select", "name": "format", "label": "Output format", "default": "jpg",
+             "choices": [
+                 {"value": "jpg",  "label": "JPG (smaller, photos)"},
+                 {"value": "png",  "label": "PNG (lossless, larger)"},
+                 {"value": "webp", "label": "WebP (modern, very small)"},
+             ]},
+            {"type": "number", "name": "quality", "label": "Quality (JPG/WebP only)",
+             "default": 90, "min": 50, "max": 100},
+        ],
+        button_text="Convert")
+
+
+@bp.route("/heic-convert", methods=["POST"])
+def heic_convert():
+    if not HAS_HEIF:
+        return jsonify(error="HEIC support requires 'pillow-heif'. Install with: pip install pillow-heif"), 400
+
+    files = request.files.getlist("files")
+    if not files or not files[0].filename:
+        return jsonify(error=NO_FILE_SINGLE), 400
+
+    target = request.form.get("format", "jpg").lower()
+    if target not in ("jpg", "png", "webp"):
+        target = "jpg"
+    quality = safe_int(request.form.get("quality"), 90, min_val=50, max_val=100)
+
+    fmt_pil = {"jpg": "JPEG", "png": "PNG", "webp": "WEBP"}[target]
+    mime = {"jpg": "image/jpeg", "png": "image/png", "webp": "image/webp"}[target]
+    ext = {"jpg": "jpg", "png": "png", "webp": "webp"}[target]
+
+    converted: list[tuple[str, bytes]] = []
+    for f in files:
+        if not f.filename:
+            continue
+        try:
+            with Image.open(io.BytesIO(f.read())) as img:
+                out_img = img
+                if target == "jpg" and out_img.mode in ("RGBA", "LA", "P"):
+                    out_img = out_img.convert("RGB")
+                buf = io.BytesIO()
+                save_kwargs: dict = {"format": fmt_pil}
+                if target in ("jpg", "webp"):
+                    save_kwargs["quality"] = quality
+                if target == "jpg":
+                    save_kwargs["optimize"] = True
+                out_img.save(buf, **save_kwargs)
+        except Exception as e:
+            log_error(e, f"heic-convert: {f.filename}")
+            return jsonify(error=f"Could not convert '{f.filename}' (file may be corrupted or not a HEIC/HEIF image)."), 400
+
+        base = f.filename.rsplit(".", 1)[0]
+        converted.append((f"{base}.{ext}", buf.getvalue()))
+
+    if not converted:
+        return jsonify(error=NO_FILE_SINGLE), 400
+
+    if len(converted) == 1:
+        name, data = converted[0]
+        return send_file(io.BytesIO(data), mimetype=mime,
+                         as_attachment=True, download_name=name)
+
+    from utils.file_utils import make_zip
+    zip_buf = make_zip(converted)
+    return send_file(zip_buf, mimetype="application/zip",
+                     as_attachment=True, download_name="heic_converted.zip")

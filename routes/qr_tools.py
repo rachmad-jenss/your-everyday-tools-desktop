@@ -58,6 +58,43 @@ def read_page():
         options=[])
 
 
+@bp.route("/wifi")
+def wifi_page():
+    return render_template("upload_tool.html",
+        title="WiFi QR Code",
+        description="Generate a QR code that joins a WiFi network when scanned",
+        notes=(
+            '<p>iOS, Android, and most modern phones can join a WiFi network by simply '
+            'scanning a QR code formatted with the standard <code>WIFI:</code> URI. '
+            'Print and stick on the wall, share on a guest sheet, etc.</p>'
+            '<p style="font-size:.9em;color:var(--muted)">Encoding format: '
+            '<code>WIFI:T:&lt;type&gt;;S:&lt;ssid&gt;;P:&lt;password&gt;;H:&lt;hidden&gt;;;</code></p>'
+        ),
+        endpoint="/qr/wifi",
+        accept="",
+        multiple=False,
+        options=[
+            {"type": "text", "name": "ssid", "label": "Network name (SSID)",
+             "placeholder": "MyHomeWiFi"},
+            {"type": "password", "name": "password", "label": "Password",
+             "placeholder": "(leave empty if open network)"},
+            {"type": "select", "name": "security", "label": "Security", "default": "WPA",
+             "choices": [
+                 {"value": "WPA",  "label": "WPA / WPA2 / WPA3"},
+                 {"value": "WEP",  "label": "WEP (legacy)"},
+                 {"value": "nopass", "label": "Open (no password)"},
+             ]},
+            {"type": "checkbox", "name": "hidden", "label": "Hidden network",
+             "check_label": "Network does not broadcast its SSID",
+             "default": False},
+            {"type": "number", "name": "size", "label": "Module size (pixels)",
+             "default": 10, "min": 1, "max": 50},
+            {"type": "number", "name": "border", "label": "Border (modules)",
+             "default": 4, "min": 0, "max": 20},
+        ],
+        button_text="Generate WiFi QR")
+
+
 @bp.route("/generate", methods=["POST"])
 def generate():
     text = request.form.get("text", "").strip()
@@ -84,6 +121,59 @@ def generate():
 
     return send_file(buf, mimetype="image/png",
                      as_attachment=True, download_name="qrcode.png")
+
+
+def _wifi_escape(s: str) -> str:
+    """Escape special characters per the WIFI: URI scheme: \\, ;, ,, : and "."""
+    return (s.replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,")
+              .replace(":", "\\:").replace('"', '\\"'))
+
+
+@bp.route("/wifi", methods=["POST"])
+def wifi_generate():
+    ssid = request.form.get("ssid", "").strip()
+    if not ssid:
+        return jsonify(error="Please enter a network name (SSID)."), 400
+
+    password = request.form.get("password", "")
+    security = request.form.get("security", "WPA").upper()
+    if security not in ("WPA", "WEP", "NOPASS"):
+        security = "WPA"
+    if security == "NOPASS":
+        security = "nopass"
+        password = ""
+    hidden = request.form.get("hidden") == "on"
+
+    if security != "nopass" and not password:
+        return jsonify(error="Password is required for WPA/WEP networks. Switch to 'Open' if the network has no password."), 400
+
+    # Build the standard WIFI: URI string
+    parts = [f"T:{security}", f"S:{_wifi_escape(ssid)}"]
+    if security != "nopass":
+        parts.append(f"P:{_wifi_escape(password)}")
+    if hidden:
+        parts.append("H:true")
+    payload = "WIFI:" + ";".join(parts) + ";;"
+
+    box_size = safe_int(request.form.get("size"), 10, min_val=1, max_val=50)
+    border = safe_int(request.form.get("border"), 4, min_val=0, max_val=20)
+
+    qr = qrcode.QRCode(
+        version=None,
+        error_correction=qrcode.constants.ERROR_CORRECT_H,  # higher correction for printed labels
+        box_size=box_size,
+        border=border,
+    )
+    qr.add_data(payload)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color="black", back_color="white")
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+
+    safe_ssid = re.sub(r"[^A-Za-z0-9_.-]", "_", ssid)[:40] or "wifi"
+    return send_file(buf, mimetype="image/png",
+                     as_attachment=True, download_name=f"wifi_{safe_ssid}.png")
 
 
 @bp.route("/read", methods=["POST"])

@@ -708,6 +708,250 @@ def burn_subtitles():
     )
 
 
+# ── Audio Normalize (FFmpeg loudnorm, EBU R128) ────────
+
+@bp.route("/normalize-audio", methods=["GET", "POST"])
+def normalize_audio():
+    if request.method == "GET":
+        return render_template(
+            "upload_tool.html",
+            title="Normalize Audio",
+            description="Normalize loudness to a target LUFS level (EBU R128 standard).",
+            notes=_ffmpeg_available_notes() + (
+                '<p><strong>Loudness targets — pick one that matches where the audio will be played:</strong></p>'
+                '<ul style="margin:.4rem 0 .6rem 1.2rem">'
+                '<li><strong>-14 LUFS</strong> — Spotify, YouTube, Apple Music, podcasts</li>'
+                '<li><strong>-16 LUFS</strong> — most podcast networks (Apple Podcasts spec)</li>'
+                '<li><strong>-23 LUFS</strong> — EBU R128 broadcast standard (Europe TV/radio)</li>'
+                '<li><strong>-24 LUFS</strong> — ATSC A/85 broadcast (US TV)</li>'
+                '</ul>'
+            ),
+            endpoint="/media/normalize-audio",
+            accept=".mp3,.wav,.ogg,.flac,.aac,.m4a,.opus,.wma,.mp4,.mkv,.mov",
+            multiple=False,
+            options=[
+                {
+                    "name": "lufs",
+                    "label": "Target loudness",
+                    "type": "select",
+                    "default": "-14",
+                    "choices": [
+                        {"value": "-14", "label": "-14 LUFS (Streaming, podcasts)"},
+                        {"value": "-16", "label": "-16 LUFS (Apple Podcasts)"},
+                        {"value": "-23", "label": "-23 LUFS (EBU R128 broadcast)"},
+                        {"value": "-24", "label": "-24 LUFS (ATSC A/85 broadcast)"},
+                    ],
+                },
+                {
+                    "name": "format",
+                    "label": "Output format",
+                    "type": "select",
+                    "default": "same",
+                    "choices": [
+                        {"value": "same", "label": "Same as input"},
+                        {"value": "mp3",  "label": "MP3 (192 kbps)"},
+                        {"value": "wav",  "label": "WAV (lossless)"},
+                        {"value": "flac", "label": "FLAC (lossless)"},
+                    ],
+                },
+            ],
+            button_text="Normalize",
+        )
+
+    f = request.files.get("files")
+    if not f:
+        return jsonify({"error": NO_FILE_SINGLE}), 400
+
+    lufs_str = request.form.get("lufs", "-14")
+    if lufs_str not in ("-14", "-16", "-23", "-24"):
+        lufs_str = "-14"
+    out_fmt = request.form.get("format", "same").lower()
+
+    in_ext = f.filename.rsplit(".", 1)[-1].lower() if "." in f.filename else "mp3"
+    out_ext = in_ext if out_fmt == "same" else out_fmt
+
+    with tempfile.TemporaryDirectory() as tmp:
+        in_path = _save_upload(f, tmp)
+        out_path = os.path.join(tmp, f"output.{out_ext}")
+
+        # loudnorm linear=true: single-pass normalisation; faster and safe
+        # for casual use. Two-pass is more accurate but doubles encode time.
+        af = f"loudnorm=I={lufs_str}:TP=-1.5:LRA=11:linear=true:print_format=summary"
+
+        args = ["-i", in_path, "-af", af]
+        if out_ext == "mp3":
+            args += ["-b:a", "192k"]
+        elif out_ext == "flac":
+            args += ["-c:a", "flac"]
+        elif out_ext == "wav":
+            args += ["-c:a", "pcm_s16le"]
+        args += [out_path]
+
+        _, err = _run_ffmpeg(args, timeout=600)
+        if err:
+            return jsonify({"error": err}), 400
+
+        with open(out_path, "rb") as fp:
+            data = fp.read()
+
+    base = f.filename.rsplit(".", 1)[0]
+    mime_map = {"mp3": "audio/mpeg", "wav": "audio/wav", "flac": "audio/flac",
+                "ogg": "audio/ogg", "m4a": "audio/mp4", "opus": "audio/opus"}
+    mime = mime_map.get(out_ext, "application/octet-stream")
+    return send_file(
+        _bytes_io(data),
+        mimetype=mime,
+        as_attachment=True,
+        download_name=f"{base}_normalized.{out_ext}",
+    )
+
+
+# ── Speech to Text (Whisper, optional) ──────────────
+
+try:
+    import whisper as _whisper  # type: ignore
+    HAS_WHISPER = True
+except ImportError:
+    HAS_WHISPER = False
+
+WHISPER_MODELS = ["tiny", "base", "small", "medium", "large"]
+_whisper_model_cache: dict = {}
+
+
+@bp.route("/transcribe", methods=["GET", "POST"])
+def transcribe():
+    if request.method == "GET":
+        if HAS_WHISPER:
+            status_note = (
+                '<p><i class="bi bi-check-circle-fill" style="color:#2ec4b6"></i> '
+                '<strong>Whisper is installed.</strong> First run with a given model size '
+                'downloads the weights from openai.com (one-time, ~75 MB to ~3 GB depending on size).</p>'
+            )
+        else:
+            status_note = (
+                '<p><i class="bi bi-exclamation-triangle-fill" style="color:#ffb703"></i> '
+                '<strong>Whisper is not installed.</strong> Run <code>pip install openai-whisper</code> '
+                'and restart the server. FFmpeg must also be on PATH.</p>'
+            )
+        return render_template(
+            "upload_tool.html",
+            title="Speech to Text (Whisper)",
+            description="Transcribe spoken audio or video to text or subtitles, fully local.",
+            notes=status_note + (
+                '<p><strong>Model size guide</strong> (smaller = faster + lower quality):</p>'
+                '<ul style="margin:.4rem 0 .6rem 1.2rem">'
+                '<li><strong>tiny</strong> — ~75 MB, very fast, ok for clear English</li>'
+                '<li><strong>base</strong> — ~150 MB, recommended starting point</li>'
+                '<li><strong>small</strong> — ~500 MB, good multilingual quality</li>'
+                '<li><strong>medium</strong> — ~1.5 GB, near-best quality, slow on CPU</li>'
+                '<li><strong>large</strong> — ~3 GB, best quality, very slow on CPU</li>'
+                '</ul>'
+                '<p style="font-size:.9em;color:var(--muted)">Without a GPU, expect roughly '
+                '0.5×–2× real-time for tiny/base/small, and 5×–20× real-time for medium/large. '
+                'A 10-minute audio file at <code>medium</code> on CPU can take 50+ minutes.</p>'
+            ),
+            endpoint="/media/transcribe",
+            accept=".mp3,.wav,.ogg,.flac,.aac,.m4a,.opus,.mp4,.webm,.mkv,.mov",
+            multiple=False,
+            options=[
+                {
+                    "name": "model",
+                    "label": "Model size",
+                    "type": "select",
+                    "default": "base",
+                    "choices": [{"value": m, "label": m} for m in WHISPER_MODELS],
+                },
+                {
+                    "name": "language",
+                    "label": "Language hint (blank = auto-detect)",
+                    "type": "text",
+                    "placeholder": "e.g. en, id, ja, es",
+                },
+                {
+                    "name": "format",
+                    "label": "Output format",
+                    "type": "select",
+                    "default": "txt",
+                    "choices": [
+                        {"value": "txt", "label": "Plain text (.txt)"},
+                        {"value": "srt", "label": "SubRip subtitles (.srt)"},
+                        {"value": "vtt", "label": "WebVTT subtitles (.vtt)"},
+                    ],
+                },
+            ],
+            button_text="Transcribe",
+        )
+
+    if not HAS_WHISPER:
+        return jsonify({"error": "Whisper is not installed. Run: pip install openai-whisper"}), 400
+    if not FFMPEG:
+        return jsonify({"error": "Whisper needs FFmpeg on PATH. Install FFmpeg and restart the server."}), 400
+
+    f = request.files.get("files")
+    if not f:
+        return jsonify({"error": NO_FILE_SINGLE}), 400
+
+    model_size = request.form.get("model", "base")
+    if model_size not in WHISPER_MODELS:
+        model_size = "base"
+    language = (request.form.get("language") or "").strip() or None
+    out_fmt = request.form.get("format", "txt").lower()
+    if out_fmt not in ("txt", "srt", "vtt"):
+        out_fmt = "txt"
+
+    with tempfile.TemporaryDirectory() as tmp:
+        in_path = _save_upload(f, tmp)
+
+        try:
+            model = _whisper_model_cache.get(model_size)
+            if model is None:
+                model = _whisper.load_model(model_size)
+                _whisper_model_cache[model_size] = model
+            result = model.transcribe(in_path, language=language, verbose=False)
+        except Exception as e:
+            from routes._helpers import log_error as _log
+            _log(e, f"whisper {model_size}")
+            return jsonify({"error": "Transcription failed. Check the server log; first-time model download may also fail without network access."}), 400
+
+    base = f.filename.rsplit(".", 1)[0]
+
+    if out_fmt == "txt":
+        return jsonify({"text": (result.get("text") or "").strip() or "(no speech detected)"})
+
+    # Build SRT / VTT from segments
+    segments = result.get("segments") or []
+
+    def fmt_srt_ts(sec: float) -> str:
+        if sec < 0: sec = 0.0
+        h = int(sec // 3600); m = int((sec % 3600) // 60); s = sec - h * 3600 - m * 60
+        whole = int(s); ms = int(round((s - whole) * 1000))
+        if ms == 1000: whole += 1; ms = 0
+        return f"{h:02d}:{m:02d}:{whole:02d},{ms:03d}"
+
+    if out_fmt == "srt":
+        lines = []
+        for i, seg in enumerate(segments, 1):
+            lines.append(str(i))
+            lines.append(f"{fmt_srt_ts(seg['start'])} --> {fmt_srt_ts(seg['end'])}")
+            lines.append((seg.get("text") or "").strip())
+            lines.append("")
+        body = "\n".join(lines).rstrip() + "\n"
+        return send_file(_bytes_io(body.encode("utf-8")), mimetype="text/plain",
+                         as_attachment=True, download_name=f"{base}.srt")
+
+    # vtt
+    lines = ["WEBVTT", ""]
+    for seg in segments:
+        s = fmt_srt_ts(seg["start"]).replace(",", ".")
+        e = fmt_srt_ts(seg["end"]).replace(",", ".")
+        lines.append(f"{s} --> {e}")
+        lines.append((seg.get("text") or "").strip())
+        lines.append("")
+    body = "\n".join(lines).rstrip() + "\n"
+    return send_file(_bytes_io(body.encode("utf-8")), mimetype="text/plain",
+                     as_attachment=True, download_name=f"{base}.vtt")
+
+
 # ── helpers ────────────────────────────────────────────
 
 def _bytes_io(data: bytes):

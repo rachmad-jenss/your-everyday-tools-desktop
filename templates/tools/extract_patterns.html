@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}Extract Patterns - EveryTools{% endblock %}
+{% block top_title %}Extract Patterns{% endblock %}
+
+{% block content %}
+<div class="client-tool">
+    <div class="tool-header">
+        <h1>Extract Patterns</h1>
+        <p>Pull emails, URLs, phone numbers, IP addresses, hashtags, or @mentions out of any text</p>
+    </div>
+
+    <div style="display:flex;gap:.5rem;margin-bottom:.6rem;flex-wrap:wrap;align-items:center">
+        <strong style="margin-right:.5rem">Extract:</strong>
+        <label><input type="checkbox" class="pat" value="email" checked> Emails</label>
+        <label><input type="checkbox" class="pat" value="url" checked> URLs</label>
+        <label><input type="checkbox" class="pat" value="phone"> Phone numbers</label>
+        <label><input type="checkbox" class="pat" value="ipv4"> IPv4</label>
+        <label><input type="checkbox" class="pat" value="ipv6"> IPv6</label>
+        <label><input type="checkbox" class="pat" value="hashtag"> Hashtags</label>
+        <label><input type="checkbox" class="pat" value="mention"> @mentions</label>
+        <label><input type="checkbox" class="pat" value="number"> Numbers</label>
+    </div>
+
+    <div style="display:flex;gap:.5rem;margin-bottom:.6rem;flex-wrap:wrap;align-items:center">
+        <label><input type="checkbox" id="dedupe" checked> Remove duplicates</label>
+        <label><input type="checkbox" id="sort"> Sort alphabetically</label>
+        <label>Group by:
+            <select id="group">
+                <option value="separate">Separate sections</option>
+                <option value="merged">Merged single list</option>
+            </select>
+        </label>
+        <button class="btn btn-primary" onclick="run()"><i class="bi bi-play-circle"></i> Extract</button>
+    </div>
+
+    <div class="split-pane">
+        <div class="pane">
+            <div class="pane-header"><span>Input text</span></div>
+            <div class="pane-body">
+                <textarea id="input" placeholder="Paste any text here. Emails, URLs, phone numbers, etc. will be detected."></textarea>
+            </div>
+        </div>
+        <div class="pane">
+            <div class="pane-header">
+                <span>Extracted</span>
+                <button class="btn btn-small" onclick="copyOutput()"><i class="bi bi-clipboard"></i> Copy</button>
+            </div>
+            <div class="pane-body"><pre id="output"></pre></div>
+        </div>
+    </div>
+    <div id="status" style="margin-top:.5rem;font-size:.85rem"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const PATTERNS = {
+    email:   /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g,
+    url:     /https?:\/\/[^\s<>"'`]+/g,
+    phone:   /(?:\+?\d{1,3}[\s.-]?)?\(?\d{2,4}\)?[\s.-]?\d{3,4}[\s.-]?\d{3,4}/g,
+    ipv4:    /\b(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\b/g,
+    ipv6:    /\b(?:[A-Fa-f0-9]{1,4}:){7}[A-Fa-f0-9]{1,4}\b|\b(?:[A-Fa-f0-9]{1,4}:){1,7}:|\b:(?::[A-Fa-f0-9]{1,4}){1,7}\b/g,
+    hashtag: /#[A-Za-z0-9_]+/g,
+    mention: /@[A-Za-z0-9_]+/g,
+    number:  /-?\d+(?:[.,]\d+)*/g,
+};
+
+const LABELS = {
+    email: "Emails", url: "URLs", phone: "Phone numbers",
+    ipv4: "IPv4 addresses", ipv6: "IPv6 addresses",
+    hashtag: "Hashtags", mention: "@mentions", number: "Numbers",
+};
+
+function run() {
+    const text = document.getElementById("input").value;
+    const dedupe = document.getElementById("dedupe").checked;
+    const sort = document.getElementById("sort").checked;
+    const group = document.getElementById("group").value;
+    const selected = Array.from(document.querySelectorAll(".pat:checked")).map(c => c.value);
+
+    if (!text) {
+        setStatus("Paste some text first.", true);
+        return;
+    }
+    if (!selected.length) {
+        setStatus("Select at least one pattern.", true);
+        return;
+    }
+
+    const results = {};
+    let total = 0;
+    for (const key of selected) {
+        let matches = text.match(PATTERNS[key]) || [];
+        if (dedupe) matches = [...new Set(matches)];
+        if (sort) matches = [...matches].sort((a, b) => a.localeCompare(b));
+        results[key] = matches;
+        total += matches.length;
+    }
+
+    let output;
+    if (group === "merged") {
+        let all = [];
+        for (const key of selected) all = all.concat(results[key]);
+        if (dedupe) all = [...new Set(all)];
+        if (sort) all = [...all].sort((a, b) => a.localeCompare(b));
+        output = all.join("\n");
+    } else {
+        const sections = [];
+        for (const key of selected) {
+            const matches = results[key];
+            if (!matches.length) continue;
+            sections.push(`── ${LABELS[key]} (${matches.length}) ──`);
+            sections.push(matches.join("\n"));
+            sections.push("");
+        }
+        output = sections.join("\n").trim();
+    }
+
+    document.getElementById("output").textContent = output || "(no matches)";
+    setStatus(`${total} match${total === 1 ? "" : "es"} found`);
+}
+
+function setStatus(msg, isErr) {
+    const el = document.getElementById("status");
+    if (isErr) {
+        el.innerHTML = `<span style="color:var(--danger)"><i class="bi bi-x-circle"></i> ${msg}</span>`;
+    } else {
+        el.innerHTML = `<span style="color:var(--success)"><i class="bi bi-check-circle"></i> ${msg}</span>`;
+    }
+}
+
+function copyOutput() {
+    navigator.clipboard.writeText(document.getElementById("output").textContent);
+}
+</script>
+{% endblock %}
