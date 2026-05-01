@@ -946,6 +946,9 @@ def _serialize_widgets(doc) -> list[dict]:
             required = bool(flags & 2)        # bit 2 = required
             readonly = bool(flags & 1)        # bit 1 = read-only
             multiline = bool(flags & (1 << 12))  # bit 13 = multiline (text only)
+            # PDF spec bit 19 (Ff 1<<18) = combobox is editable (user can type
+            # values outside the choice list). Set only on combo fields.
+            editable_combo = (ftype == "combobox") and bool(flags & (1 << 18))
 
             # Choice fields expose `choice_values`; treat None as empty list
             choices = list(w.choice_values or []) if hasattr(w, "choice_values") else []
@@ -981,6 +984,7 @@ def _serialize_widgets(doc) -> list[dict]:
                 "rect": [round(c, 2) for c in (w.rect or fitz.Rect())],
                 "option_label": option_label,
                 "option_value": option_value,
+                "editable": editable_combo,
                 "required": required,
                 "readonly": readonly,
                 "multiline": multiline,

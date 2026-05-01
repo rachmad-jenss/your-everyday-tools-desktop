@@ -203,7 +203,32 @@ function buildField(f, isRadioGroup) {
             wrap.appendChild(lbl);
         }
         return wrap;
+    } else if (f.type === "combobox" && f.editable) {
+        // Editable combobox: free-text input with the choice list as suggestions.
+        // The user can pick from the list OR type something not in it.
+        input = document.createElement("input");
+        input.type = "text";
+        input.dataset.fieldName = f.name;
+        input.dataset.fieldType = "combobox";
+        input.value = f.value || "";
+        input.style.width = "100%";
+        const listId = `dl-${f.name.replace(/[^A-Za-z0-9_-]/g, "_")}`;
+        input.setAttribute("list", listId);
+        const dl = document.createElement("datalist");
+        dl.id = listId;
+        for (const c of f.choices || []) {
+            const opt = document.createElement("option");
+            if (Array.isArray(c)) opt.value = c[0];
+            else opt.value = c;
+            dl.appendChild(opt);
+        }
+        wrap.appendChild(dl);
+        const hint = document.createElement("small");
+        hint.style.cssText = "color:var(--muted);display:block;margin-top:.2rem";
+        hint.textContent = "Pick from suggestions or type any value";
+        wrap.appendChild(hint);
     } else if (f.type === "listbox" || f.type === "combobox") {
+        // Strict choice list (combobox without Edit flag, or any listbox).
         input = document.createElement("select");
         input.dataset.fieldName = f.name;
         input.dataset.fieldType = f.type;
@@ -213,7 +238,6 @@ function buildField(f, isRadioGroup) {
         input.appendChild(empty);
         for (const c of f.choices || []) {
             const opt = document.createElement("option");
-            // choice_values entries can be string or [value, label]
             if (Array.isArray(c)) {
                 opt.value = c[0]; opt.textContent = c[1] || c[0];
             } else {
@@ -222,6 +246,12 @@ function buildField(f, isRadioGroup) {
             if (f.value === opt.value) opt.selected = true;
             input.appendChild(opt);
         }
+        const hint = document.createElement("small");
+        hint.style.cssText = "color:var(--muted);display:block;margin-top:.2rem";
+        hint.textContent = "Choices are defined inside the PDF; only these values are accepted";
+        wrap.appendChild(input);
+        wrap.appendChild(hint);
+        return wrap;
     } else if (f.multiline) {
         input = document.createElement("textarea");
         input.rows = 3;

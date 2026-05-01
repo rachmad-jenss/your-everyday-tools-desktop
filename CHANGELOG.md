@@ -2,6 +2,15 @@
 
 All notable changes to **Your Everyday Tools** are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project loosely follows [Semantic Versioning](https://semver.org/).
 
+## [0.6.2] — 2026-04-29
+
+### Fixed
+- **PDF to Excel: now finds borderless tables.** Users were reporting that the same PDF returned "no tables found" in PDF→Excel but PDF→Word (Layout mode) successfully extracted tables. Root cause: PyMuPDF's `find_tables()` defaults to `strategy="lines"` which only detects tables with visible borders, while `pdf2docx` (used by PDF→Word) detects both ruled and borderless tables. PDF→Excel now exposes a **table detection strategy** option:
+  - **Auto** *(default)* — tries lines first, falls back to text-alignment if no ruled tables are found. Best of both worlds with no false-positive risk on multi-column body text.
+  - **Lines only** — original behavior, conservative.
+  - **Text alignment only** — for borderless tables (financial reports, invoices, schedules).
+- The "no tables found" error message now suggests the alternate strategy or directs users to PDF→Word in Layout mode if even text-strategy detection fails.
+
 ## [0.6.1] — 2026-04-29
 
 ### Added
@@ -9,6 +18,7 @@ All notable changes to **Your Everyday Tools** are documented here. The format i
 
 ### Improved
 - **Fill PDF Form: human radio/checkbox labels.** PDF radio buttons store opaque on-state values (often `0`/`1`/`Yes`/arbitrary identifiers) but the human label like "Male" / "Female" is painted on the page as static text *next to* the widget — not part of the field. Form Filler now sniffs that nearby text and shows the human label in the UI, while keeping the PDF on-state value as the actual submitted value (and as a tooltip for power users). Same for checkbox labels. The sniffer correctly handles vertical lists, horizontal rows ("○ Male  ○ Female"), and multi-word labels ("I agree to the terms and conditions"), stopping at gaps > 25pt to avoid grabbing the next widget's label.
+- **Fill PDF Form: editable comboboxes.** PDF combobox fields can be either strict (only the listed choices are accepted) or editable (user can type a custom value not in the list — bit 19 of the field flags). Form Filler now detects this flag and renders editable comboboxes as a free-text input with the listed choices offered as suggestions via `<datalist>`, while strict comboboxes remain `<select>` dropdowns. Both render with a small hint explaining the constraint. Custom values typed into editable fields are written into the PDF correctly.
 
 ## [0.6.0] — 2026-04-29
 

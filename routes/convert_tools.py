@@ -243,9 +243,23 @@ def pdf_to_excel_page():
         title="PDF to Excel",
         description="Extract tables from a PDF into an .xlsx workbook",
         notes=(
-            "<p><strong>Tip:</strong> works best on PDFs with clearly ruled tables. "
-            "For scanned PDFs (images of tables), run them through "
-            "<a href=\"/convert/ocr-pdf\">OCR PDF</a> first so the tool has text to work with.</p>"
+            "<p><strong>How table detection works:</strong> we try both detection strategies in "
+            "order of accuracy:</p>"
+            "<ul style='margin:.4rem 0 .6rem 1.2rem'>"
+            "<li><strong>Auto (recommended)</strong> — tries ruled-line detection first; if a "
+            "page has no visible table borders, falls back to text-alignment detection (catches "
+            "borderless tables in financial reports, invoices, schedules).</li>"
+            "<li><strong>Lines only</strong> — only tables with visible borders. Most accurate "
+            "but misses borderless tables.</li>"
+            "<li><strong>Text alignment only</strong> — finds tables by detecting columns of "
+            "aligned text. Catches borderless tables but can occasionally false-positive on "
+            "multi-column body text.</li>"
+            "</ul>"
+            "<p style='font-size:.9em;color:var(--muted)'><strong>Still get \"no tables found\"?</strong> "
+            "Try our <a href='/convert/pdf-to-word'>PDF to Word</a> tool in <em>Layout</em> mode "
+            "instead — it uses <code>pdf2docx</code> which is more aggressive about table "
+            "detection. If your PDF is scanned, run it through "
+            "<a href='/convert/ocr-pdf'>OCR PDF</a> first.</p>"
         ),
         endpoint="/convert/pdf-to-excel",
         accept=".pdf",
@@ -253,6 +267,12 @@ def pdf_to_excel_page():
         options=[
             {"type": "text", "name": "pages", "label": "Pages (leave empty for all)",
              "placeholder": "e.g. 1-3, 5"},
+            {"type": "select", "name": "strategy", "label": "Table detection strategy", "default": "auto",
+             "choices": [
+                 {"value": "auto",  "label": "Auto — lines first, fall back to text alignment"},
+                 {"value": "lines", "label": "Lines only (ruled tables)"},
+                 {"value": "text",  "label": "Text alignment only (borderless tables)"},
+             ]},
             {"type": "select", "name": "mode", "label": "Extraction mode", "default": "tables",
              "choices": [
                  {"value": "tables", "label": "Tables only (recommended)"},
@@ -952,6 +972,9 @@ def pdf_to_excel():
 
     mode = request.form.get("mode", "tables")
     organize = request.form.get("organize", "per_table")
+    strategy = request.form.get("strategy", "auto")
+    if strategy not in ("auto", "lines", "text"):
+        strategy = "auto"
     pages_spec = request.form.get("pages", "").strip()
 
     try:
@@ -1006,6 +1029,38 @@ def pdf_to_excel():
             rows.append(parts if parts else [line])
         return rows
 
+    def _find_tables_robust(page) -> list:
+        """Detect tables on a page according to the user's chosen strategy.
+
+        PyMuPDF's default `find_tables()` only catches ruled (visible-border)
+        tables. Many real-world PDFs use borderless tables where columns are
+        aligned by whitespace — those need `strategy="text"`. The "auto" mode
+        tries lines first and only falls back to text-based when nothing is
+        found, which avoids the false-positive risk of text-detection picking
+        up multi-column body text as a "table".
+        """
+        try:
+            if strategy == "lines":
+                return list(page.find_tables(strategy="lines"))
+            if strategy == "text":
+                return list(page.find_tables(
+                    strategy="text",
+                    vertical_strategy="text",
+                    horizontal_strategy="text",
+                ))
+            # auto: lines, then text fallback
+            tables = list(page.find_tables(strategy="lines"))
+            if tables:
+                return tables
+            return list(page.find_tables(
+                strategy="text",
+                vertical_strategy="text",
+                horizontal_strategy="text",
+            ))
+        except Exception as e:
+            log_error(e, f"find_tables strategy={strategy}")
+            return []
+
     # ── "combined" — stream everything into a single sheet ────────────
     if organize == "combined":
         ws = wb.create_sheet(_safe_name("Extracted"))
@@ -1015,7 +1070,7 @@ def pdf_to_excel():
             page_had_content = False
 
             if mode in ("tables", "tables_text"):
-                tables = list(page.find_tables())
+                tables = _find_tables_robust(page)
                 for t in tables:
                     rows = t.extract()
                     if not rows:
@@ -1043,7 +1098,7 @@ def pdf_to_excel():
             tables_rows = []  # list of (label, rows)
 
             if mode in ("tables", "tables_text"):
-                for tidx, t in enumerate(page.find_tables(), start=1):
+                for tidx, t in enumerate(_find_tables_robust(page), start=1):
                     rows = t.extract()
                     if rows:
                         tables_rows.append((f"Table {tidx}", rows))
@@ -1076,10 +1131,14 @@ def pdf_to_excel():
     doc.close()
 
     if not wb.sheetnames:
-        return jsonify(error=(
-            "No tables or text found on the selected pages. "
-            "If this is a scanned PDF, run it through OCR PDF first."
-        )), 400
+        msg = "No tables found on the selected pages."
+        if strategy == "lines":
+            msg += " Try the 'Text alignment' or 'Auto' strategy — your PDF may use borderless tables."
+        elif mode == "tables":
+            msg += " Try the 'Tables, fall back to text rows' mode, or use PDF to Word in Layout mode."
+        else:
+            msg += " If this is a scanned PDF, run it through OCR PDF first; otherwise try PDF to Word in Layout mode."
+        return jsonify(error=msg), 400
 
     # Auto-size columns on every sheet (cap at 60 chars to avoid absurd widths)
     for ws in wb.worksheets:
