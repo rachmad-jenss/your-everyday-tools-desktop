@@ -4,6 +4,16 @@ All notable changes to **Your Everyday Tools** are documented here. The format i
 
 ## [0.6.2] — 2026-04-29
 
+### Improved — Requirements & expectations on every tool page
+
+Audited all 100 tool pages and added clear "Requirements & expectations" notes wherever they were missing. Users no longer have to start a conversion to discover that a tool needs LibreOffice / FFmpeg / Tesseract / pyzbar / rembg / etc.
+
+- **Tools with hard external dependencies** now show their install status up-front (green check if detected, yellow warning + per-OS install instructions if missing): OCR PDF, Image OCR, Remove Background, Read QR Code, Generate Barcode (in addition to the ones that already had this: HEIC Converter, Files to PDF, HTML to PDF, PDF to PowerPoint, PowerPoint to PDF, Speech to Text, Encrypt File, all FFmpeg-backed media tools).
+- **Tools with format quirks or input expectations** got concise expectation notes: PDF to Images (DPI guide + format choice), PDF to Text ("only works on text PDFs, scans need OCR first"), Excel to CSV/JSON (formula caching note, multi-sheet behaviour), Excel to PDF (honest about not being pixel-perfect), Compress PDF (which PDFs benefit, JPEG re-encoding details), Compress Image (JPG-only output, quality guide), Convert Subtitles (supported formats + drift limitations), Extract Images (raster-only, vectors not exported), Protect / Unlock PDF (encryption details, no-cracker disclaimer), Generate Barcode (per-format input requirements), SVG to PNG (renderer limitations).
+- **Markdown to PDF / Word** custom templates picked up notes about supported syntax and known limitations (no remote image fetch).
+
+Tools with notes coverage: **43 of 100**, up from 24. The remaining 57 are pure client-side utilities (calculators, formatters, JSON tools, dev utilities) that have no external dependencies and self-explanatory behaviour.
+
 ### Fixed — Word→PDF (Files to PDF) layout quality
 
 Users reported "messy layout" and "missing images" when converting `.docx` to PDF. Root cause: the tool was silently falling back to a hand-rolled python-docx + reportlab rebuilder when LibreOffice wasn't on `PATH` — and that fallback didn't handle images at all and emitted tables out of document order. Three fixes:

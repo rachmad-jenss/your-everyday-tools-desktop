@@ -259,6 +259,16 @@ def pdf_to_images_page():
     return render_template("upload_tool.html",
         title="PDF to Images",
         description="Convert each PDF page to an image",
+        notes=(
+            '<p><strong>What this does:</strong> renders each PDF page as a raster image. '
+            'Output is one image per page, bundled as a ZIP if there are multiple pages.</p>'
+            '<p><strong>DPI guide:</strong> 72 = screen quality, 150 = good for slides, '
+            '200 = good for print preview, 300 = print quality, 600 = archival. '
+            'Higher DPI = larger files (a 10-page PDF at 600 DPI can be 50+ MB).</p>'
+            '<p><strong>Format:</strong> PNG is lossless and best for diagrams / text-heavy pages. '
+            'JPG is smaller but lossy — best for photo-heavy pages.</p>'
+            '<p style="font-size:.9em;color:var(--muted)"><strong>No external dependencies.</strong></p>'
+        ),
         endpoint="/convert/pdf-to-images",
         accept=".pdf",
         multiple=False,
@@ -277,6 +287,15 @@ def pdf_to_text_page():
     return render_template("upload_tool.html",
         title="PDF to Text",
         description="Extract all text content from a PDF document",
+        notes=(
+            '<p><strong>What this does:</strong> pulls all extractable text out of the PDF, '
+            'page by page, in reading order.</p>'
+            '<p><strong>Important:</strong> this only works on PDFs that <em>contain</em> '
+            'real text. If your PDF is a scan (photographed/scanned pages stored as images), '
+            'no text will be extracted — run it through '
+            '<a href="/convert/ocr-pdf">OCR PDF</a> first to recognise the text, then come back here.</p>'
+            '<p style="font-size:.9em;color:var(--muted)"><strong>No external dependencies.</strong></p>'
+        ),
         endpoint="/convert/pdf-to-text",
         accept=".pdf",
         multiple=False,
@@ -364,9 +383,44 @@ OCR_LANGS = [
 
 @bp.route("/ocr-pdf")
 def ocr_pdf_page():
+    if HAS_TESSERACT:
+        status = (
+            '<p><i class="bi bi-check-circle-fill" style="color:#2ec4b6"></i> '
+            '<strong>OCR is ready.</strong> Tesseract Python bindings detected. '
+            'Make sure the language pack you select is installed in your Tesseract '
+            '<code>tessdata</code> directory — you\'ll get a clear error if it isn\'t.</p>'
+        )
+    else:
+        status = (
+            '<p><i class="bi bi-exclamation-triangle-fill" style="color:#ffb703"></i> '
+            '<strong>OCR is unavailable.</strong> Two things to install:</p>'
+            '<ol style="margin:.4rem 0 .6rem 1.2rem">'
+            '<li>The <code>pytesseract</code> Python package: <code>pip install pytesseract</code></li>'
+            '<li>The Tesseract binary itself: '
+            '<a href="https://github.com/tesseract-ocr/tesseract" target="_blank">github.com/tesseract-ocr/tesseract</a> '
+            '(Windows installers, <code>brew install tesseract</code> on macOS, '
+            '<code>apt install tesseract-ocr</code> on Linux)</li>'
+            '</ol>'
+            '<p>Then for non-English OCR, download the matching <code>*.traineddata</code> '
+            'file from <a href="https://github.com/tesseract-ocr/tessdata" target="_blank">tessdata</a> '
+            'into your Tesseract install\'s <code>tessdata</code> folder.</p>'
+        )
     return render_template("upload_tool.html",
         title="OCR PDF",
         description="Extract text from scanned PDFs or create a searchable PDF with a hidden text layer",
+        notes=(
+            f'{status}'
+            '<p><strong>Two output modes:</strong></p>'
+            '<ul style="margin:.4rem 0 .6rem 1.2rem">'
+            '<li><strong>Searchable PDF</strong> — keeps the original page images and adds an '
+            'invisible text layer underneath, so you can copy-paste and search. The PDF still '
+            '<em>looks</em> identical to the scan.</li>'
+            '<li><strong>Extracted text</strong> — just the recognised text, plain.</li>'
+            '</ul>'
+            '<p style="font-size:.9em;color:var(--muted)">Higher DPI = better OCR accuracy '
+            'but slower. 200 DPI is the sweet spot for most scans; bump to 300+ for small '
+            'fonts or low-quality scans.</p>'
+        ),
         endpoint="/convert/ocr-pdf",
         accept=".pdf",
         multiple=False,

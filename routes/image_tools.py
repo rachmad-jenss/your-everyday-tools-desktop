@@ -115,6 +115,15 @@ def compress_page():
     return render_template("upload_tool.html",
         title="Compress Image",
         description="Reduce image file size while controlling quality",
+        notes=(
+            '<p><strong>Output is always JPG</strong> regardless of the input format — '
+            'JPG is the most compressible format and best for photos. If you need to keep '
+            'transparency or sharp text/diagrams, use <a href="/image/convert">Convert Format</a> '
+            'with PNG or WebP instead.</p>'
+            '<p><strong>Quality guide:</strong> 70–80% is the sweet spot for photos (large '
+            'savings, no visible loss). Below 50% you\'ll start seeing JPEG artefacts. '
+            'Above 90% gives diminishing returns.</p>'
+        ),
         endpoint="/image/compress",
         accept=IMAGE_ACCEPT,
         multiple=False,
@@ -146,9 +155,30 @@ def convert_page():
 
 @bp.route("/remove-bg")
 def remove_bg_page():
+    if HAS_REMBG:
+        status = (
+            '<p><i class="bi bi-check-circle-fill" style="color:#2ec4b6"></i> '
+            '<strong>Background remover is ready.</strong> Uses the <code>rembg</code> '
+            'AI model. The first run downloads the model (~170 MB) — be patient on '
+            'the first conversion; subsequent runs are fast.</p>'
+        )
+    else:
+        status = (
+            '<p><i class="bi bi-exclamation-triangle-fill" style="color:#ffb703"></i> '
+            '<strong>Background removal is unavailable.</strong> Install with '
+            '<code>pip install rembg</code> and restart the server. First use will '
+            'download the AI model (~170 MB) automatically.</p>'
+        )
     return render_template("upload_tool.html",
         title="Remove Background",
         description="Automatically remove the background from images",
+        notes=(
+            f'{status}'
+            '<p><strong>Best results on:</strong> photos with clear subject/background '
+            'separation (people, products, animals). Output is always PNG with transparency.</p>'
+            '<p style="font-size:.9em;color:var(--muted)">Runs entirely on your machine — '
+            'no images sent to any external service.</p>'
+        ),
         endpoint="/image/remove-bg",
         accept=IMAGE_ACCEPT,
         multiple=False,
@@ -273,9 +303,32 @@ def animated_page():
 
 @bp.route("/ocr")
 def ocr_page():
+    if HAS_TESSERACT:
+        status = (
+            '<p><i class="bi bi-check-circle-fill" style="color:#2ec4b6"></i> '
+            '<strong>OCR is ready.</strong> Tesseract Python bindings detected.</p>'
+        )
+    else:
+        status = (
+            '<p><i class="bi bi-exclamation-triangle-fill" style="color:#ffb703"></i> '
+            '<strong>OCR is unavailable.</strong> Install with '
+            '<code>pip install pytesseract</code> AND install the Tesseract binary from '
+            '<a href="https://github.com/tesseract-ocr/tesseract" target="_blank">github.com/tesseract-ocr/tesseract</a> '
+            '(Windows installers, <code>brew install tesseract</code> on macOS, '
+            '<code>apt install tesseract-ocr</code> on Linux), then restart the server.</p>'
+        )
     return render_template("upload_tool.html",
         title="Image to Text (OCR)",
         description="Extract text from images using optical character recognition",
+        notes=(
+            f'{status}'
+            '<p><strong>Best results on:</strong> screenshots, scanned documents, photos of '
+            'text under good lighting. Handwriting, decorative fonts, or low-resolution images '
+            'will reduce accuracy significantly.</p>'
+            '<p style="font-size:.9em;color:var(--muted)">For full PDFs (multi-page), use '
+            '<a href="/convert/ocr-pdf">OCR PDF</a> instead — it handles language packs and '
+            'produces a searchable PDF.</p>'
+        ),
         endpoint="/image/ocr",
         accept=IMAGE_ACCEPT,
         multiple=False,
@@ -305,6 +358,16 @@ def svg_to_png_page():
     return render_template("upload_tool.html",
         title="SVG to PNG",
         description="Rasterise an SVG file to a PNG image",
+        notes=(
+            '<p><strong>Renders via <code>svglib</code> + reportlab.</strong> Supports the '
+            'common SVG features: paths, shapes, basic styling, embedded raster images. '
+            '<strong>Limitations:</strong> some advanced SVG 2 features (filters, masks, '
+            'animations, web fonts loaded via <code>@font-face</code>) may render incorrectly '
+            'or not at all. For pixel-perfect rendering of complex SVGs, open the SVG in a '
+            'browser and use Print → Save as PDF, then convert that PDF to PNG.</p>'
+            '<p style="font-size:.9em;color:var(--muted)"><strong>No external dependencies '
+            'beyond <code>svglib</code></strong> (already installed).</p>'
+        ),
         endpoint="/image/svg-to-png",
         accept=".svg",
         multiple=False,

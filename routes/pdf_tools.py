@@ -48,6 +48,22 @@ def compress_page():
     return render_template("upload_tool.html",
         title="Compress PDF",
         description="Reduce PDF file size by compressing images and cleaning up",
+        notes=(
+            '<p><strong>How compression works:</strong> embedded images are re-encoded as JPEG '
+            'at a lower quality, downscaled if larger than a per-level cap (1200/1800/2400 px), '
+            'and the PDF\'s internal cross-reference table is cleaned up.</p>'
+            '<p><strong>Best results on:</strong> photo-heavy PDFs (scanned reports, brochures, '
+            'photo books). <strong>Minimal savings on:</strong> text-only PDFs — they\'re already '
+            'tiny because text compresses well in PDF natively.</p>'
+            '<ul style="margin:.4rem 0 .6rem 1.2rem">'
+            '<li><strong>Maximum compression</strong> — JPEG quality 40, max image edge 1200px. '
+            'Best size, visible image quality loss.</li>'
+            '<li><strong>Medium</strong> — JPEG quality 65, max 1800px. Good balance for most use.</li>'
+            '<li><strong>Minimal</strong> — JPEG quality 85, max 2400px. Slightly smaller, hardly any loss.</li>'
+            '</ul>'
+            '<p style="font-size:.9em;color:var(--muted)">Image positions, sizes, and rotation '
+            'are preserved exactly — we replace each image in-place rather than re-flowing the page.</p>'
+        ),
         endpoint="/pdf/compress",
         accept=".pdf",
         multiple=False,
@@ -137,6 +153,15 @@ def extract_images_page():
     return render_template("upload_tool.html",
         title="Extract Images",
         description="Extract all images embedded in a PDF file",
+        notes=(
+            '<p><strong>What you get:</strong> every embedded raster image (PNG / JPEG / TIFF) '
+            'found in the PDF, downloaded as a ZIP. Vector graphics (lines, paths, drawn shapes) '
+            'are <strong>not</strong> exported as images — they\'re part of the page itself, not '
+            'separate image objects.</p>'
+            '<p style="font-size:.9em;color:var(--muted)">For scanned PDFs you usually get one '
+            'large image per page. For rendered text PDFs with figures, you get just the figures. '
+            'If you need a screenshot of the whole page, use <a href="/convert/pdf-to-images">PDF to Images</a>.</p>'
+        ),
         endpoint="/pdf/extract-images",
         accept=".pdf",
         multiple=False,
@@ -148,6 +173,18 @@ def protect_page():
     return render_template("upload_tool.html",
         title="Protect PDF",
         description="Add password protection to a PDF file",
+        notes=(
+            '<p><strong>Encryption:</strong> AES-256, the strongest standard PDF encryption. '
+            'Required to open and to print/copy.</p>'
+            '<p><strong>User vs Owner password:</strong></p>'
+            '<ul style="margin:.4rem 0 .6rem 1.2rem">'
+            '<li><strong>User password</strong> — required to open the PDF. Without it, the PDF cannot be viewed.</li>'
+            '<li><strong>Owner password</strong> — controls editing/printing/copying restrictions. Leave blank to use the same as the user password.</li>'
+            '</ul>'
+            '<p style="font-size:.9em;color:var(--muted)"><strong>Important:</strong> there is '
+            'no recovery — if you forget the password, the PDF stays locked. We allow printing '
+            'and copying for password-holders by default.</p>'
+        ),
         endpoint="/pdf/protect",
         accept=".pdf",
         multiple=False,
@@ -197,6 +234,14 @@ def unlock_page():
     return render_template("upload_tool.html",
         title="Unlock PDF",
         description="Remove password protection from a PDF",
+        notes=(
+            '<p><strong>You need to know the password.</strong> This tool removes password '
+            'protection from a PDF you can already open — it is not a password cracker. '
+            'You\'ll get a clear "incorrect password" error if you enter the wrong one.</p>'
+            '<p style="font-size:.9em;color:var(--muted)">Use case: you have a PDF protected '
+            'by a password you know, and want to share an unprotected copy or pass it through '
+            'tools that don\'t handle encrypted PDFs.</p>'
+        ),
         endpoint="/pdf/unlock",
         accept=".pdf",
         multiple=False,

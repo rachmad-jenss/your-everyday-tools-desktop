@@ -9,6 +9,14 @@
         <p>Paste or type Markdown and export it as a formatted PDF</p>
     </div>
 
+    <div class="tool-notes">
+        <p><strong>Supported Markdown:</strong> CommonMark + GFM extensions: headings, bold/italic,
+        ordered &amp; unordered lists, fenced code blocks, tables, blockquotes, links, inline code, horizontal rules.</p>
+        <p style="font-size:.9em;color:var(--muted)">Rendering uses PyMuPDF's <code>Story</code> API for proper multi-page
+        pagination. <strong>No external dependencies.</strong> For images embedded via <code>![alt](url)</code> with remote URLs,
+        the image won't be fetched (offline by design); use base64 data URIs instead if you need to embed.</p>
+    </div>
+
     <div style="display:flex;gap:.5rem;margin-bottom:.6rem;flex-wrap:wrap;align-items:center">
         <label>Page size:
             <select id="page-size">

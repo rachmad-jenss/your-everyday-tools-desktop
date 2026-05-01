@@ -49,9 +49,33 @@ def generate_page():
 
 @bp.route("/read")
 def read_page():
+    if HAS_PYZBAR:
+        status = (
+            '<p><i class="bi bi-check-circle-fill" style="color:#2ec4b6"></i> '
+            '<strong>QR reading is ready.</strong> Uses <code>pyzbar</code> + the ZBar binary.</p>'
+        )
+    else:
+        status = (
+            '<p><i class="bi bi-exclamation-triangle-fill" style="color:#ffb703"></i> '
+            '<strong>QR reading is unavailable.</strong> Two things to install:</p>'
+            '<ol style="margin:.4rem 0 .6rem 1.2rem">'
+            '<li><code>pip install pyzbar</code></li>'
+            '<li>The ZBar shared library: '
+            '<a href="https://github.com/NaturalHistoryMuseum/pyzbar#installation" target="_blank">install instructions</a> '
+            '(Windows DLLs ship with pyzbar; <code>brew install zbar</code> on macOS; '
+            '<code>apt install libzbar0</code> on Linux)</li>'
+            '</ol>'
+            '<p>Then restart the server.</p>'
+        )
     return render_template("upload_tool.html",
         title="Read QR Code",
         description="Decode QR codes from uploaded images",
+        notes=(
+            f'{status}'
+            '<p><strong>Best results on:</strong> sharp, well-lit images of QR codes that '
+            'fill at least a quarter of the frame. Blurry, tilted, or partially obscured QRs '
+            'may not decode. Multiple QRs in one image are all decoded.</p>'
+        ),
         endpoint="/qr/read",
         accept=".jpg,.jpeg,.png,.bmp,.webp,.gif",
         multiple=False,
@@ -222,9 +246,36 @@ BARCODE_TYPES = [
 
 @bp.route("/barcode")
 def barcode_page():
+    if HAS_BARCODE:
+        status = (
+            '<p><i class="bi bi-check-circle-fill" style="color:#2ec4b6"></i> '
+            '<strong>Barcode generation is ready.</strong></p>'
+        )
+    else:
+        status = (
+            '<p><i class="bi bi-exclamation-triangle-fill" style="color:#ffb703"></i> '
+            '<strong>Barcode generation is unavailable.</strong> Install with '
+            '<code>pip install python-barcode</code> and restart the server.</p>'
+        )
     return render_template("upload_tool.html",
         title="Generate Barcode",
         description="Create 1D barcodes (Code128, EAN13, UPC, ISBN, and more)",
+        notes=(
+            f'{status}'
+            '<p><strong>Per-format input requirements:</strong></p>'
+            '<ul style="margin:.4rem 0 .6rem 1.2rem">'
+            '<li><strong>Code 128</strong> — any printable ASCII (general-purpose, recommended for free text).</li>'
+            '<li><strong>Code 39</strong> — uppercase A–Z, 0–9, and a few symbols (<code>- . $ / + % space</code>).</li>'
+            '<li><strong>EAN-13</strong> — exactly 12 digits (the 13th is computed as a checksum).</li>'
+            '<li><strong>EAN-8</strong> — exactly 7 digits.</li>'
+            '<li><strong>UPC-A</strong> — exactly 11 digits.</li>'
+            '<li><strong>ISBN-13</strong> — 12 digits (without dashes); 978/979 prefix expected.</li>'
+            '<li><strong>ISBN-10</strong> — 9 digits.</li>'
+            '<li><strong>ISSN</strong> — 7 digits.</li>'
+            '</ul>'
+            '<p style="font-size:.9em;color:var(--muted)">PNG output for general use; SVG for '
+            'high-resolution print or to scale without quality loss.</p>'
+        ),
         endpoint="/qr/barcode",
         text_input=True,
         text_label="Barcode value",

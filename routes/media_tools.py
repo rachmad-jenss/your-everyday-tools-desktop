@@ -564,7 +564,17 @@ def subtitle_convert():
         return render_template(
             "upload_tool.html",
             title="Convert Subtitles",
-            description="Convert subtitles between SRT and WebVTT. Also shift timing by a positive or negative offset (seconds).",
+            description="Convert subtitles between SRT and WebVTT. Also shift timing by a positive or negative offset.",
+            notes=(
+                '<p><strong>Pure Python conversion — no FFmpeg or external tools needed.</strong></p>'
+                '<p><strong>Supported inputs:</strong> SubRip <code>.srt</code> and WebVTT <code>.vtt</code> files. '
+                'BOM-prefixed UTF-8 files are handled. Other formats (ASS/SSA, SUB, etc.) are not supported here — '
+                'convert to SRT first using a tool like Aegisub.</p>'
+                '<p><strong>Time shift</strong> is in seconds and can be negative. Use to fix subtitles that '
+                'are consistently early (positive shift) or late (negative shift) compared to the audio. '
+                'For non-uniform drift (subtitles speeding up over time), this tool can\'t help — you need '
+                'a re-timing tool.</p>'
+            ),
             endpoint="/media/subtitle-convert",
             accept=".srt,.vtt",
             multiple=False,

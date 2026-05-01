@@ -96,6 +96,20 @@ def excel_to_csv_page():
     return render_template("upload_tool.html",
         title="Excel to CSV / JSON",
         description="Export sheets from an Excel workbook to CSV or JSON",
+        notes=(
+            '<p><strong>Supported inputs:</strong> <code>.xlsx</code>, <code>.xlsm</code>, '
+            '<code>.xls</code> (legacy Excel 97-2003).</p>'
+            '<p><strong>Output:</strong></p>'
+            '<ul style="margin:.4rem 0 .6rem 1.2rem">'
+            '<li><strong>CSV</strong> — UTF-8 with BOM (opens correctly in Excel without garbled characters).</li>'
+            '<li><strong>JSON (array of objects)</strong> — first row used as keys; best for code consumption.</li>'
+            '<li><strong>JSON (array of arrays)</strong> — preserves rows as positional arrays; no key inference.</li>'
+            '</ul>'
+            '<p style="font-size:.9em;color:var(--muted)">If the workbook has multiple sheets and '
+            'you don\'t specify one, all sheets are exported and bundled as a ZIP. '
+            '<strong>Formulas are evaluated to their cached values</strong> (Excel stores both); '
+            'if a formula has never been recalculated, the export shows the stale cached value.</p>'
+        ),
         endpoint="/spreadsheet/excel-to-csv",
         accept=EXCEL_ACCEPT,
         multiple=False,
@@ -129,7 +143,24 @@ def csv_to_excel_page():
 def excel_to_pdf_page():
     return render_template("upload_tool.html",
         title="Excel to PDF",
-        description="Convert an Excel workbook to PDF (one section per sheet). Basic table rendering — not pixel-perfect.",
+        description="Convert an Excel workbook to PDF (one section per sheet)",
+        notes=(
+            '<p><strong>This is a basic renderer, not a pixel-perfect Excel print.</strong> '
+            'It reads cell values and renders each sheet as a simple table. <strong>Not preserved:</strong></p>'
+            '<ul style="margin:.4rem 0 .6rem 1.2rem">'
+            '<li>Cell formatting (fonts, colours, borders, conditional formatting)</li>'
+            '<li>Number formats (dates, currency, percentages — shown as raw values)</li>'
+            '<li>Merged cells, frozen panes, charts, images, embedded objects</li>'
+            '<li>Print areas, page setup, headers/footers</li>'
+            '</ul>'
+            '<p><strong>For full-fidelity Excel→PDF</strong> (matching what Excel itself prints), '
+            'install LibreOffice and we\'ll route through it automatically — the same approach '
+            'used by <a href="/convert/pptx-to-pdf">PowerPoint to PDF</a>. '
+            '<em>(Coming soon — track progress in the CHANGELOG.)</em></p>'
+            '<p style="font-size:.9em;color:var(--muted)">Output uses one PDF page per sheet '
+            '(or splits across pages if the table is too wide/tall). Auto-fits column widths '
+            'to content.</p>'
+        ),
         endpoint="/spreadsheet/excel-to-pdf",
         accept=EXCEL_ACCEPT,
         multiple=False,
