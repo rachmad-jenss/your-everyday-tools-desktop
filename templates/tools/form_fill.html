@@ -101,18 +101,24 @@ function renderForm(data) {
         `across ${data.page_count} page${data.page_count === 1 ? "" : "s"} of ` +
         `<code>${escapeHtml(data.filename)}</code>`;
 
-    // Group radios by field_name (PDF standard: multiple widgets share a name)
+    // Group radios by field_name (PDF standard: multiple widgets share a name).
+    // Each radio carries its own option_value (PDF-internal id, e.g. "0"/"1")
+    // and option_label (human label sniffed from nearby page text, e.g. "Male").
     const radioGroups = {};
     const renderQueue = [];
     for (const f of data.fields) {
         if (f.type === "radio") {
             if (!radioGroups[f.name]) {
-                radioGroups[f.name] = { ...f, on_states_combined: [] };
+                radioGroups[f.name] = { ...f, options: [] };
                 renderQueue.push({ kind: "radio_group", name: f.name });
             }
-            for (const s of f.on_states || []) {
-                if (!radioGroups[f.name].on_states_combined.includes(s)) {
-                    radioGroups[f.name].on_states_combined.push(s);
+            if (f.option_value) {
+                const exists = radioGroups[f.name].options.some(o => o.value === f.option_value);
+                if (!exists) {
+                    radioGroups[f.name].options.push({
+                        value: f.option_value,
+                        label: f.option_label || f.option_value,
+                    });
                 }
             }
         } else if (f.type !== "button" && f.type !== "signature") {
@@ -170,21 +176,28 @@ function buildField(f, isRadioGroup) {
         wrap.appendChild(lbl);
         return wrap;
     } else if (isRadioGroup) {
-        // Render one radio per on-state value
-        const states = f.on_states_combined || ["On"];
-        for (const s of states) {
+        // Render one radio per option (value + label pair sniffed from PDF)
+        const opts = (f.options && f.options.length)
+            ? f.options
+            : [{ value: "On", label: "On" }];
+        for (const opt of opts) {
             const lbl = document.createElement("label");
             lbl.style.cssText = "display:inline-flex;align-items:center;gap:.4rem;margin-right:1rem";
             const r = document.createElement("input");
             r.type = "radio";
             r.name = `radio-${f.name}`;
-            r.value = s;
+            r.value = opt.value;
             r.dataset.fieldName = f.name;
             r.dataset.fieldType = "radio";
-            if (f.value === s) r.checked = true;
+            if (f.value === opt.value) r.checked = true;
             const span = document.createElement("span");
-            span.textContent = s;
+            span.textContent = opt.label;
             span.style.fontSize = ".9rem";
+            // Show the PDF-internal value as a tooltip so power users can
+            // map back to the underlying widget if they need to.
+            if (opt.label !== opt.value) {
+                lbl.title = `PDF on-state: "${opt.value}"`;
+            }
             lbl.appendChild(r);
             lbl.appendChild(span);
             wrap.appendChild(lbl);

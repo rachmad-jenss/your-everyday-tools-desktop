@@ -867,6 +867,73 @@ _WIDGET_TYPE_NAMES = {
 }
 
 
+def _label_near_widget(page, rect: fitz.Rect, max_dist: float = 250) -> str:
+    """Find the text label that visually sits next to a widget on the page.
+
+    Radio button / checkbox labels (e.g. "Male", "Female") are painted on the
+    page as static text, NOT stored on the widget. We sniff them by walking
+    page words and picking the contiguous run of words on the same line,
+    starting from the side adjacent to the widget. A gap > ~25 pixels stops
+    the run, which prevents grabbing the next radio's label in a horizontal
+    row layout like "[ ] Male  [ ] Female".
+
+    Right side is searched first (the conventional layout); left is fallback.
+    """
+    if not rect:
+        return ""
+    height = max(rect.y1 - rect.y0, 8)
+    cy = (rect.y0 + rect.y1) / 2
+
+    # get_text("words") -> list of (x0, y0, x1, y1, "text", block, line, word)
+    words = page.get_text("words")
+    if not words:
+        return ""
+
+    def same_line(wy0: float, wy1: float) -> bool:
+        wcy = (wy0 + wy1) / 2
+        return abs(wcy - cy) <= height * 0.7
+
+    GAP = 25.0  # max horizontal gap between adjacent label words, in points
+
+    # ── Right-side run ──
+    right = [w for w in words
+             if same_line(w[1], w[3])
+             and w[0] >= rect.x1 - 1
+             and w[0] - rect.x1 < max_dist]
+    if right:
+        right.sort(key=lambda w: w[0])
+        result = [right[0][4]]
+        prev_x1 = right[0][2]
+        for w in right[1:]:
+            if w[0] - prev_x1 > GAP:
+                break
+            result.append(w[4])
+            prev_x1 = w[2]
+        text = " ".join(result).strip().rstrip(":;,.")
+        if text:
+            return text[:80]
+
+    # ── Left-side fallback ──
+    left = [w for w in words
+            if same_line(w[1], w[3])
+            and w[2] <= rect.x0 + 1
+            and rect.x0 - w[2] < max_dist]
+    if left:
+        left.sort(key=lambda w: -w[2])  # rightmost first (closest to widget)
+        result = [left[0][4]]
+        prev_x0 = left[0][0]
+        for w in left[1:]:
+            if prev_x0 - w[2] > GAP:
+                break
+            result.insert(0, w[4])
+            prev_x0 = w[0]
+        text = " ".join(result).strip().rstrip(":;,.")
+        if text:
+            return text[:80]
+
+    return ""
+
+
 def _serialize_widgets(doc) -> list[dict]:
     """Walk every page's widgets and return a JSON-friendly list of fields."""
     fields: list[dict] = []
@@ -883,7 +950,8 @@ def _serialize_widgets(doc) -> list[dict]:
             # Choice fields expose `choice_values`; treat None as empty list
             choices = list(w.choice_values or []) if hasattr(w, "choice_values") else []
 
-            # For checkboxes the "on" state name varies per PDF
+            # For checkboxes / radios the "on" state name varies per PDF
+            # (often "Yes", "On", "1", or arbitrary identifiers like "Male").
             on_states = []
             if ftype in ("checkbox", "radio"):
                 states = w.button_states() or {}
@@ -894,6 +962,16 @@ def _serialize_widgets(doc) -> list[dict]:
                         if v and v != "Off" and v not in on_states:
                             on_states.append(v)
 
+            # For radios + checkboxes, sniff a human label from the page text
+            # adjacent to this widget. PDFs paint these as static text rather
+            # than storing them on the widget, so we have to read the page.
+            option_label = ""
+            if ftype in ("radio", "checkbox"):
+                option_label = _label_near_widget(page, w.rect)
+
+            # The "value" identifier this specific radio represents when "on".
+            option_value = on_states[0] if (ftype == "radio" and on_states) else ""
+
             fields.append({
                 "name": w.field_name or "",
                 "label": w.field_label or w.field_name or "",
@@ -901,6 +979,8 @@ def _serialize_widgets(doc) -> list[dict]:
                 "value": w.field_value if w.field_value is not None else "",
                 "page": page_num,
                 "rect": [round(c, 2) for c in (w.rect or fitz.Rect())],
+                "option_label": option_label,
+                "option_value": option_value,
                 "required": required,
                 "readonly": readonly,
                 "multiline": multiline,
