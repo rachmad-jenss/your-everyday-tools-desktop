@@ -1,6 +1,6 @@
 # Your Everyday Tools
 
-A lightweight, self-hosted web app that bundles 99 everyday utilities into a single interface. Built with Python + Flask, zero JavaScript frameworks, and minimal CSS — no bloat, just tools.
+A lightweight, self-hosted web app that bundles 100 everyday utilities into a single interface. Built with Python + Flask, zero JavaScript frameworks, and minimal CSS — no bloat, just tools.
 
 ![Python](https://img.shields.io/badge/Python-3.10+-blue)
 ![Flask](https://img.shields.io/badge/Flask-3.x-green)
@@ -11,7 +11,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release history and recent fixes.
 
 - Codeberg: https://codeberg.org/listyantidewi/your-everyday-tools
 - Bitbucket: https://bitbucket.org/your-everyday-tools/your-every-tools
-- GitHub: https://github.com/listyantidewi1/your-everyday-tools
+
 
 ---
 
@@ -73,6 +73,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release history and recent fixes.
 | **Unlock PDF**     | Remove password protection from a PDF                                                                   |
 | **Sign PDF**       | Stamp a signature image (PNG/JPG) onto selected pages with position, width, margin, and opacity control |
 | **Redact PDF**     | Permanently black-out sensitive text by literal match or regex (emails, card numbers, IDs, etc.). Underlying text is removed from the content stream so it can't be recovered with copy-paste. |
+| **Fill PDF Form**  | Upload a PDF that has AcroForm fields (tax forms, contracts, gov applications), fill text/checkbox/radio/dropdown fields in your browser, and download the filled PDF. Two-step flow: detect fields → fill → download. |
 
 ### Image Tools
 

@@ -40,6 +40,7 @@ TOOL_CATEGORIES = [
             {"id": "unlock", "name": "Unlock PDF", "desc": "Remove PDF password", "icon": "bi-unlock-fill"},
             {"id": "sign", "name": "Sign PDF", "desc": "Stamp a signature image onto PDF pages", "icon": "bi-pen-fill"},
             {"id": "redact", "name": "Redact PDF", "desc": "Permanently black-out sensitive text", "icon": "bi-eraser-fill"},
+            {"id": "form-fill", "name": "Fill PDF Form", "desc": "Fill AcroForm fields and download a filled PDF", "icon": "bi-input-cursor-text"},
         ],
     },
     {

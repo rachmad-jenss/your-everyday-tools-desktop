@@ -2,6 +2,11 @@
 
 All notable changes to **Your Everyday Tools** are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project loosely follows [Semantic Versioning](https://semver.org/).
 
+## [0.6.1] — 2026-04-29
+
+### Added
+- **Fill PDF Form** *(PDF Tools)* — upload a PDF that has AcroForm fields (the kind in tax forms, gov applications, and most fillable PDFs), inspect the fields in your browser, fill them, and download the filled PDF. Supports text, multi-line text, checkbox, radio, listbox, and combobox field types. Two-step UI: `/pdf/form-inspect` returns the field schema as JSON, then `/pdf/form-fill` applies values. PDFs without form fields surface a clear "this PDF doesn't have an AcroForm" message rather than silently doing nothing. XFA-only forms (some Adobe-only forms) are not supported — limitation of PyMuPDF, not the project.
+
 ## [0.6.0] — 2026-04-29
 
 ### Added — 8 new tools across 6 categories (total now 99)

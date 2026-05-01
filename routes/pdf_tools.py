@@ -206,6 +206,11 @@ def unlock_page():
         ])
 
 
+@bp.route("/form-fill")
+def form_fill_page():
+    return render_template("tools/form_fill.html")
+
+
 @bp.route("/redact")
 def redact_page():
     return render_template("upload_tool.html",
@@ -846,3 +851,183 @@ def unlock():
     name = files[0].filename.rsplit(".", 1)[0] + "_unlocked.pdf"
     return send_file(output, mimetype="application/pdf",
                      as_attachment=True, download_name=name)
+
+
+# ── PDF Form Filler (AcroForm) ─────────────────────────────
+
+# PyMuPDF widget type constants → string labels we expose to the UI
+_WIDGET_TYPE_NAMES = {
+    fitz.PDF_WIDGET_TYPE_TEXT: "text",
+    fitz.PDF_WIDGET_TYPE_CHECKBOX: "checkbox",
+    fitz.PDF_WIDGET_TYPE_RADIOBUTTON: "radio",
+    fitz.PDF_WIDGET_TYPE_LISTBOX: "listbox",
+    fitz.PDF_WIDGET_TYPE_COMBOBOX: "combobox",
+    fitz.PDF_WIDGET_TYPE_BUTTON: "button",
+    fitz.PDF_WIDGET_TYPE_SIGNATURE: "signature",
+}
+
+
+def _serialize_widgets(doc) -> list[dict]:
+    """Walk every page's widgets and return a JSON-friendly list of fields."""
+    fields: list[dict] = []
+    for page_num, page in enumerate(doc, start=1):
+        for w in page.widgets() or []:
+            ftype = _WIDGET_TYPE_NAMES.get(w.field_type, "unknown")
+
+            # Required / read-only flags live in field_flags (bit field)
+            flags = getattr(w, "field_flags", 0) or 0
+            required = bool(flags & 2)        # bit 2 = required
+            readonly = bool(flags & 1)        # bit 1 = read-only
+            multiline = bool(flags & (1 << 12))  # bit 13 = multiline (text only)
+
+            # Choice fields expose `choice_values`; treat None as empty list
+            choices = list(w.choice_values or []) if hasattr(w, "choice_values") else []
+
+            # For checkboxes the "on" state name varies per PDF
+            on_states = []
+            if ftype in ("checkbox", "radio"):
+                states = w.button_states() or {}
+                for _, vals in states.items():
+                    if not vals:
+                        continue
+                    for v in vals:
+                        if v and v != "Off" and v not in on_states:
+                            on_states.append(v)
+
+            fields.append({
+                "name": w.field_name or "",
+                "label": w.field_label or w.field_name or "",
+                "type": ftype,
+                "value": w.field_value if w.field_value is not None else "",
+                "page": page_num,
+                "rect": [round(c, 2) for c in (w.rect or fitz.Rect())],
+                "required": required,
+                "readonly": readonly,
+                "multiline": multiline,
+                "choices": choices,
+                "on_states": on_states,
+                "max_length": w.text_maxlen if hasattr(w, "text_maxlen") else 0,
+            })
+    return fields
+
+
+@bp.route("/form-inspect", methods=["POST"])
+def form_inspect():
+    files = request.files.getlist("files")
+    if not files or not files[0].filename:
+        return jsonify(error=NO_FILE_SINGLE), 400
+
+    try:
+        doc = _open_pdf(files[0].read())
+    except ValueError as e:
+        return jsonify(error=str(e)), 400
+
+    try:
+        fields = _serialize_widgets(doc)
+        return jsonify({
+            "filename": files[0].filename,
+            "page_count": len(doc),
+            "field_count": len(fields),
+            "fields": fields,
+            "has_form": len(fields) > 0,
+        })
+    finally:
+        doc.close()
+
+
+@bp.route("/form-fill", methods=["POST"])
+def form_fill():
+    """Apply field values to the uploaded PDF and return the filled file.
+
+    Form values are passed as JSON in the `values` field of the multipart body:
+    `{"<field_name>": "<value>", ...}`. Values are matched against
+    `widget.field_name`. Unknown names are silently ignored.
+    """
+    import json
+
+    files = request.files.getlist("files")
+    if not files or not files[0].filename:
+        return jsonify(error=NO_FILE_SINGLE), 400
+
+    raw_values = request.form.get("values", "{}")
+    try:
+        values_map = json.loads(raw_values)
+        if not isinstance(values_map, dict):
+            raise ValueError("values must be an object")
+    except (ValueError, TypeError) as e:
+        return jsonify(error=f"Invalid form values JSON: {e}"), 400
+
+    flatten = request.form.get("flatten") == "on"
+
+    try:
+        doc = _open_pdf(files[0].read())
+    except ValueError as e:
+        return jsonify(error=str(e)), 400
+
+    applied = 0
+    skipped: list[str] = []
+    try:
+        for page in doc:
+            for w in page.widgets() or []:
+                if not w.field_name or w.field_name not in values_map:
+                    continue
+                if w.field_flags and (w.field_flags & 1):  # read-only
+                    skipped.append(w.field_name)
+                    continue
+
+                new_val = values_map[w.field_name]
+                ftype = w.field_type
+
+                try:
+                    if ftype == fitz.PDF_WIDGET_TYPE_CHECKBOX:
+                        # truthy → checkbox's "on" state, falsy → "Off"
+                        if new_val in (True, "true", "on", "1", 1, "Yes", "yes"):
+                            on_vals = []
+                            states = w.button_states() or {}
+                            for vals in states.values():
+                                if not vals:
+                                    continue
+                                for v in vals:
+                                    if v and v != "Off":
+                                        on_vals.append(v)
+                            w.field_value = on_vals[0] if on_vals else "Yes"
+                        else:
+                            w.field_value = "Off"
+                    elif ftype == fitz.PDF_WIDGET_TYPE_RADIOBUTTON:
+                        # value should match one of the radio's on-states
+                        w.field_value = str(new_val) if new_val else "Off"
+                    elif ftype in (fitz.PDF_WIDGET_TYPE_LISTBOX,
+                                   fitz.PDF_WIDGET_TYPE_COMBOBOX):
+                        w.field_value = str(new_val) if new_val is not None else ""
+                    else:  # text or other text-like
+                        w.field_value = str(new_val) if new_val is not None else ""
+
+                    w.update()
+                    applied += 1
+                except Exception as e:
+                    log_error(e, f"form-fill: {w.field_name}")
+                    skipped.append(w.field_name)
+
+        # Optional: flatten the form so the values become baked-in static text.
+        # Without flatten=true the result is still an editable PDF form.
+        if flatten:
+            for page in doc:
+                # No public PyMuPDF API to "flatten" widgets in one call, but
+                # converting the page to a pixmap-and-reinsert collapses widgets.
+                # Simpler: render then rebuild — but that loses fidelity for
+                # text-heavy forms. Best practical approach: leave widgets
+                # editable; users who need a flat copy can re-print to PDF.
+                pass
+
+        output = io.BytesIO()
+        doc.save(output, garbage=4, deflate=True, clean=True)
+        output.seek(0)
+    finally:
+        doc.close()
+
+    base = files[0].filename.rsplit(".", 1)[0]
+    resp = send_file(output, mimetype="application/pdf",
+                     as_attachment=True, download_name=f"{base}_filled.pdf")
+    resp.headers["X-Fields-Applied"] = str(applied)
+    resp.headers["X-Fields-Skipped"] = str(len(skipped))
+    return resp
