@@ -4,6 +4,12 @@ All notable changes to **Your Everyday Tools** are documented here. The format i
 
 ## [0.6.2] — 2026-04-29
 
+### Improved
+- **PDF to PowerPoint: Editable mode.** Users complained that the previous behaviour put the entire PDF page as an image on each slide, so nothing was clickable or editable in PowerPoint. The tool now offers two modes:
+  - **Editable** *(new default when LibreOffice is detected)* — uses LibreOffice's PDF importer to convert each page into native PowerPoint elements (text frames, lines, shapes, embedded images). You can click on text to edit it, change fonts, rearrange shapes. Layout fidelity is good but not pixel-perfect.
+  - **Image** *(previous behaviour, still available)* — renders each PDF page as a single picture on a slide. Visually identical to the source, but nothing is editable.
+  Page range works in both modes (Editable mode pre-filters the PDF before passing it to LibreOffice). The Image-mode slide-size and DPI options have been clearly labelled as such on the page.
+
 ### Fixed
 - **PDF to Excel: now finds borderless tables.** Users were reporting that the same PDF returned "no tables found" in PDF→Excel but PDF→Word (Layout mode) successfully extracted tables. Root cause: PyMuPDF's `find_tables()` defaults to `strategy="lines"` which only detects tables with visible borders, while `pdf2docx` (used by PDF→Word) detects both ruled and borderless tables. PDF→Excel now exposes a **table detection strategy** option:
   - **Auto** *(default)* — tries lines first, falls back to text-alignment if no ruled tables are found. Best of both worlds with no false-positive risk on multi-column body text.

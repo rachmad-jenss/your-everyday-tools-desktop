@@ -1565,20 +1565,56 @@ SLIDE_SIZES_EMU = {
 
 @bp.route("/pdf-to-pptx")
 def pdf_to_pptx_page():
+    # Default to Editable when LibreOffice is on PATH; otherwise Image,
+    # since editable mode would just error otherwise.
+    default_mode = "editable" if SOFFICE else "image"
+
+    if SOFFICE:
+        editable_status = (
+            '<i class="bi bi-check-circle-fill" style="color:#2ec4b6"></i> '
+            '<strong>LibreOffice detected</strong> — Editable mode will produce a real .pptx '
+            'with text and shapes you can click and edit in PowerPoint.'
+        )
+    else:
+        editable_status = (
+            '<i class="bi bi-exclamation-triangle-fill" style="color:#ffb703"></i> '
+            '<strong>LibreOffice not found</strong> — Editable mode is unavailable. '
+            'Install LibreOffice (see <a href="/convert/pptx-to-pdf">PowerPoint to PDF</a>) '
+            'and restart the server, or use Image mode below.'
+        )
+
     return render_template("upload_tool.html",
         title="PDF to PowerPoint",
-        description="Convert each PDF page into a slide image in a .pptx file",
+        description="Convert a PDF into a .pptx — either as editable text/shapes, or as page images",
+        notes=(
+            f"<p>{editable_status}</p>"
+            "<p><strong>Two conversion modes:</strong></p>"
+            "<ul style='margin:.4rem 0 .6rem 1.2rem'>"
+            "<li><strong>Editable</strong> — uses LibreOffice to convert each PDF page into native PowerPoint "
+            "elements (text frames, lines, shapes, images). You can click on text to edit it, change fonts, "
+            "rearrange shapes. Layout fidelity is good but not pixel-perfect — complex PDFs may show small "
+            "shifts. Slide size matches the PDF's page dimensions.</li>"
+            "<li><strong>Image</strong> — renders each PDF page as a single picture and centers it on a slide. "
+            "Visually identical to the PDF, but nothing is editable. Best for archival or when you want to "
+            "guarantee the slides look exactly like the source.</li>"
+            "</ul>"
+        ),
         endpoint="/convert/pdf-to-pptx",
         accept=".pdf",
         multiple=False,
         options=[
-            {"type": "select", "name": "slide_size", "label": "Slide size", "default": "16:9",
+            {"type": "select", "name": "mode", "label": "Conversion mode", "default": default_mode,
              "choices": [
-                 {"value": "16:9", "label": "Widescreen 16:9 (default)"},
+                 {"value": "editable", "label": "Editable — text and shapes can be edited (LibreOffice)"},
+                 {"value": "image",    "label": "Image — slides look identical to PDF, nothing editable"},
+             ]},
+            {"type": "select", "name": "slide_size", "label": "Slide size (Image mode only)", "default": "16:9",
+             "choices": [
+                 {"value": "16:9", "label": "Widescreen 16:9"},
                  {"value": "4:3",  "label": "Standard 4:3"},
                  {"value": "a4",   "label": "A4 landscape"},
              ]},
-            {"type": "number", "name": "dpi", "label": "Render DPI",
+            {"type": "number", "name": "dpi", "label": "Render DPI (Image mode only)",
              "default": 150, "min": 72, "max": 300},
             {"type": "text", "name": "pages", "label": "Pages (blank = all)",
              "placeholder": "e.g. 1-3, 5, 8-10"},
@@ -1591,20 +1627,65 @@ def pdf_to_pptx():
     from routes._helpers import safe_int, log_error, NO_FILE_SINGLE
     from routes.pdf_tools import parse_page_ranges
 
-    if not HAS_PPTX:
-        return jsonify(error="python-pptx is not installed. Run: pip install python-pptx"), 400
-
     files = request.files.getlist("files")
     if not files or not files[0].filename:
         return jsonify(error=NO_FILE_SINGLE), 400
+
+    mode = request.form.get("mode", "editable" if SOFFICE else "image")
+    if mode not in ("editable", "image"):
+        mode = "image"
+    pages_spec = (request.form.get("pages") or "").strip()
+    pdf_data = files[0].read()
+
+    # Pre-resolve page range against the PDF (used by both modes)
+    try:
+        with fitz.open(stream=pdf_data, filetype="pdf") as probe:
+            total_pages = len(probe)
+            try:
+                target_pages = parse_page_ranges(pages_spec, total_pages)
+            except (ValueError, IndexError):
+                return jsonify(error="Invalid page range. Use e.g. '1-3, 5, 8-10'."), 400
+            if not target_pages:
+                return jsonify(error="No pages selected."), 400
+    except Exception as e:
+        log_error(e, "pdf-to-pptx probe")
+        return jsonify(error="Could not open PDF (the file may be corrupted or password-protected)."), 400
+
+    base = files[0].filename.rsplit(".", 1)[0]
+
+    # ── Editable mode (LibreOffice) ───────────────────────
+    if mode == "editable":
+        if not SOFFICE:
+            return jsonify(error=(
+                "Editable mode requires LibreOffice (soffice) on PATH. "
+                "Install LibreOffice and restart the server, or switch to Image mode."
+            )), 400
+
+        # If a page range was specified, build a sub-PDF first so LibreOffice
+        # only converts the requested pages.
+        source_pdf = pdf_data
+        if pages_spec and len(target_pages) != total_pages:
+            source_pdf = _extract_pages(pdf_data, target_pages)
+
+        pptx_bytes = _soffice_convert(source_pdf, "pdf", "pptx", timeout=300)
+        if pptx_bytes is None:
+            return jsonify(error=(
+                "LibreOffice could not convert this PDF. The file may be password-protected or "
+                "use features LibreOffice's PDF importer can't handle. Try Image mode instead."
+            )), 400
+
+        return send_file(io.BytesIO(pptx_bytes), mimetype=PPTX_MIME,
+                         as_attachment=True, download_name=f"{base}.pptx")
+
+    # ── Image mode (page-image-per-slide) ─────────────────
+    if not HAS_PPTX:
+        return jsonify(error="Image mode requires python-pptx. Run: pip install python-pptx"), 400
 
     dpi = safe_int(request.form.get("dpi"), 150, min_val=72, max_val=300)
     slide_size = request.form.get("slide_size", "16:9")
     if slide_size not in SLIDE_SIZES_EMU:
         slide_size = "16:9"
-    pages_spec = (request.form.get("pages") or "").strip()
 
-    pdf_data = files[0].read()
     try:
         doc = fitz.open(stream=pdf_data, filetype="pdf")
     except Exception as e:
@@ -1612,14 +1693,6 @@ def pdf_to_pptx():
         return jsonify(error="Could not open PDF (the file may be corrupted or password-protected)."), 400
 
     try:
-        try:
-            target_pages = parse_page_ranges(pages_spec, len(doc))
-        except (ValueError, IndexError):
-            return jsonify(error="Invalid page range. Use e.g. '1-3, 5, 8-10'."), 400
-
-        if not target_pages:
-            return jsonify(error="No pages selected."), 400
-
         prs = Presentation()
         slide_w, slide_h = SLIDE_SIZES_EMU[slide_size]
         prs.slide_width = slide_w
@@ -1656,7 +1729,6 @@ def pdf_to_pptx():
     finally:
         doc.close()
 
-    base = files[0].filename.rsplit(".", 1)[0]
     return send_file(output, mimetype=PPTX_MIME,
                      as_attachment=True, download_name=f"{base}.pptx")
 
