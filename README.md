@@ -12,7 +12,6 @@ See [CHANGELOG.md](CHANGELOG.md) for release history and recent fixes.
 - Codeberg: https://codeberg.org/listyantidewi/your-everyday-tools
 - Bitbucket: https://bitbucket.org/your-everyday-tools/your-every-tools
 
-
 ---
 
 ## Screenshots
