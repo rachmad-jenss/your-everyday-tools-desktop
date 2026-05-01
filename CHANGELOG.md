@@ -4,6 +4,14 @@ All notable changes to **Your Everyday Tools** are documented here. The format i
 
 ## [0.6.2] — 2026-04-29
 
+### Fixed — Word→PDF (Files to PDF) layout quality
+
+Users reported "messy layout" and "missing images" when converting `.docx` to PDF. Root cause: the tool was silently falling back to a hand-rolled python-docx + reportlab rebuilder when LibreOffice wasn't on `PATH` — and that fallback didn't handle images at all and emitted tables out of document order. Three fixes:
+
+- **Smarter LibreOffice detection.** Most Windows users install LibreOffice via the regular installer but never add it to PATH, so the app couldn't find it. Detection now checks PATH first, then common per-OS install paths (`C:\Program Files\LibreOffice\program\soffice.exe` and the x86 variant on Windows, `/Applications/LibreOffice.app/...` on macOS, `/usr/bin/`, `/usr/local/bin/`, `/opt/libreoffice/`, `/snap/bin/` on Linux). Users no longer have to mess with PATH.
+- **Fallback now handles images and document order.** When LibreOffice genuinely isn't available, the fallback walks the docx body in original order (so paragraphs and tables appear interleaved correctly, not all paragraphs first then all tables), and embeds inline images by extracting them from the docx's relationships and re-rendering through reportlab's `Image` flowable. Custom fonts, headers/footers, columns, page breaks, text boxes, and SmartArt are still fallback-unsupported — for those, install LibreOffice. The page notes now spell out exactly what the fallback does and doesn't preserve.
+- **`X-Conversion-Engine` response header.** The Files-to-PDF response now carries a header (`libreoffice` or `fallback`) so users and admins can quickly tell which engine actually ran without trawling logs.
+
 ### Improved
 - **PDF to PowerPoint: Editable mode.** Users complained that the previous behaviour put the entire PDF page as an image on each slide, so nothing was clickable or editable in PowerPoint. The tool now offers two modes:
   - **Editable** *(new default when LibreOffice is detected)* — uses LibreOffice's PDF importer to convert each page into native PowerPoint elements (text frames, lines, shapes, embedded images). You can click on text to edit it, change fonts, rearrange shapes. Layout fidelity is good but not pixel-perfect.

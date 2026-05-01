@@ -46,7 +46,50 @@ import shutil
 from routes._helpers import safe_int, safe_float, log_error, NO_FILE_SINGLE, NO_FILE_MULTIPLE
 
 ODA_CONVERTER = shutil.which("ODAFileConverter") or shutil.which("oda_file_converter")
-SOFFICE = shutil.which("soffice") or shutil.which("libreoffice")
+def _find_soffice() -> str | None:
+    """Detect LibreOffice. PATH first, then common per-OS install locations.
+
+    Most users — especially on Windows — install LibreOffice via the regular
+    installer but never add it to PATH, so `shutil.which` fails to find it
+    and the app silently falls back to a low-fidelity converter.
+    """
+    found = shutil.which("soffice") or shutil.which("libreoffice")
+    if found:
+        return found
+
+    import os
+    import sys
+
+    candidates: list[str] = []
+    if sys.platform == "win32":
+        program_files = [
+            os.environ.get("ProgramFiles", r"C:\Program Files"),
+            os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"),
+            os.environ.get("ProgramW6432", r"C:\Program Files"),
+        ]
+        for pf in program_files:
+            if pf:
+                candidates.append(os.path.join(pf, "LibreOffice", "program", "soffice.exe"))
+                candidates.append(os.path.join(pf, "LibreOffice", "program", "soffice.com"))
+    elif sys.platform == "darwin":
+        candidates.append("/Applications/LibreOffice.app/Contents/MacOS/soffice")
+    else:  # linux / other unix
+        candidates.extend([
+            "/usr/bin/soffice",
+            "/usr/bin/libreoffice",
+            "/usr/local/bin/soffice",
+            "/usr/local/bin/libreoffice",
+            "/opt/libreoffice/program/soffice",
+            "/snap/bin/libreoffice",
+        ])
+
+    for c in candidates:
+        if c and os.path.isfile(c):
+            return c
+    return None
+
+
+SOFFICE = _find_soffice()
 
 try:
     from pptx import Presentation
@@ -132,15 +175,28 @@ def to_pdf_page():
     if SOFFICE:
         notes = (
             f'<p><i class="bi bi-check-circle-fill" style="color:#2ec4b6"></i> '
-            f'<strong>LibreOffice detected</strong> — Word documents will be converted with full layout fidelity '
-            f'(fonts, tables, columns, headers/footers preserved).</p>'
+            f'<strong>LibreOffice detected at <code>{SOFFICE}</code></strong> — Word documents '
+            f'will convert with full layout fidelity (fonts, images, tables, columns, '
+            f'headers/footers all preserved).</p>'
         )
     else:
         notes = (
-            '<p><i class="bi bi-info-circle-fill" style="color:#4361ee"></i> '
-            '<strong>Tip:</strong> install LibreOffice for much better Word→PDF layout fidelity. '
-            'Without it, Word files are converted with a basic reflow that loses styling. '
-            'See the <a href="/convert/pptx-to-pdf">PowerPoint to PDF</a> page for install instructions.</p>'
+            '<p><i class="bi bi-exclamation-triangle-fill" style="color:#ffb703"></i> '
+            '<strong>LibreOffice was not found.</strong> Word files (.docx) will use a built-in '
+            'fallback that only handles paragraphs, tables, basic formatting, and inline images. '
+            'It will <strong>NOT</strong> preserve: custom fonts, headers/footers, columns, '
+            'page breaks, text boxes, frames, SmartArt, or precise positioning.</p>'
+            '<p><strong>For high-fidelity Word→PDF, install LibreOffice:</strong></p>'
+            '<ul style="margin:.4rem 0 .6rem 1.2rem">'
+            '<li><strong>Windows:</strong> Download from '
+            '<a href="https://www.libreoffice.org/download/download-libreoffice/" target="_blank">libreoffice.org</a> '
+            'and install with default options. The app auto-detects it at <code>C:\\Program Files\\LibreOffice\\</code> '
+            'on next start — no PATH editing needed.</li>'
+            '<li><strong>macOS:</strong> <code>brew install --cask libreoffice</code></li>'
+            '<li><strong>Linux:</strong> <code>sudo apt install libreoffice</code> (Debian/Ubuntu) '
+            'or <code>sudo dnf install libreoffice</code> (Fedora)</li>'
+            '</ul>'
+            '<p style="font-size:.9em;color:var(--muted)">Restart the server after installing.</p>'
         )
     return render_template("upload_tool.html",
         title="Files to PDF",
@@ -411,7 +467,20 @@ def html_to_pdf_page():
 # ── Helpers ──────────────────────────────────────
 
 def _docx_to_pdf(data: bytes) -> bytes:
-    """Convert a .docx file (as bytes) to PDF bytes using python-docx + reportlab."""
+    """Best-effort .docx → PDF conversion using python-docx + reportlab.
+
+    This is the fallback path used when LibreOffice is not available.
+    It preserves document order (paragraphs and tables interleaved correctly),
+    inline images, and basic heading/paragraph styling. It does NOT preserve:
+    headers/footers, columns, custom fonts, page breaks, text boxes, frames,
+    SmartArt, equations, or precise layout. For those, install LibreOffice.
+    """
+    from docx.oxml.ns import qn
+    from docx.text.paragraph import Paragraph as DocxParagraph
+    from docx.table import Table as DocxTable
+    from reportlab.platypus import Image as RLImage
+    from PIL import Image as PILImage
+
     doc = DocxDocument(io.BytesIO(data))
     buf = io.BytesIO()
 
@@ -435,14 +504,63 @@ def _docx_to_pdf(data: bytes) -> bytes:
                             topMargin=inch, bottomMargin=inch)
     story = []
 
-    for para in doc.paragraphs:
+    # Map of relationship-id → raw image bytes, used to look up images
+    # referenced by <a:blip r:embed="rId123" /> elements in paragraphs.
+    image_parts: dict[str, bytes] = {}
+    try:
+        for rel_id, rel in doc.part.rels.items():
+            if "image" in (rel.reltype or ""):
+                image_parts[rel_id] = rel.target_part.blob
+    except Exception:
+        pass
+
+    # Page content area for image scaling (A4 minus 1in margins)
+    max_img_w = 6.5 * inch
+    max_img_h = 4.0 * inch  # cap height so images don't dominate
+
+    def _emit_image(rel_id: str) -> None:
+        img_bytes = image_parts.get(rel_id)
+        if not img_bytes:
+            return
+        try:
+            # Pillow may not handle EMF/WMF; skip those gracefully
+            with PILImage.open(io.BytesIO(img_bytes)) as pil:
+                w, h = pil.size
+                # Convert to PNG if needed for reportlab compatibility
+                if pil.format not in ("PNG", "JPEG", "GIF"):
+                    out = io.BytesIO()
+                    if pil.mode in ("RGBA", "LA"):
+                        pil.save(out, format="PNG")
+                    else:
+                        pil.convert("RGB").save(out, format="JPEG", quality=90)
+                    out.seek(0)
+                    img_data = out.getvalue()
+                else:
+                    img_data = img_bytes
+        except Exception:
+            return
+        if w <= 0 or h <= 0:
+            return
+        scale = min(max_img_w / w, max_img_h / h, 1.0)
+        story.append(Spacer(1, 6))
+        story.append(RLImage(io.BytesIO(img_data),
+                             width=w * scale, height=h * scale))
+        story.append(Spacer(1, 6))
+
+    def _emit_paragraph(child) -> None:
+        para = DocxParagraph(child, doc)
+
+        # Emit any inline images first (in their paragraph)
+        for blip in child.findall(".//" + qn("a:blip")):
+            rel_id = blip.get(qn("r:embed"))
+            if rel_id:
+                _emit_image(rel_id)
+
         text = para.text.strip()
         if not text:
-            story.append(Spacer(1, 6))
-            continue
+            return  # already-emitted image, or genuinely empty
 
         style_name = para.style.name.lower() if para.style else ""
-
         if "heading 1" in style_name:
             story.append(Paragraph(text, heading_styles[1]))
         elif "heading 2" in style_name:
@@ -450,30 +568,40 @@ def _docx_to_pdf(data: bytes) -> bytes:
         elif "heading 3" in style_name:
             story.append(Paragraph(text, heading_styles[3]))
         else:
-            # Preserve basic inline formatting
             rich = _build_rich_text(para)
             story.append(Paragraph(rich, normal))
 
-    # Handle tables
-    for table in doc.tables:
+    def _emit_table(child) -> None:
+        table = DocxTable(child, doc)
         tdata = []
         for row in table.rows:
             tdata.append([cell.text for cell in row.cells])
-        if tdata:
-            t = Table(tdata, repeatRows=1)
-            t.setStyle(TableStyle([
-                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-                ("BACKGROUND", (0, 0), (-1, 0), colors.Color(0.9, 0.9, 0.95)),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("FONTSIZE", (0, 0), (-1, -1), 10),
-                ("TOPPADDING", (0, 0), (-1, -1), 4),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-                ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-            ]))
-            story.append(Spacer(1, 8))
-            story.append(t)
-            story.append(Spacer(1, 8))
+        if not tdata:
+            return
+        t = Table(tdata, repeatRows=1)
+        t.setStyle(TableStyle([
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.Color(0.9, 0.9, 0.95)),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 10),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ]))
+        story.append(Spacer(1, 8))
+        story.append(t)
+        story.append(Spacer(1, 8))
+
+    # Walk the document body in order so paragraphs and tables appear in their
+    # original positions, not all paragraphs first then all tables.
+    for child in doc.element.body.iterchildren():
+        tag = child.tag.split("}", 1)[-1]
+        if tag == "p":
+            _emit_paragraph(child)
+        elif tag == "tbl":
+            _emit_table(child)
+        # Section-properties (sectPr) and other elements are ignored
 
     if not story:
         story.append(Paragraph("(empty document)", normal))
@@ -511,6 +639,9 @@ def to_pdf():
         return jsonify(error=NO_FILE_MULTIPLE), 400
 
     pdf_doc = fitz.open()
+    # Track which engine ran on Word docs so the response can advertise it
+    # (helps users diagnose "why is my output low-fidelity" without log access).
+    word_engine_used: str | None = None
 
     for f in files:
         name = f.filename.lower()
@@ -523,13 +654,17 @@ def to_pdf():
             ext = name.rsplit(".", 1)[-1]
             try:
                 pdf_bytes = _soffice_convert(data, ext, "pdf")
-                if pdf_bytes is None:
+                if pdf_bytes is not None:
+                    word_engine_used = "libreoffice"
+                else:
                     if ext != "docx":
                         return jsonify(error=(
                             f"'{f.filename}' requires LibreOffice (soffice) on PATH. "
-                            "Only .docx is supported by the built-in fallback."
+                            "Only .docx is supported by the built-in fallback. "
+                            "Install LibreOffice for full layout fidelity."
                         )), 400
                     pdf_bytes = _docx_to_pdf(data)
+                    word_engine_used = "fallback"
                 with fitz.open(stream=pdf_bytes, filetype="pdf") as docx_pdf:
                     pdf_doc.insert_pdf(docx_pdf)
             except Exception as e:
@@ -564,8 +699,11 @@ def to_pdf():
     pdf_doc.close()
     output.seek(0)
 
-    return send_file(output, mimetype="application/pdf",
+    resp = send_file(output, mimetype="application/pdf",
                      as_attachment=True, download_name="converted.pdf")
+    if word_engine_used:
+        resp.headers["X-Conversion-Engine"] = word_engine_used
+    return resp
 
 
 @bp.route("/pdf-to-word", methods=["POST"])
