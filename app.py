@@ -219,6 +219,8 @@ TOOL_CATEGORIES = [
 FROZEN_DISABLED_TOOLS = {
     ("image", "remove-bg"): "Butuh rembg + onnxruntime (~2 GB)",
     ("qr", "read"): "Butuh pyzbar + zbar DLL",
+    ("image", "heic-convert"): "Butuh pillow-heif",
+    ("media", "transcribe"): "Butuh openai-whisper (~3 GB)",
 }
 
 # Tools that require FFmpeg
@@ -226,7 +228,7 @@ FFMPEG_TOOLS = {
     ("media", "convert-audio"), ("media", "convert-video"),
     ("media", "extract-audio"), ("media", "trim"),
     ("media", "compress-video"), ("media", "video-to-gif"),
-    ("media", "burn-subtitles"),
+    ("media", "burn-subtitles"), ("media", "normalize-audio"),
 }
 
 # Tools that require Tesseract
