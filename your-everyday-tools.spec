@@ -133,6 +133,10 @@ a = Analysis(
         'werkzeug',
         'werkzeug.serving',
         'email.mime.text',
+        # jaraco.text — pkg_resources imports this at startup (line 90).
+        # PyInstaller detects it automatically via the pyi_rth_pkgres hook,
+        # but listing it explicitly ensures it's always included.
+        'jaraco.text',
     ],
     hookspath=[],
     hooksconfig={},
