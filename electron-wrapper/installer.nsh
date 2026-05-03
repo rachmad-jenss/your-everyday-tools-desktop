@@ -85,16 +85,18 @@ FunctionEnd
     SetDetailsPrint both
     DetailPrint "Mengunduh FFmpeg (~193 MB) ..."
 
-    ExecWait "$\"$SYSDIR\curl.exe$\" --location --silent --show-error \
---output $\"$TEMP\yet-ffmpeg.zip$\" \
-https://github.com/rachmad-jenss/your-everyday-tools-desktop/releases/download/components-v1/ffmpeg-windows.zip" $0
+    nsExec::ExecToLog '$SYSDIR\curl.exe --location --silent --show-error \
+--output "$TEMP\yet-ffmpeg.zip" \
+https://github.com/rachmad-jenss/your-everyday-tools-desktop/releases/download/components-v1/ffmpeg-windows.zip'
+    Pop $0
 
     ${If} $0 == 0
       DetailPrint "Mengekstrak FFmpeg ..."
       CreateDirectory "$R9\ffmpeg"
-      ExecWait "powershell.exe -NonInteractive -NoProfile -ExecutionPolicy Bypass \
--Command $\"Expand-Archive -LiteralPath '$TEMP\yet-ffmpeg.zip' \
--DestinationPath '$R9\ffmpeg' -Force$\"" $0
+      nsExec::ExecToLog 'powershell.exe -NonInteractive -NoProfile -ExecutionPolicy Bypass \
+-Command "Expand-Archive -LiteralPath \"$TEMP\yet-ffmpeg.zip\" \
+-DestinationPath \"$R9\ffmpeg\" -Force"'
+      Pop $0
       Delete "$TEMP\yet-ffmpeg.zip"
       ${If} $0 != 0
         RMDir /r "$R9\ffmpeg"
@@ -115,16 +117,18 @@ https://github.com/rachmad-jenss/your-everyday-tools-desktop/releases/download/c
     SetDetailsPrint both
     DetailPrint "Mengunduh Tesseract OCR (~182 MB) ..."
 
-    ExecWait "$\"$SYSDIR\curl.exe$\" --location --silent --show-error \
---output $\"$TEMP\yet-tess.zip$\" \
-https://github.com/rachmad-jenss/your-everyday-tools-desktop/releases/download/components-v1/tesseract-windows.zip" $0
+    nsExec::ExecToLog '$SYSDIR\curl.exe --location --silent --show-error \
+--output "$TEMP\yet-tess.zip" \
+https://github.com/rachmad-jenss/your-everyday-tools-desktop/releases/download/components-v1/tesseract-windows.zip'
+    Pop $0
 
     ${If} $0 == 0
       DetailPrint "Mengekstrak Tesseract OCR ..."
       CreateDirectory "$R9\tesseract"
-      ExecWait "powershell.exe -NonInteractive -NoProfile -ExecutionPolicy Bypass \
--Command $\"Expand-Archive -LiteralPath '$TEMP\yet-tess.zip' \
--DestinationPath '$R9\tesseract' -Force$\"" $0
+      nsExec::ExecToLog 'powershell.exe -NonInteractive -NoProfile -ExecutionPolicy Bypass \
+-Command "Expand-Archive -LiteralPath \"$TEMP\yet-tess.zip\" \
+-DestinationPath \"$R9\tesseract\" -Force"'
+      Pop $0
       Delete "$TEMP\yet-tess.zip"
       ${If} $0 != 0
         RMDir /r "$R9\tesseract"
