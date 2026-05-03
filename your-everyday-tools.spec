@@ -21,17 +21,21 @@ _pyzbar_dir = os.path.dirname(_pyzbar.__file__)
 import site as _site
 _site_dir = next(iter(_site.getsitepackages()), os.path.dirname(_pyzbar_dir))
 
-def _collect_dlls(base_dir, patterns):
+def _collect_dlls(base_dir, patterns, dest='.'):
     """Return list of (src_path, dest_subdir) tuples for PyInstaller binaries."""
     result = []
     for pattern in patterns:
         for p in glob.glob(os.path.join(base_dir, pattern)):
-            result.append((p, '.'))
+            result.append((p, dest))
     return result
 
-_pyzbar_dlls   = _collect_dlls(_pyzbar_dir, ['*.dll'])
-_heif_dlls     = _collect_dlls(_site_dir,   ['libheif*.dll', 'libde265*.dll', 'libx265*.dll'])
-_heif_pyd      = _collect_dlls(_site_dir,   ['_pillow_heif*.pyd'])
+# pyzbar loads libzbar-64.dll from os.path.dirname(__file__) at runtime,
+# so DLLs must be placed in the 'pyzbar' subdir, not the root.
+_pyzbar_dlls   = _collect_dlls(_pyzbar_dir, ['*.dll'], dest='pyzbar')
+
+# pillow-heif DLLs are loaded via ctypes from the root _internal dir.
+_heif_dlls     = _collect_dlls(_site_dir, ['libheif*.dll', 'libde265*.dll', 'libx265*.dll'])
+_heif_pyd      = _collect_dlls(_site_dir, ['_pillow_heif*.pyd'])
 _bundled_bins  = _pyzbar_dlls + _heif_dlls + _heif_pyd
 # ───────────────────────────────────────────────────────────────────────────
 
@@ -107,6 +111,18 @@ a = Analysis(
         'pyzbar.pyzbar',
         'pyzbar.libraries',
         'pillow_heif',
+        # cryptography — needed by Encrypt/Decrypt File tools
+        'cryptography',
+        'cryptography.hazmat',
+        'cryptography.hazmat.primitives',
+        'cryptography.hazmat.primitives.ciphers',
+        'cryptography.hazmat.primitives.ciphers.algorithms',
+        'cryptography.hazmat.primitives.ciphers.modes',
+        'cryptography.hazmat.primitives.kdf.pbkdf2',
+        'cryptography.hazmat.primitives.hashes',
+        'cryptography.hazmat.primitives.padding',
+        'cryptography.hazmat.backends',
+        'cryptography.hazmat.backends.openssl',
         # WSGI server
         'waitress',
         # Jinja2 / Flask internals

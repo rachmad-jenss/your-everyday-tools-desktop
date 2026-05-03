@@ -10,6 +10,7 @@ const os = require("os");
 let mainWindow = null;
 let flaskProcess = null;
 let chosenPort = 5000;
+let flaskLastLines = []; // Rolling buffer of last Flask output lines for diagnostics
 
 const PORT_FILE = path.join(
   process.env.TEMP || process.env.TMPDIR || "/tmp",
@@ -92,11 +93,17 @@ function startFlask() {
   });
 
   flaskProcess.stdout.on("data", (data) => {
-    console.log(`[Flask] ${data.toString().trim()}`);
+    const line = data.toString().trim();
+    console.log(`[Flask] ${line}`);
+    flaskLastLines.push(line);
+    if (flaskLastLines.length > 30) flaskLastLines.shift();
   });
 
   flaskProcess.stderr.on("data", (data) => {
-    console.error(`[Flask] ${data.toString().trim()}`);
+    const line = data.toString().trim();
+    console.error(`[Flask] ${line}`);
+    flaskLastLines.push(line);
+    if (flaskLastLines.length > 30) flaskLastLines.shift();
   });
 
   flaskProcess.on("error", (err) => {
@@ -479,10 +486,29 @@ async function downloadComponent(id, win) {
 
 let downloaderWindow = null;
 
+/** Return true if the downloader should be shown on this startup. */
+function shouldShowDownloader() {
+  if (!fs.existsSync(COMPONENT_FLAG)) return true; // first run
+  try {
+    const config = JSON.parse(fs.readFileSync(COMPONENT_FLAG, "utf-8"));
+    if (config.skipped) return false; // user explicitly skipped everything
+    const vendorDir = getVendorPath();
+    // Show again if a previously-installed component is now missing
+    // (e.g. upgraded from v1.1.0 where components were bundled, not downloaded)
+    for (const [id, comp] of Object.entries(COMPONENT_DOWNLOADS)) {
+      if (config[id] === true && !fs.existsSync(path.join(vendorDir, comp.dest))) {
+        return true;
+      }
+    }
+    return false;
+  } catch (_) {
+    return true; // unreadable flag → show to be safe
+  }
+}
+
 /** Open the component downloader window. Resolves when the window closes. */
 function showDownloaderWindow(forceShow = false) {
-  // Skip if already configured (unless forced from menu)
-  if (!forceShow && fs.existsSync(COMPONENT_FLAG)) return Promise.resolve();
+  if (!forceShow && !shouldShowDownloader()) return Promise.resolve();
 
   return new Promise((resolve) => {
     downloaderWindow = new BrowserWindow({
@@ -560,7 +586,12 @@ app.whenReady().then(async () => {
   try {
     await waitForServer(chosenPort, 30, 500);
   } catch (err) {
-    dialog.showErrorBox("Startup Failed", err.message);
+    const lastOutput = flaskLastLines.slice(-10).join("\n");
+    dialog.showErrorBox(
+      "Startup Failed",
+      `${err.message}\n\n` +
+      (lastOutput ? `Last output:\n${lastOutput}` : "No output captured.")
+    );
     killFlask();
     app.quit();
     return;

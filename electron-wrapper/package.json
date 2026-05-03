@@ -1,6 +1,6 @@
 {
   "name": "your-everyday-tools-desktop",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Your Everyday Tools — 89+ offline utilities in a desktop app",
   "main": "main.js",
   "scripts": {
