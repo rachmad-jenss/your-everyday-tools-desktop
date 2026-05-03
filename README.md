@@ -26,27 +26,37 @@ Tidak mau setup Python? Download installer desktop yang langsung jalan tanpa ins
 
 ### Download
 
-Ambil installer terbaru di [**Releases**](https://github.com/rachmad-jenss/your-everyday-tools-desktop/releases/latest).
+[![Download](https://img.shields.io/github/v/release/rachmad-jenss/your-everyday-tools-desktop?label=Download&style=for-the-badge)](https://github.com/rachmad-jenss/your-everyday-tools-desktop/releases/latest)
 
 ### Fitur Desktop
 
 - **Langsung jalan** — Tidak perlu install Python, pip, atau dependency lainnya
-- **Auto-update** — Notifikasi otomatis saat ada versi baru
-- **Pilih komponen** — Saat pertama kali buka, bisa hapus FFmpeg (~193 MB) atau Tesseract OCR (~182 MB) untuk hemat disk
-- **Bundled FFmpeg** — Convert audio/video, extract audio, trim, compress, video-to-gif, burn subtitles
-- **Bundled Tesseract OCR** — OCR PDF dan image-to-text (English + Indonesia)
+- **Installer ringan** — ~313 MB (FFmpeg & Tesseract didownload terpisah on-demand)
+- **Auto-update** — Notifikasi otomatis saat ada versi baru via GitHub Releases
+- **Download komponen on-demand** — Pilih FFmpeg & Tesseract saat pertama kali buka; bisa diubah kapan saja lewat **Help → Kelola Komponen**
 - **Tool availability** — Tools yang dependency-nya tidak tersedia otomatis di-disable
+
+### Komponen Opsional
+
+Saat pertama kali buka, app akan menawarkan untuk mendownload:
+
+| Komponen | Ukuran | Tools yang diaktifkan |
+|---|---|---|
+| **FFmpeg** | ~70 MB | Convert/trim/compress audio & video, normalize audio, burn subtitles, video-to-GIF |
+| **Tesseract OCR** | ~63 MB | OCR PDF, Image to Text (English + Indonesia) |
+
+Bisa lewati dan download nanti lewat **Help → Kelola Komponen**.
 
 ### Cara Install
 
 1. Download `Your Everyday Tools Setup x.x.x.exe` dari [Releases](https://github.com/rachmad-jenss/your-everyday-tools-desktop/releases/latest)
 2. Jalankan installer, pilih lokasi instalasi
-3. Saat pertama kali buka, pilih komponen yang mau disimpan (atau simpan semua)
+3. Saat pertama kali buka, centang komponen yang mau didownload (opsional)
 4. Selesai!
 
 ### Upgrade
 
-Cukup jalankan installer versi baru — versi lama akan otomatis di-uninstall. Atau lewat menu **Help > Cek Update...** di dalam aplikasi.
+Jalankan installer versi baru — versi lama akan otomatis di-uninstall. Atau buka lewat menu **Help → Cek Update...** di dalam aplikasi.
 
 ### Build dari Source
 
