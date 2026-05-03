@@ -81,21 +81,24 @@ FunctionEnd
   StrCpy $R9 "$INSTDIR\resources\backend\_internal\vendor"
 
   ; ── FFmpeg ──────────────────────────────────────────────────────────────────
+  ; Use PowerShell WebClient for download — avoids curl 0xc0000142 from nsExec
+  ; (NSIS makensis is 32-bit; $SYSDIR → SysWOW64 where curl fails in NO_WINDOW mode)
   ${If} $YET_SEL_FFmpeg == 1
     SetDetailsPrint both
     DetailPrint "Mengunduh FFmpeg (~193 MB) ..."
 
-    nsExec::ExecToLog '$SYSDIR\curl.exe --location --silent --show-error \
---output "$TEMP\yet-ffmpeg.zip" \
-https://github.com/rachmad-jenss/your-everyday-tools-desktop/releases/download/components-v1/ffmpeg-windows.zip'
+    nsExec::ExecToLog "powershell.exe -NonInteractive -NoProfile -ExecutionPolicy Bypass \
+-Command $\"(New-Object Net.WebClient).DownloadFile(\
+'https://github.com/rachmad-jenss/your-everyday-tools-desktop/releases/download/components-v1/ffmpeg-windows.zip',\
+'$TEMP\yet-ffmpeg.zip')$\""
     Pop $0
 
     ${If} $0 == 0
       DetailPrint "Mengekstrak FFmpeg ..."
       CreateDirectory "$R9\ffmpeg"
-      nsExec::ExecToLog 'powershell.exe -NonInteractive -NoProfile -ExecutionPolicy Bypass \
--Command "Expand-Archive -LiteralPath \"$TEMP\yet-ffmpeg.zip\" \
--DestinationPath \"$R9\ffmpeg\" -Force"'
+      nsExec::ExecToLog "powershell.exe -NonInteractive -NoProfile -ExecutionPolicy Bypass \
+-Command $\"Expand-Archive -LiteralPath '$TEMP\yet-ffmpeg.zip' \
+-DestinationPath '$R9\ffmpeg' -Force$\""
       Pop $0
       Delete "$TEMP\yet-ffmpeg.zip"
       ${If} $0 != 0
@@ -107,7 +110,7 @@ https://github.com/rachmad-jenss/your-everyday-tools-desktop/releases/download/c
     ${Else}
       Delete "$TEMP\yet-ffmpeg.zip"
       MessageBox MB_OK|MB_ICONEXCLAMATION \
-        "Gagal mengunduh FFmpeg (curl: $0).$\nBisa download ulang nanti lewat Help -> Kelola Komponen."
+        "Gagal mengunduh FFmpeg (PS: $0).$\nBisa download ulang nanti lewat Help -> Kelola Komponen."
       StrCpy $YET_SEL_FFmpeg 0
     ${EndIf}
   ${EndIf}
@@ -117,17 +120,18 @@ https://github.com/rachmad-jenss/your-everyday-tools-desktop/releases/download/c
     SetDetailsPrint both
     DetailPrint "Mengunduh Tesseract OCR (~182 MB) ..."
 
-    nsExec::ExecToLog '$SYSDIR\curl.exe --location --silent --show-error \
---output "$TEMP\yet-tess.zip" \
-https://github.com/rachmad-jenss/your-everyday-tools-desktop/releases/download/components-v1/tesseract-windows.zip'
+    nsExec::ExecToLog "powershell.exe -NonInteractive -NoProfile -ExecutionPolicy Bypass \
+-Command $\"(New-Object Net.WebClient).DownloadFile(\
+'https://github.com/rachmad-jenss/your-everyday-tools-desktop/releases/download/components-v1/tesseract-windows.zip',\
+'$TEMP\yet-tess.zip')$\""
     Pop $0
 
     ${If} $0 == 0
       DetailPrint "Mengekstrak Tesseract OCR ..."
       CreateDirectory "$R9\tesseract"
-      nsExec::ExecToLog 'powershell.exe -NonInteractive -NoProfile -ExecutionPolicy Bypass \
--Command "Expand-Archive -LiteralPath \"$TEMP\yet-tess.zip\" \
--DestinationPath \"$R9\tesseract\" -Force"'
+      nsExec::ExecToLog "powershell.exe -NonInteractive -NoProfile -ExecutionPolicy Bypass \
+-Command $\"Expand-Archive -LiteralPath '$TEMP\yet-tess.zip' \
+-DestinationPath '$R9\tesseract' -Force$\""
       Pop $0
       Delete "$TEMP\yet-tess.zip"
       ${If} $0 != 0
@@ -139,7 +143,7 @@ https://github.com/rachmad-jenss/your-everyday-tools-desktop/releases/download/c
     ${Else}
       Delete "$TEMP\yet-tess.zip"
       MessageBox MB_OK|MB_ICONEXCLAMATION \
-        "Gagal mengunduh Tesseract OCR (curl: $0).$\nBisa download ulang nanti lewat Help -> Kelola Komponen."
+        "Gagal mengunduh Tesseract OCR (PS: $0).$\nBisa download ulang nanti lewat Help -> Kelola Komponen."
       StrCpy $YET_SEL_Tesseract 0
     ${EndIf}
   ${EndIf}
