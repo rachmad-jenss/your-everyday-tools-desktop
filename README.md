@@ -4,6 +4,8 @@ A lightweight, self-hosted web app that bundles 91 everyday utilities into a sin
 
 ![Python](https://img.shields.io/badge/Python-3.10+-blue)
 ![Flask](https://img.shields.io/badge/Flask-3.x-green)
+![Electron](https://img.shields.io/badge/Electron-33-9feaf9)
+![License](https://img.shields.io/badge/License-MIT-yellow)
 
 See [CHANGELOG.md](CHANGELOG.md) for release history and recent fixes.
 
@@ -12,6 +14,60 @@ See [CHANGELOG.md](CHANGELOG.md) for release history and recent fixes.
 - Codeberg: https://codeberg.org/listyantidewi/your-everyday-tools
 - Bitbucket: https://bitbucket.org/your-everyday-tools/your-every-tools
 - GitHub: https://github.com/listyantidewi1/your-everyday-tools
+
+**Desktop App (Windows installer):**
+
+- https://github.com/rachmad-jenss/your-everyday-tools-desktop/releases
+
+---
+
+## Desktop App
+
+Tidak mau setup Python? Download installer desktop yang langsung jalan tanpa install Python, pip, atau dependency apapun.
+
+### Download
+
+Ambil installer terbaru di [**Releases**](https://github.com/rachmad-jenss/your-everyday-tools-desktop/releases/latest).
+
+### Fitur Desktop
+
+- **Langsung jalan** — Tidak perlu install Python, pip, atau dependency lainnya
+- **Auto-update** — Notifikasi otomatis saat ada versi baru
+- **Pilih komponen** — Saat pertama kali buka, bisa hapus FFmpeg (~193 MB) atau Tesseract OCR (~182 MB) untuk hemat disk
+- **Bundled FFmpeg** — Convert audio/video, extract audio, trim, compress, video-to-gif, burn subtitles
+- **Bundled Tesseract OCR** — OCR PDF dan image-to-text (English + Indonesia)
+- **Tool availability** — Tools yang dependency-nya tidak tersedia otomatis di-disable
+
+### Cara Install
+
+1. Download `Your Everyday Tools Setup x.x.x.exe` dari [Releases](https://github.com/rachmad-jenss/your-everyday-tools-desktop/releases/latest)
+2. Jalankan installer, pilih lokasi instalasi
+3. Saat pertama kali buka, pilih komponen yang mau disimpan (atau simpan semua)
+4. Selesai!
+
+### Upgrade
+
+Cukup jalankan installer versi baru — versi lama akan otomatis di-uninstall. Atau lewat menu **Help > Cek Update...** di dalam aplikasi.
+
+### Build dari Source
+
+```bash
+# 1. Build backend dengan PyInstaller
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+pyinstaller your-everyday-tools.spec --noconfirm
+
+# 2. Copy hasil build ke Electron resources
+xcopy /E /I /Y dist\YourEverydayTools electron-wrapper\resources\backend
+
+# 3. Build installer
+cd electron-wrapper
+npm install
+npm run build-win
+```
+
+Installer akan ada di `electron-wrapper/dist/`.
 
 ---
 
