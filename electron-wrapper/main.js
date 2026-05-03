@@ -8,6 +8,7 @@ const https = require("https");
 const os = require("os");
 
 let mainWindow = null;
+let isManualUpdateCheck = false;
 let flaskProcess = null;
 let chosenPort = 5000;
 let flaskLastLines = []; // Rolling buffer of last Flask output lines for diagnostics
@@ -150,6 +151,7 @@ function setupAutoUpdater() {
   autoUpdater.autoInstallOnAppQuit = true;
 
   autoUpdater.on("update-available", (info) => {
+    isManualUpdateCheck = false;
     const newVersion = info.version || "unknown";
     const notes = info.releaseNotes || "";
     dialog
@@ -174,6 +176,17 @@ function setupAutoUpdater() {
 
   autoUpdater.on("update-not-available", () => {
     console.log("[Updater] No update available.");
+    if (isManualUpdateCheck) {
+      isManualUpdateCheck = false;
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        dialog.showMessageBox(mainWindow, {
+          type: "info",
+          title: "Tidak Ada Update",
+          message: "Kamu sudah menggunakan versi terbaru.",
+          detail: `Versi saat ini: v${app.getVersion()}`,
+        });
+      }
+    }
   });
 
   autoUpdater.on("download-progress", (progress) => {
@@ -220,27 +233,18 @@ function setupAutoUpdater() {
 }
 
 function checkForUpdatesManual() {
-  autoUpdater.checkForUpdates()
-    .then((result) => {
-      if (!result || !result.updateInfo) {
-        dialog.showMessageBox(mainWindow, {
-          type: "info",
-          title: "Update",
-          message: "Tidak ada update",
-          detail: `Kamu sudah menggunakan versi terbaru (v${app.getVersion()}).`,
-        });
-      }
-    })
-    .catch(() => {
-      dialog.showMessageBox(mainWindow, {
-        type: "info",
-        title: "Update",
-        message: "Tidak bisa cek update",
-        detail:
-          "Gagal menghubungi server update. Periksa koneksi internet.\n\n" +
-          "Cek update manual di:\nhttps://github.com/rachmad-jenss/your-everyday-tools-desktop/releases",
-      });
+  isManualUpdateCheck = true;
+  autoUpdater.checkForUpdates().catch(() => {
+    isManualUpdateCheck = false;
+    dialog.showMessageBox(mainWindow, {
+      type: "info",
+      title: "Update",
+      message: "Tidak bisa cek update",
+      detail:
+        "Gagal menghubungi server update. Periksa koneksi internet.\n\n" +
+        "Cek update manual di:\nhttps://github.com/rachmad-jenss/your-everyday-tools-desktop/releases",
     });
+  });
 }
 
 function buildMenu() {
@@ -527,6 +531,18 @@ function showDownloaderWindow(forceShow = false) {
 
     downloaderWindow.setMenuBarVisibility(false);
     downloaderWindow.loadFile(path.join(__dirname, "downloader.html"));
+
+    // After page loads, send current installation status so the UI can reflect it
+    downloaderWindow.webContents.once("did-finish-load", () => {
+      if (downloaderWindow && !downloaderWindow.isDestroyed()) {
+        const vendorDir = getVendorPath();
+        const installed = {};
+        for (const [id, comp] of Object.entries(COMPONENT_DOWNLOADS)) {
+          installed[id] = fs.existsSync(path.join(vendorDir, comp.dest));
+        }
+        downloaderWindow.webContents.send("download:init", installed);
+      }
+    });
 
     downloaderWindow.on("closed", () => {
       downloaderWindow = null;

@@ -42,6 +42,7 @@ h1 { font-size: 17px; font-weight: 700; margin-bottom: 6px; }
 .comp-name { font-weight: 600; flex: 1; }
 .comp-size { color: #6c757d; font-size: 12px; white-space: nowrap; }
 .comp-desc { margin-top: 5px; margin-left: 25px; color: #6c757d; font-size: 12px; line-height: 1.5; }
+.badge-installed { font-size: 11px; color: #198754; font-weight: 600; margin-left: 6px; flex-shrink: 0; }
 
 .total-bar {
   background: #e9ecef;
@@ -218,6 +219,33 @@ function startDownload() {
 
 function skip()   { window.downloaderAPI.skip(); }
 function finish() { window.downloaderAPI.finish(); }
+
+// Receive installation status from main process and update UI accordingly
+window.downloaderAPI.onInit(function(installed) {
+  var allInstalled = true;
+  Object.keys(state).forEach(function(id) {
+    if (installed[id]) {
+      // Already installed: uncheck by default, add badge
+      state[id] = false;
+      document.getElementById('chk-' + id).checked = false;
+      document.getElementById('wrap-' + id).classList.remove('checked');
+      var nameEl = document.querySelector('#wrap-' + id + ' .comp-name');
+      var badge = document.createElement('span');
+      badge.className = 'badge-installed';
+      badge.textContent = '✓ Terinstall';
+      nameEl.after(badge);
+    } else {
+      allInstalled = false;
+    }
+  });
+  updateTotal();
+  if (allInstalled) {
+    document.querySelector('.subtitle').innerHTML =
+      'Semua komponen sudah terinstall.<br>' +
+      'Centang komponen di bawah jika ingin menginstall ulang.';
+    document.querySelector('.btn-secondary').textContent = 'Tutup';
+  }
+});
 
 window.downloaderAPI.onProgress(function(data) {
   var bar    = document.getElementById('bar-'    + data.id);
