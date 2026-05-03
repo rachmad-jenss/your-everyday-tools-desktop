@@ -15,6 +15,7 @@ xlrd
 sqlparse
 croniter
 jsonpath-ng
+cryptography
 
 # Production WSGI servers (waitress works cross-platform, gunicorn is unix-only)
 waitress
@@ -27,3 +28,5 @@ pdf2docx
 pytesseract
 ezdxf
 matplotlib
+pillow-heif
+openai-whisper

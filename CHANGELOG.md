@@ -2,6 +2,69 @@
 
 All notable changes to **Your Everyday Tools** are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project loosely follows [Semantic Versioning](https://semver.org/).
 
+## [0.6.2] — 2026-04-29
+
+### Improved — Requirements & expectations on every tool page
+
+Audited all 100 tool pages and added clear "Requirements & expectations" notes wherever they were missing. Users no longer have to start a conversion to discover that a tool needs LibreOffice / FFmpeg / Tesseract / pyzbar / rembg / etc.
+
+- **Tools with hard external dependencies** now show their install status up-front (green check if detected, yellow warning + per-OS install instructions if missing): OCR PDF, Image OCR, Remove Background, Read QR Code, Generate Barcode (in addition to the ones that already had this: HEIC Converter, Files to PDF, HTML to PDF, PDF to PowerPoint, PowerPoint to PDF, Speech to Text, Encrypt File, all FFmpeg-backed media tools).
+- **Tools with format quirks or input expectations** got concise expectation notes: PDF to Images (DPI guide + format choice), PDF to Text ("only works on text PDFs, scans need OCR first"), Excel to CSV/JSON (formula caching note, multi-sheet behaviour), Excel to PDF (honest about not being pixel-perfect), Compress PDF (which PDFs benefit, JPEG re-encoding details), Compress Image (JPG-only output, quality guide), Convert Subtitles (supported formats + drift limitations), Extract Images (raster-only, vectors not exported), Protect / Unlock PDF (encryption details, no-cracker disclaimer), Generate Barcode (per-format input requirements), SVG to PNG (renderer limitations).
+- **Markdown to PDF / Word** custom templates picked up notes about supported syntax and known limitations (no remote image fetch).
+
+Tools with notes coverage: **43 of 100**, up from 24. The remaining 57 are pure client-side utilities (calculators, formatters, JSON tools, dev utilities) that have no external dependencies and self-explanatory behaviour.
+
+### Fixed — Word→PDF (Files to PDF) layout quality
+
+Users reported "messy layout" and "missing images" when converting `.docx` to PDF. Root cause: the tool was silently falling back to a hand-rolled python-docx + reportlab rebuilder when LibreOffice wasn't on `PATH` — and that fallback didn't handle images at all and emitted tables out of document order. Three fixes:
+
+- **Smarter LibreOffice detection.** Most Windows users install LibreOffice via the regular installer but never add it to PATH, so the app couldn't find it. Detection now checks PATH first, then common per-OS install paths (`C:\Program Files\LibreOffice\program\soffice.exe` and the x86 variant on Windows, `/Applications/LibreOffice.app/...` on macOS, `/usr/bin/`, `/usr/local/bin/`, `/opt/libreoffice/`, `/snap/bin/` on Linux). Users no longer have to mess with PATH.
+- **Fallback now handles images and document order.** When LibreOffice genuinely isn't available, the fallback walks the docx body in original order (so paragraphs and tables appear interleaved correctly, not all paragraphs first then all tables), and embeds inline images by extracting them from the docx's relationships and re-rendering through reportlab's `Image` flowable. Custom fonts, headers/footers, columns, page breaks, text boxes, and SmartArt are still fallback-unsupported — for those, install LibreOffice. The page notes now spell out exactly what the fallback does and doesn't preserve.
+- **`X-Conversion-Engine` response header.** The Files-to-PDF response now carries a header (`libreoffice` or `fallback`) so users and admins can quickly tell which engine actually ran without trawling logs.
+
+### Improved
+- **PDF to PowerPoint: Editable mode.** Users complained that the previous behaviour put the entire PDF page as an image on each slide, so nothing was clickable or editable in PowerPoint. The tool now offers two modes:
+  - **Editable** *(new default when LibreOffice is detected)* — uses LibreOffice's PDF importer to convert each page into native PowerPoint elements (text frames, lines, shapes, embedded images). You can click on text to edit it, change fonts, rearrange shapes. Layout fidelity is good but not pixel-perfect.
+  - **Image** *(previous behaviour, still available)* — renders each PDF page as a single picture on a slide. Visually identical to the source, but nothing is editable.
+  Page range works in both modes (Editable mode pre-filters the PDF before passing it to LibreOffice). The Image-mode slide-size and DPI options have been clearly labelled as such on the page.
+
+### Fixed
+- **PDF to Excel: now finds borderless tables.** Users were reporting that the same PDF returned "no tables found" in PDF→Excel but PDF→Word (Layout mode) successfully extracted tables. Root cause: PyMuPDF's `find_tables()` defaults to `strategy="lines"` which only detects tables with visible borders, while `pdf2docx` (used by PDF→Word) detects both ruled and borderless tables. PDF→Excel now exposes a **table detection strategy** option:
+  - **Auto** *(default)* — tries lines first, falls back to text-alignment if no ruled tables are found. Best of both worlds with no false-positive risk on multi-column body text.
+  - **Lines only** — original behavior, conservative.
+  - **Text alignment only** — for borderless tables (financial reports, invoices, schedules).
+- The "no tables found" error message now suggests the alternate strategy or directs users to PDF→Word in Layout mode if even text-strategy detection fails.
+
+## [0.6.1] — 2026-04-29
+
+### Added
+- **Fill PDF Form** *(PDF Tools)* — upload a PDF that has AcroForm fields (the kind in tax forms, gov applications, and most fillable PDFs), inspect the fields in your browser, fill them, and download the filled PDF. Supports text, multi-line text, checkbox, radio, listbox, and combobox field types. Two-step UI: `/pdf/form-inspect` returns the field schema as JSON, then `/pdf/form-fill` applies values. PDFs without form fields surface a clear "this PDF doesn't have an AcroForm" message rather than silently doing nothing. XFA-only forms (some Adobe-only forms) are not supported — limitation of PyMuPDF, not the project.
+
+### Improved
+- **Fill PDF Form: human radio/checkbox labels.** PDF radio buttons store opaque on-state values (often `0`/`1`/`Yes`/arbitrary identifiers) but the human label like "Male" / "Female" is painted on the page as static text *next to* the widget — not part of the field. Form Filler now sniffs that nearby text and shows the human label in the UI, while keeping the PDF on-state value as the actual submitted value (and as a tooltip for power users). Same for checkbox labels. The sniffer correctly handles vertical lists, horizontal rows ("○ Male  ○ Female"), and multi-word labels ("I agree to the terms and conditions"), stopping at gaps > 25pt to avoid grabbing the next widget's label.
+- **Fill PDF Form: editable comboboxes.** PDF combobox fields can be either strict (only the listed choices are accepted) or editable (user can type a custom value not in the list — bit 19 of the field flags). Form Filler now detects this flag and renders editable comboboxes as a free-text input with the listed choices offered as suggestions via `<datalist>`, while strict comboboxes remain `<select>` dropdowns. Both render with a small hint explaining the constraint. Custom values typed into editable fields are written into the PDF correctly.
+
+## [0.6.0] — 2026-04-29
+
+### Added — 8 new tools across 6 categories (total now 99)
+
+- **HEIC Converter** *(Image Tools)* — convert iPhone `.heic` / `.heif` photos to JPG, PNG, or WebP, single or bulk → ZIP. Once `pillow-heif` is installed, **every other image tool** in the app (resize, crop, palette, watermark, OCR, etc.) also auto-accepts HEIC inputs.
+- **Line Tools** *(Text & Data)* — client-side bundle: sort A→Z / Z→A / numerically, dedupe (keep order or alphabetic), shuffle, reverse, trim, drop empty, number lines, count words/chars. All in-browser.
+- **Extract Patterns** *(Text & Data)* — client-side regex extractor for emails, URLs, phone numbers, IPv4/IPv6, hashtags, @mentions, and numbers. Toggle dedupe + sort, output as separate sections or merged list.
+- **Redact PDF** *(PDF Tools)* — permanently black-out sensitive text by literal match or regex. Underlying text is removed from the PDF content stream so it cannot be recovered with copy-paste; image-rendering pixels are also covered. Supports page-range scoping and case sensitivity toggles. Returns 400 with a friendly error if no patterns match (rather than silently returning the original).
+- **WiFi QR Code** *(QR & Barcodes)* — generate a scan-to-join WiFi QR (WPA / WEP / open / hidden), with proper escaping of `\\`, `;`, `,`, `:`, and `"` in SSID and password per the WIFI: URI scheme. Uses high error-correction so printed/photographed QRs still scan.
+- **Encrypt File / Decrypt File** *(Security)* — AES-256-CBC file encryption with PBKDF2-HMAC-SHA256 key derivation (600,000 iterations + 8-byte random salt). Output is byte-identical to `openssl enc -aes-256-cbc -pbkdf2 -iter 600000`, so users can decrypt with the OpenSSL CLI too. Wrong passphrase returns a clean error rather than corrupted output.
+- **Normalize Audio** *(Audio & Video)* — FFmpeg `loudnorm` (EBU R128) with one-button presets for streaming (-14 LUFS), Apple Podcasts (-16), broadcast (-23, -24). Output format can match input or transcode to MP3 / WAV / FLAC.
+- **Speech to Text** *(Audio & Video)* — local Whisper transcription to plain text, SRT, or WebVTT. Five model sizes (tiny → large), optional language hint. Optional install (`pip install openai-whisper`); model is cached in-memory after first load to avoid re-downloading. Honest UI guidance about CPU vs GPU speed.
+
+### Changed
+- Image tool inputs now include `.heic` / `.heif` automatically when `pillow-heif` is installed.
+- Tool count: 91 → 99.
+
+### Dependencies
+- Added `cryptography` to core (used by Encrypt/Decrypt File).
+- Added `pillow-heif` and `openai-whisper` to optional dependencies.
+
 ## [0.5.1] — 2026-04-28
 
 ### Added

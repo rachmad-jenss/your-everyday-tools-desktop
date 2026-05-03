@@ -55,7 +55,50 @@ import shutil
 from routes._helpers import safe_int, safe_float, log_error, NO_FILE_SINGLE, NO_FILE_MULTIPLE
 
 ODA_CONVERTER = shutil.which("ODAFileConverter") or shutil.which("oda_file_converter")
-SOFFICE = shutil.which("soffice") or shutil.which("libreoffice")
+def _find_soffice() -> str | None:
+    """Detect LibreOffice. PATH first, then common per-OS install locations.
+
+    Most users — especially on Windows — install LibreOffice via the regular
+    installer but never add it to PATH, so `shutil.which` fails to find it
+    and the app silently falls back to a low-fidelity converter.
+    """
+    found = shutil.which("soffice") or shutil.which("libreoffice")
+    if found:
+        return found
+
+    import os
+    import sys
+
+    candidates: list[str] = []
+    if sys.platform == "win32":
+        program_files = [
+            os.environ.get("ProgramFiles", r"C:\Program Files"),
+            os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"),
+            os.environ.get("ProgramW6432", r"C:\Program Files"),
+        ]
+        for pf in program_files:
+            if pf:
+                candidates.append(os.path.join(pf, "LibreOffice", "program", "soffice.exe"))
+                candidates.append(os.path.join(pf, "LibreOffice", "program", "soffice.com"))
+    elif sys.platform == "darwin":
+        candidates.append("/Applications/LibreOffice.app/Contents/MacOS/soffice")
+    else:  # linux / other unix
+        candidates.extend([
+            "/usr/bin/soffice",
+            "/usr/bin/libreoffice",
+            "/usr/local/bin/soffice",
+            "/usr/local/bin/libreoffice",
+            "/opt/libreoffice/program/soffice",
+            "/snap/bin/libreoffice",
+        ])
+
+    for c in candidates:
+        if c and os.path.isfile(c):
+            return c
+    return None
+
+
+SOFFICE = _find_soffice()
 
 try:
     from pptx import Presentation
@@ -141,15 +184,28 @@ def to_pdf_page():
     if SOFFICE:
         notes = (
             f'<p><i class="bi bi-check-circle-fill" style="color:#2ec4b6"></i> '
-            f'<strong>LibreOffice detected</strong> — Word documents will be converted with full layout fidelity '
-            f'(fonts, tables, columns, headers/footers preserved).</p>'
+            f'<strong>LibreOffice detected at <code>{SOFFICE}</code></strong> — Word documents '
+            f'will convert with full layout fidelity (fonts, images, tables, columns, '
+            f'headers/footers all preserved).</p>'
         )
     else:
         notes = (
-            '<p><i class="bi bi-info-circle-fill" style="color:#4361ee"></i> '
-            '<strong>Tip:</strong> install LibreOffice for much better Word→PDF layout fidelity. '
-            'Without it, Word files are converted with a basic reflow that loses styling. '
-            'See the <a href="/convert/pptx-to-pdf">PowerPoint to PDF</a> page for install instructions.</p>'
+            '<p><i class="bi bi-exclamation-triangle-fill" style="color:#ffb703"></i> '
+            '<strong>LibreOffice was not found.</strong> Word files (.docx) will use a built-in '
+            'fallback that only handles paragraphs, tables, basic formatting, and inline images. '
+            'It will <strong>NOT</strong> preserve: custom fonts, headers/footers, columns, '
+            'page breaks, text boxes, frames, SmartArt, or precise positioning.</p>'
+            '<p><strong>For high-fidelity Word→PDF, install LibreOffice:</strong></p>'
+            '<ul style="margin:.4rem 0 .6rem 1.2rem">'
+            '<li><strong>Windows:</strong> Download from '
+            '<a href="https://www.libreoffice.org/download/download-libreoffice/" target="_blank">libreoffice.org</a> '
+            'and install with default options. The app auto-detects it at <code>C:\\Program Files\\LibreOffice\\</code> '
+            'on next start — no PATH editing needed.</li>'
+            '<li><strong>macOS:</strong> <code>brew install --cask libreoffice</code></li>'
+            '<li><strong>Linux:</strong> <code>sudo apt install libreoffice</code> (Debian/Ubuntu) '
+            'or <code>sudo dnf install libreoffice</code> (Fedora)</li>'
+            '</ul>'
+            '<p style="font-size:.9em;color:var(--muted)">Restart the server after installing.</p>'
         )
     return render_template("upload_tool.html",
         title="Files to PDF",
@@ -212,6 +268,16 @@ def pdf_to_images_page():
     return render_template("upload_tool.html",
         title="PDF to Images",
         description="Convert each PDF page to an image",
+        notes=(
+            '<p><strong>What this does:</strong> renders each PDF page as a raster image. '
+            'Output is one image per page, bundled as a ZIP if there are multiple pages.</p>'
+            '<p><strong>DPI guide:</strong> 72 = screen quality, 150 = good for slides, '
+            '200 = good for print preview, 300 = print quality, 600 = archival. '
+            'Higher DPI = larger files (a 10-page PDF at 600 DPI can be 50+ MB).</p>'
+            '<p><strong>Format:</strong> PNG is lossless and best for diagrams / text-heavy pages. '
+            'JPG is smaller but lossy — best for photo-heavy pages.</p>'
+            '<p style="font-size:.9em;color:var(--muted)"><strong>No external dependencies.</strong></p>'
+        ),
         endpoint="/convert/pdf-to-images",
         accept=".pdf",
         multiple=False,
@@ -230,6 +296,15 @@ def pdf_to_text_page():
     return render_template("upload_tool.html",
         title="PDF to Text",
         description="Extract all text content from a PDF document",
+        notes=(
+            '<p><strong>What this does:</strong> pulls all extractable text out of the PDF, '
+            'page by page, in reading order.</p>'
+            '<p><strong>Important:</strong> this only works on PDFs that <em>contain</em> '
+            'real text. If your PDF is a scan (photographed/scanned pages stored as images), '
+            'no text will be extracted — run it through '
+            '<a href="/convert/ocr-pdf">OCR PDF</a> first to recognise the text, then come back here.</p>'
+            '<p style="font-size:.9em;color:var(--muted)"><strong>No external dependencies.</strong></p>'
+        ),
         endpoint="/convert/pdf-to-text",
         accept=".pdf",
         multiple=False,
@@ -252,9 +327,23 @@ def pdf_to_excel_page():
         title="PDF to Excel",
         description="Extract tables from a PDF into an .xlsx workbook",
         notes=(
-            "<p><strong>Tip:</strong> works best on PDFs with clearly ruled tables. "
-            "For scanned PDFs (images of tables), run them through "
-            "<a href=\"/convert/ocr-pdf\">OCR PDF</a> first so the tool has text to work with.</p>"
+            "<p><strong>How table detection works:</strong> we try both detection strategies in "
+            "order of accuracy:</p>"
+            "<ul style='margin:.4rem 0 .6rem 1.2rem'>"
+            "<li><strong>Auto (recommended)</strong> — tries ruled-line detection first; if a "
+            "page has no visible table borders, falls back to text-alignment detection (catches "
+            "borderless tables in financial reports, invoices, schedules).</li>"
+            "<li><strong>Lines only</strong> — only tables with visible borders. Most accurate "
+            "but misses borderless tables.</li>"
+            "<li><strong>Text alignment only</strong> — finds tables by detecting columns of "
+            "aligned text. Catches borderless tables but can occasionally false-positive on "
+            "multi-column body text.</li>"
+            "</ul>"
+            "<p style='font-size:.9em;color:var(--muted)'><strong>Still get \"no tables found\"?</strong> "
+            "Try our <a href='/convert/pdf-to-word'>PDF to Word</a> tool in <em>Layout</em> mode "
+            "instead — it uses <code>pdf2docx</code> which is more aggressive about table "
+            "detection. If your PDF is scanned, run it through "
+            "<a href='/convert/ocr-pdf'>OCR PDF</a> first.</p>"
         ),
         endpoint="/convert/pdf-to-excel",
         accept=".pdf",
@@ -262,6 +351,12 @@ def pdf_to_excel_page():
         options=[
             {"type": "text", "name": "pages", "label": "Pages (leave empty for all)",
              "placeholder": "e.g. 1-3, 5"},
+            {"type": "select", "name": "strategy", "label": "Table detection strategy", "default": "auto",
+             "choices": [
+                 {"value": "auto",  "label": "Auto — lines first, fall back to text alignment"},
+                 {"value": "lines", "label": "Lines only (ruled tables)"},
+                 {"value": "text",  "label": "Text alignment only (borderless tables)"},
+             ]},
             {"type": "select", "name": "mode", "label": "Extraction mode", "default": "tables",
              "choices": [
                  {"value": "tables", "label": "Tables only (recommended)"},
@@ -297,9 +392,44 @@ OCR_LANGS = [
 
 @bp.route("/ocr-pdf")
 def ocr_pdf_page():
+    if HAS_TESSERACT:
+        status = (
+            '<p><i class="bi bi-check-circle-fill" style="color:#2ec4b6"></i> '
+            '<strong>OCR is ready.</strong> Tesseract Python bindings detected. '
+            'Make sure the language pack you select is installed in your Tesseract '
+            '<code>tessdata</code> directory — you\'ll get a clear error if it isn\'t.</p>'
+        )
+    else:
+        status = (
+            '<p><i class="bi bi-exclamation-triangle-fill" style="color:#ffb703"></i> '
+            '<strong>OCR is unavailable.</strong> Two things to install:</p>'
+            '<ol style="margin:.4rem 0 .6rem 1.2rem">'
+            '<li>The <code>pytesseract</code> Python package: <code>pip install pytesseract</code></li>'
+            '<li>The Tesseract binary itself: '
+            '<a href="https://github.com/tesseract-ocr/tesseract" target="_blank">github.com/tesseract-ocr/tesseract</a> '
+            '(Windows installers, <code>brew install tesseract</code> on macOS, '
+            '<code>apt install tesseract-ocr</code> on Linux)</li>'
+            '</ol>'
+            '<p>Then for non-English OCR, download the matching <code>*.traineddata</code> '
+            'file from <a href="https://github.com/tesseract-ocr/tessdata" target="_blank">tessdata</a> '
+            'into your Tesseract install\'s <code>tessdata</code> folder.</p>'
+        )
     return render_template("upload_tool.html",
         title="OCR PDF",
         description="Extract text from scanned PDFs or create a searchable PDF with a hidden text layer",
+        notes=(
+            f'{status}'
+            '<p><strong>Two output modes:</strong></p>'
+            '<ul style="margin:.4rem 0 .6rem 1.2rem">'
+            '<li><strong>Searchable PDF</strong> — keeps the original page images and adds an '
+            'invisible text layer underneath, so you can copy-paste and search. The PDF still '
+            '<em>looks</em> identical to the scan.</li>'
+            '<li><strong>Extracted text</strong> — just the recognised text, plain.</li>'
+            '</ul>'
+            '<p style="font-size:.9em;color:var(--muted)">Higher DPI = better OCR accuracy '
+            'but slower. 200 DPI is the sweet spot for most scans; bump to 300+ for small '
+            'fonts or low-quality scans.</p>'
+        ),
         endpoint="/convert/ocr-pdf",
         accept=".pdf",
         multiple=False,
@@ -400,7 +530,20 @@ def html_to_pdf_page():
 # ── Helpers ──────────────────────────────────────
 
 def _docx_to_pdf(data: bytes) -> bytes:
-    """Convert a .docx file (as bytes) to PDF bytes using python-docx + reportlab."""
+    """Best-effort .docx → PDF conversion using python-docx + reportlab.
+
+    This is the fallback path used when LibreOffice is not available.
+    It preserves document order (paragraphs and tables interleaved correctly),
+    inline images, and basic heading/paragraph styling. It does NOT preserve:
+    headers/footers, columns, custom fonts, page breaks, text boxes, frames,
+    SmartArt, equations, or precise layout. For those, install LibreOffice.
+    """
+    from docx.oxml.ns import qn
+    from docx.text.paragraph import Paragraph as DocxParagraph
+    from docx.table import Table as DocxTable
+    from reportlab.platypus import Image as RLImage
+    from PIL import Image as PILImage
+
     doc = DocxDocument(io.BytesIO(data))
     buf = io.BytesIO()
 
@@ -424,14 +567,63 @@ def _docx_to_pdf(data: bytes) -> bytes:
                             topMargin=inch, bottomMargin=inch)
     story = []
 
-    for para in doc.paragraphs:
+    # Map of relationship-id → raw image bytes, used to look up images
+    # referenced by <a:blip r:embed="rId123" /> elements in paragraphs.
+    image_parts: dict[str, bytes] = {}
+    try:
+        for rel_id, rel in doc.part.rels.items():
+            if "image" in (rel.reltype or ""):
+                image_parts[rel_id] = rel.target_part.blob
+    except Exception:
+        pass
+
+    # Page content area for image scaling (A4 minus 1in margins)
+    max_img_w = 6.5 * inch
+    max_img_h = 4.0 * inch  # cap height so images don't dominate
+
+    def _emit_image(rel_id: str) -> None:
+        img_bytes = image_parts.get(rel_id)
+        if not img_bytes:
+            return
+        try:
+            # Pillow may not handle EMF/WMF; skip those gracefully
+            with PILImage.open(io.BytesIO(img_bytes)) as pil:
+                w, h = pil.size
+                # Convert to PNG if needed for reportlab compatibility
+                if pil.format not in ("PNG", "JPEG", "GIF"):
+                    out = io.BytesIO()
+                    if pil.mode in ("RGBA", "LA"):
+                        pil.save(out, format="PNG")
+                    else:
+                        pil.convert("RGB").save(out, format="JPEG", quality=90)
+                    out.seek(0)
+                    img_data = out.getvalue()
+                else:
+                    img_data = img_bytes
+        except Exception:
+            return
+        if w <= 0 or h <= 0:
+            return
+        scale = min(max_img_w / w, max_img_h / h, 1.0)
+        story.append(Spacer(1, 6))
+        story.append(RLImage(io.BytesIO(img_data),
+                             width=w * scale, height=h * scale))
+        story.append(Spacer(1, 6))
+
+    def _emit_paragraph(child) -> None:
+        para = DocxParagraph(child, doc)
+
+        # Emit any inline images first (in their paragraph)
+        for blip in child.findall(".//" + qn("a:blip")):
+            rel_id = blip.get(qn("r:embed"))
+            if rel_id:
+                _emit_image(rel_id)
+
         text = para.text.strip()
         if not text:
-            story.append(Spacer(1, 6))
-            continue
+            return  # already-emitted image, or genuinely empty
 
         style_name = para.style.name.lower() if para.style else ""
-
         if "heading 1" in style_name:
             story.append(Paragraph(text, heading_styles[1]))
         elif "heading 2" in style_name:
@@ -439,30 +631,40 @@ def _docx_to_pdf(data: bytes) -> bytes:
         elif "heading 3" in style_name:
             story.append(Paragraph(text, heading_styles[3]))
         else:
-            # Preserve basic inline formatting
             rich = _build_rich_text(para)
             story.append(Paragraph(rich, normal))
 
-    # Handle tables
-    for table in doc.tables:
+    def _emit_table(child) -> None:
+        table = DocxTable(child, doc)
         tdata = []
         for row in table.rows:
             tdata.append([cell.text for cell in row.cells])
-        if tdata:
-            t = Table(tdata, repeatRows=1)
-            t.setStyle(TableStyle([
-                ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-                ("BACKGROUND", (0, 0), (-1, 0), colors.Color(0.9, 0.9, 0.95)),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("FONTSIZE", (0, 0), (-1, -1), 10),
-                ("TOPPADDING", (0, 0), (-1, -1), 4),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-                ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-            ]))
-            story.append(Spacer(1, 8))
-            story.append(t)
-            story.append(Spacer(1, 8))
+        if not tdata:
+            return
+        t = Table(tdata, repeatRows=1)
+        t.setStyle(TableStyle([
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+            ("BACKGROUND", (0, 0), (-1, 0), colors.Color(0.9, 0.9, 0.95)),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 10),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+        ]))
+        story.append(Spacer(1, 8))
+        story.append(t)
+        story.append(Spacer(1, 8))
+
+    # Walk the document body in order so paragraphs and tables appear in their
+    # original positions, not all paragraphs first then all tables.
+    for child in doc.element.body.iterchildren():
+        tag = child.tag.split("}", 1)[-1]
+        if tag == "p":
+            _emit_paragraph(child)
+        elif tag == "tbl":
+            _emit_table(child)
+        # Section-properties (sectPr) and other elements are ignored
 
     if not story:
         story.append(Paragraph("(empty document)", normal))
@@ -500,6 +702,9 @@ def to_pdf():
         return jsonify(error=NO_FILE_MULTIPLE), 400
 
     pdf_doc = fitz.open()
+    # Track which engine ran on Word docs so the response can advertise it
+    # (helps users diagnose "why is my output low-fidelity" without log access).
+    word_engine_used: str | None = None
 
     for f in files:
         name = f.filename.lower()
@@ -512,13 +717,17 @@ def to_pdf():
             ext = name.rsplit(".", 1)[-1]
             try:
                 pdf_bytes = _soffice_convert(data, ext, "pdf")
-                if pdf_bytes is None:
+                if pdf_bytes is not None:
+                    word_engine_used = "libreoffice"
+                else:
                     if ext != "docx":
                         return jsonify(error=(
                             f"'{f.filename}' requires LibreOffice (soffice) on PATH. "
-                            "Only .docx is supported by the built-in fallback."
+                            "Only .docx is supported by the built-in fallback. "
+                            "Install LibreOffice for full layout fidelity."
                         )), 400
                     pdf_bytes = _docx_to_pdf(data)
+                    word_engine_used = "fallback"
                 with fitz.open(stream=pdf_bytes, filetype="pdf") as docx_pdf:
                     pdf_doc.insert_pdf(docx_pdf)
             except Exception as e:
@@ -553,8 +762,11 @@ def to_pdf():
     pdf_doc.close()
     output.seek(0)
 
-    return send_file(output, mimetype="application/pdf",
+    resp = send_file(output, mimetype="application/pdf",
                      as_attachment=True, download_name="converted.pdf")
+    if word_engine_used:
+        resp.headers["X-Conversion-Engine"] = word_engine_used
+    return resp
 
 
 @bp.route("/pdf-to-word", methods=["POST"])
@@ -961,6 +1173,9 @@ def pdf_to_excel():
 
     mode = request.form.get("mode", "tables")
     organize = request.form.get("organize", "per_table")
+    strategy = request.form.get("strategy", "auto")
+    if strategy not in ("auto", "lines", "text"):
+        strategy = "auto"
     pages_spec = request.form.get("pages", "").strip()
 
     try:
@@ -1015,6 +1230,38 @@ def pdf_to_excel():
             rows.append(parts if parts else [line])
         return rows
 
+    def _find_tables_robust(page) -> list:
+        """Detect tables on a page according to the user's chosen strategy.
+
+        PyMuPDF's default `find_tables()` only catches ruled (visible-border)
+        tables. Many real-world PDFs use borderless tables where columns are
+        aligned by whitespace — those need `strategy="text"`. The "auto" mode
+        tries lines first and only falls back to text-based when nothing is
+        found, which avoids the false-positive risk of text-detection picking
+        up multi-column body text as a "table".
+        """
+        try:
+            if strategy == "lines":
+                return list(page.find_tables(strategy="lines"))
+            if strategy == "text":
+                return list(page.find_tables(
+                    strategy="text",
+                    vertical_strategy="text",
+                    horizontal_strategy="text",
+                ))
+            # auto: lines, then text fallback
+            tables = list(page.find_tables(strategy="lines"))
+            if tables:
+                return tables
+            return list(page.find_tables(
+                strategy="text",
+                vertical_strategy="text",
+                horizontal_strategy="text",
+            ))
+        except Exception as e:
+            log_error(e, f"find_tables strategy={strategy}")
+            return []
+
     # ── "combined" — stream everything into a single sheet ────────────
     if organize == "combined":
         ws = wb.create_sheet(_safe_name("Extracted"))
@@ -1024,7 +1271,7 @@ def pdf_to_excel():
             page_had_content = False
 
             if mode in ("tables", "tables_text"):
-                tables = list(page.find_tables())
+                tables = _find_tables_robust(page)
                 for t in tables:
                     rows = t.extract()
                     if not rows:
@@ -1052,7 +1299,7 @@ def pdf_to_excel():
             tables_rows = []  # list of (label, rows)
 
             if mode in ("tables", "tables_text"):
-                for tidx, t in enumerate(page.find_tables(), start=1):
+                for tidx, t in enumerate(_find_tables_robust(page), start=1):
                     rows = t.extract()
                     if rows:
                         tables_rows.append((f"Table {tidx}", rows))
@@ -1085,10 +1332,14 @@ def pdf_to_excel():
     doc.close()
 
     if not wb.sheetnames:
-        return jsonify(error=(
-            "No tables or text found on the selected pages. "
-            "If this is a scanned PDF, run it through OCR PDF first."
-        )), 400
+        msg = "No tables found on the selected pages."
+        if strategy == "lines":
+            msg += " Try the 'Text alignment' or 'Auto' strategy — your PDF may use borderless tables."
+        elif mode == "tables":
+            msg += " Try the 'Tables, fall back to text rows' mode, or use PDF to Word in Layout mode."
+        else:
+            msg += " If this is a scanned PDF, run it through OCR PDF first; otherwise try PDF to Word in Layout mode."
+        return jsonify(error=msg), 400
 
     # Auto-size columns on every sheet (cap at 60 chars to avoid absurd widths)
     for ws in wb.worksheets:
@@ -1515,20 +1766,56 @@ SLIDE_SIZES_EMU = {
 
 @bp.route("/pdf-to-pptx")
 def pdf_to_pptx_page():
+    # Default to Editable when LibreOffice is on PATH; otherwise Image,
+    # since editable mode would just error otherwise.
+    default_mode = "editable" if SOFFICE else "image"
+
+    if SOFFICE:
+        editable_status = (
+            '<i class="bi bi-check-circle-fill" style="color:#2ec4b6"></i> '
+            '<strong>LibreOffice detected</strong> — Editable mode will produce a real .pptx '
+            'with text and shapes you can click and edit in PowerPoint.'
+        )
+    else:
+        editable_status = (
+            '<i class="bi bi-exclamation-triangle-fill" style="color:#ffb703"></i> '
+            '<strong>LibreOffice not found</strong> — Editable mode is unavailable. '
+            'Install LibreOffice (see <a href="/convert/pptx-to-pdf">PowerPoint to PDF</a>) '
+            'and restart the server, or use Image mode below.'
+        )
+
     return render_template("upload_tool.html",
         title="PDF to PowerPoint",
-        description="Convert each PDF page into a slide image in a .pptx file",
+        description="Convert a PDF into a .pptx — either as editable text/shapes, or as page images",
+        notes=(
+            f"<p>{editable_status}</p>"
+            "<p><strong>Two conversion modes:</strong></p>"
+            "<ul style='margin:.4rem 0 .6rem 1.2rem'>"
+            "<li><strong>Editable</strong> — uses LibreOffice to convert each PDF page into native PowerPoint "
+            "elements (text frames, lines, shapes, images). You can click on text to edit it, change fonts, "
+            "rearrange shapes. Layout fidelity is good but not pixel-perfect — complex PDFs may show small "
+            "shifts. Slide size matches the PDF's page dimensions.</li>"
+            "<li><strong>Image</strong> — renders each PDF page as a single picture and centers it on a slide. "
+            "Visually identical to the PDF, but nothing is editable. Best for archival or when you want to "
+            "guarantee the slides look exactly like the source.</li>"
+            "</ul>"
+        ),
         endpoint="/convert/pdf-to-pptx",
         accept=".pdf",
         multiple=False,
         options=[
-            {"type": "select", "name": "slide_size", "label": "Slide size", "default": "16:9",
+            {"type": "select", "name": "mode", "label": "Conversion mode", "default": default_mode,
              "choices": [
-                 {"value": "16:9", "label": "Widescreen 16:9 (default)"},
+                 {"value": "editable", "label": "Editable — text and shapes can be edited (LibreOffice)"},
+                 {"value": "image",    "label": "Image — slides look identical to PDF, nothing editable"},
+             ]},
+            {"type": "select", "name": "slide_size", "label": "Slide size (Image mode only)", "default": "16:9",
+             "choices": [
+                 {"value": "16:9", "label": "Widescreen 16:9"},
                  {"value": "4:3",  "label": "Standard 4:3"},
                  {"value": "a4",   "label": "A4 landscape"},
              ]},
-            {"type": "number", "name": "dpi", "label": "Render DPI",
+            {"type": "number", "name": "dpi", "label": "Render DPI (Image mode only)",
              "default": 150, "min": 72, "max": 300},
             {"type": "text", "name": "pages", "label": "Pages (blank = all)",
              "placeholder": "e.g. 1-3, 5, 8-10"},
@@ -1541,20 +1828,65 @@ def pdf_to_pptx():
     from routes._helpers import safe_int, log_error, NO_FILE_SINGLE
     from routes.pdf_tools import parse_page_ranges
 
-    if not HAS_PPTX:
-        return jsonify(error="python-pptx is not installed. Run: pip install python-pptx"), 400
-
     files = request.files.getlist("files")
     if not files or not files[0].filename:
         return jsonify(error=NO_FILE_SINGLE), 400
+
+    mode = request.form.get("mode", "editable" if SOFFICE else "image")
+    if mode not in ("editable", "image"):
+        mode = "image"
+    pages_spec = (request.form.get("pages") or "").strip()
+    pdf_data = files[0].read()
+
+    # Pre-resolve page range against the PDF (used by both modes)
+    try:
+        with fitz.open(stream=pdf_data, filetype="pdf") as probe:
+            total_pages = len(probe)
+            try:
+                target_pages = parse_page_ranges(pages_spec, total_pages)
+            except (ValueError, IndexError):
+                return jsonify(error="Invalid page range. Use e.g. '1-3, 5, 8-10'."), 400
+            if not target_pages:
+                return jsonify(error="No pages selected."), 400
+    except Exception as e:
+        log_error(e, "pdf-to-pptx probe")
+        return jsonify(error="Could not open PDF (the file may be corrupted or password-protected)."), 400
+
+    base = files[0].filename.rsplit(".", 1)[0]
+
+    # ── Editable mode (LibreOffice) ───────────────────────
+    if mode == "editable":
+        if not SOFFICE:
+            return jsonify(error=(
+                "Editable mode requires LibreOffice (soffice) on PATH. "
+                "Install LibreOffice and restart the server, or switch to Image mode."
+            )), 400
+
+        # If a page range was specified, build a sub-PDF first so LibreOffice
+        # only converts the requested pages.
+        source_pdf = pdf_data
+        if pages_spec and len(target_pages) != total_pages:
+            source_pdf = _extract_pages(pdf_data, target_pages)
+
+        pptx_bytes = _soffice_convert(source_pdf, "pdf", "pptx", timeout=300)
+        if pptx_bytes is None:
+            return jsonify(error=(
+                "LibreOffice could not convert this PDF. The file may be password-protected or "
+                "use features LibreOffice's PDF importer can't handle. Try Image mode instead."
+            )), 400
+
+        return send_file(io.BytesIO(pptx_bytes), mimetype=PPTX_MIME,
+                         as_attachment=True, download_name=f"{base}.pptx")
+
+    # ── Image mode (page-image-per-slide) ─────────────────
+    if not HAS_PPTX:
+        return jsonify(error="Image mode requires python-pptx. Run: pip install python-pptx"), 400
 
     dpi = safe_int(request.form.get("dpi"), 150, min_val=72, max_val=300)
     slide_size = request.form.get("slide_size", "16:9")
     if slide_size not in SLIDE_SIZES_EMU:
         slide_size = "16:9"
-    pages_spec = (request.form.get("pages") or "").strip()
 
-    pdf_data = files[0].read()
     try:
         doc = fitz.open(stream=pdf_data, filetype="pdf")
     except Exception as e:
@@ -1562,14 +1894,6 @@ def pdf_to_pptx():
         return jsonify(error="Could not open PDF (the file may be corrupted or password-protected)."), 400
 
     try:
-        try:
-            target_pages = parse_page_ranges(pages_spec, len(doc))
-        except (ValueError, IndexError):
-            return jsonify(error="Invalid page range. Use e.g. '1-3, 5, 8-10'."), 400
-
-        if not target_pages:
-            return jsonify(error="No pages selected."), 400
-
         prs = Presentation()
         slide_w, slide_h = SLIDE_SIZES_EMU[slide_size]
         prs.slide_width = slide_w
@@ -1606,7 +1930,6 @@ def pdf_to_pptx():
     finally:
         doc.close()
 
-    base = files[0].filename.rsplit(".", 1)[0]
     return send_file(output, mimetype=PPTX_MIME,
                      as_attachment=True, download_name=f"{base}.pptx")
 

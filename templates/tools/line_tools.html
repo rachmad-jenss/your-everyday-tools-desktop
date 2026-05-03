@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% block title %}Line Tools - EveryTools{% endblock %}
+{% block top_title %}Line Tools{% endblock %}
+
+{% block content %}
+<div class="client-tool">
+    <div class="tool-header">
+        <h1>Line Tools</h1>
+        <p>Sort, deduplicate, shuffle, reverse, or count lines &mdash; all client-side</p>
+    </div>
+
+    <div style="display:flex;gap:.5rem;margin-bottom:.6rem;flex-wrap:wrap;align-items:center">
+        <label>Operation:
+            <select id="op">
+                <option value="sort-asc">Sort A→Z</option>
+                <option value="sort-desc">Sort Z→A</option>
+                <option value="sort-num-asc">Sort numerically (low→high)</option>
+                <option value="sort-num-desc">Sort numerically (high→low)</option>
+                <option value="dedupe">Remove duplicates</option>
+                <option value="dedupe-keep-order">Remove duplicates (keep order)</option>
+                <option value="shuffle">Shuffle randomly</option>
+                <option value="reverse">Reverse line order</option>
+                <option value="trim">Trim whitespace on each line</option>
+                <option value="strip-empty">Drop empty / whitespace-only lines</option>
+                <option value="add-numbers">Number every line</option>
+                <option value="count">Count lines / words / chars</option>
+            </select>
+        </label>
+        <label><input type="checkbox" id="case-insensitive"> Case-insensitive (sort/dedupe)</label>
+        <button class="btn btn-primary" onclick="run()"><i class="bi bi-play-circle"></i> Run</button>
+        <button class="btn btn-small" onclick="swap()"><i class="bi bi-arrow-left-right"></i> Output → Input</button>
+    </div>
+
+    <div class="split-pane">
+        <div class="pane">
+            <div class="pane-header"><span>Input</span></div>
+            <div class="pane-body">
+                <textarea id="input" placeholder="One line per row..."></textarea>
+            </div>
+        </div>
+        <div class="pane">
+            <div class="pane-header">
+                <span>Output</span>
+                <button class="btn btn-small" onclick="copyOutput()"><i class="bi bi-clipboard"></i> Copy</button>
+            </div>
+            <div class="pane-body"><pre id="output"></pre></div>
+        </div>
+    </div>
+    <div id="status" style="margin-top:.5rem;font-size:.85rem"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function getLines() {
+    return document.getElementById("input").value.split(/\r?\n/);
+}
+
+function setOutput(lines, statusMsg) {
+    document.getElementById("output").textContent = Array.isArray(lines) ? lines.join("\n") : lines;
+    document.getElementById("status").innerHTML = statusMsg
+        ? `<span style="color:var(--success)"><i class="bi bi-check-circle"></i> ${statusMsg}</span>`
+        : "";
+}
+
+function run() {
+    const op = document.getElementById("op").value;
+    const ci = document.getElementById("case-insensitive").checked;
+    let lines = getLines();
+    const before = lines.length;
+
+    const cmp = ci
+        ? (a, b) => a.toLowerCase().localeCompare(b.toLowerCase())
+        : (a, b) => a.localeCompare(b);
+
+    const numCmp = (a, b) => {
+        const na = parseFloat(a.replace(/,/g, ""));
+        const nb = parseFloat(b.replace(/,/g, ""));
+        if (isNaN(na) && isNaN(nb)) return 0;
+        if (isNaN(na)) return 1;
+        if (isNaN(nb)) return -1;
+        return na - nb;
+    };
+
+    switch (op) {
+        case "sort-asc":      lines = [...lines].sort(cmp); break;
+        case "sort-desc":     lines = [...lines].sort(cmp).reverse(); break;
+        case "sort-num-asc":  lines = [...lines].sort(numCmp); break;
+        case "sort-num-desc": lines = [...lines].sort(numCmp).reverse(); break;
+        case "dedupe": {
+            const seen = new Set();
+            const out = [];
+            const sorted = [...lines].sort(cmp);
+            for (const l of sorted) {
+                const key = ci ? l.toLowerCase() : l;
+                if (!seen.has(key)) { seen.add(key); out.push(l); }
+            }
+            lines = out;
+            break;
+        }
+        case "dedupe-keep-order": {
+            const seen = new Set();
+            const out = [];
+            for (const l of lines) {
+                const key = ci ? l.toLowerCase() : l;
+                if (!seen.has(key)) { seen.add(key); out.push(l); }
+            }
+            lines = out;
+            break;
+        }
+        case "shuffle":
+            lines = [...lines];
+            for (let i = lines.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [lines[i], lines[j]] = [lines[j], lines[i]];
+            }
+            break;
+        case "reverse":     lines = [...lines].reverse(); break;
+        case "trim":        lines = lines.map(l => l.trim()); break;
+        case "strip-empty": lines = lines.filter(l => l.trim() !== ""); break;
+        case "add-numbers": {
+            const w = String(lines.length).length;
+            lines = lines.map((l, i) => `${String(i + 1).padStart(w, " ")}. ${l}`);
+            break;
+        }
+        case "count": {
+            const text = lines.join("\n");
+            const words = text.match(/\S+/g)?.length || 0;
+            const chars = text.length;
+            const charsNoWs = text.replace(/\s/g, "").length;
+            const nonEmpty = lines.filter(l => l.trim() !== "").length;
+            setOutput(
+                `Lines (total):       ${lines.length}\n` +
+                `Lines (non-empty):   ${nonEmpty}\n` +
+                `Words:               ${words}\n` +
+                `Characters:          ${chars}\n` +
+                `Characters (no ws):  ${charsNoWs}`,
+                "Counted"
+            );
+            return;
+        }
+    }
+
+    const after = lines.length;
+    let msg = `${after} line${after === 1 ? "" : "s"}`;
+    if (after !== before) msg += ` (was ${before})`;
+    setOutput(lines, msg);
+}
+
+function swap() {
+    const out = document.getElementById("output").textContent;
+    document.getElementById("input").value = out;
+    document.getElementById("output").textContent = "";
+    document.getElementById("status").textContent = "";
+}
+
+function copyOutput() {
+    navigator.clipboard.writeText(document.getElementById("output").textContent);
+}
+</script>
+{% endblock %}

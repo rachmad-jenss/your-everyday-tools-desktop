@@ -1,0 +1,375 @@
+{% extends "base.html" %}
+{% block title %}Fill PDF Form - EveryTools{% endblock %}
+{% block top_title %}Fill PDF Form{% endblock %}
+
+{% block content %}
+<div class="client-tool">
+    <div class="tool-header">
+        <h1>Fill PDF Form</h1>
+        <p>Upload a PDF that contains form fields (AcroForm), fill them in your browser, and download the filled PDF</p>
+    </div>
+
+    <div class="tool-notes">
+        <p><strong>Works with:</strong> standard PDF AcroForm fields &mdash; the kind in tax forms, government applications, contracts, and most fillable PDFs.</p>
+        <p style="font-size:.9em;color:var(--muted)"><strong>Doesn't work with:</strong> dynamic XFA forms (some Adobe-only forms) or scanned PDFs that just <em>look</em> like forms but have no real field annotations. If your fields don't appear below after upload, your PDF doesn't have an AcroForm.</p>
+    </div>
+
+    <!-- Step 1: Upload -->
+    <div id="step-1">
+        <div class="form-group">
+            <label>Choose a PDF with fillable form fields</label>
+            <input type="file" id="pdf-input" accept=".pdf">
+        </div>
+        <button class="btn btn-primary" onclick="inspectPdf()" id="inspect-btn">
+            <i class="bi bi-search"></i> Detect form fields
+        </button>
+        <div id="inspect-status" style="margin-top:.6rem;font-size:.9rem"></div>
+    </div>
+
+    <!-- Step 2: Form (rendered dynamically) -->
+    <div id="step-2" style="display:none;margin-top:1rem">
+        <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.6rem;flex-wrap:wrap">
+            <strong id="form-summary"></strong>
+            <button class="btn btn-small" onclick="resetForm()"><i class="bi bi-arrow-counterclockwise"></i> Choose different PDF</button>
+        </div>
+
+        <form id="dynamic-form" onsubmit="event.preventDefault();applyValues()">
+            <div id="fields-container"></div>
+
+            <div style="display:flex;gap:.6rem;margin-top:1rem;align-items:center;flex-wrap:wrap">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-download"></i> Apply &amp; download filled PDF
+                </button>
+                <button type="button" class="btn btn-small" onclick="clearAllValues()">
+                    <i class="bi bi-eraser"></i> Clear all
+                </button>
+                <span id="apply-status" style="font-size:.9rem"></span>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Hold the selected PDF as ArrayBuffer between inspect and fill
+let pdfBlob = null;
+let pdfFilename = "";
+
+async function inspectPdf() {
+    const input = document.getElementById("pdf-input");
+    const status = document.getElementById("inspect-status");
+    if (!input.files.length) {
+        status.innerHTML = '<span style="color:var(--danger)"><i class="bi bi-x-circle"></i> Choose a PDF first.</span>';
+        return;
+    }
+
+    pdfBlob = input.files[0];
+    pdfFilename = pdfBlob.name;
+    status.textContent = "Inspecting form fields...";
+
+    const fd = new FormData();
+    fd.append("files", pdfBlob);
+
+    try {
+        const r = await fetch("/pdf/form-inspect", { method: "POST", body: fd });
+        const j = await r.json();
+        if (!r.ok) {
+            status.innerHTML = `<span style="color:var(--danger)"><i class="bi bi-x-circle"></i> ${j.error || "Inspection failed"}</span>`;
+            return;
+        }
+
+        if (!j.has_form) {
+            status.innerHTML = `<span style="color:var(--warning)"><i class="bi bi-exclamation-triangle"></i> No fillable form fields found in <code>${escapeHtml(j.filename)}</code> (${j.page_count} page${j.page_count === 1 ? "" : "s"}). This PDF doesn't have an AcroForm — it's just a regular PDF.</span>`;
+            return;
+        }
+
+        status.textContent = "";
+        renderForm(j);
+    } catch (e) {
+        status.innerHTML = `<span style="color:var(--danger)"><i class="bi bi-x-circle"></i> Network error: ${e.message}</span>`;
+    }
+}
+
+function renderForm(data) {
+    const container = document.getElementById("fields-container");
+    container.innerHTML = "";
+
+    document.getElementById("form-summary").innerHTML =
+        `<i class="bi bi-check-circle-fill" style="color:var(--success)"></i> Found ` +
+        `<strong>${data.field_count}</strong> field${data.field_count === 1 ? "" : "s"} ` +
+        `across ${data.page_count} page${data.page_count === 1 ? "" : "s"} of ` +
+        `<code>${escapeHtml(data.filename)}</code>`;
+
+    // Group radios by field_name (PDF standard: multiple widgets share a name).
+    // Each radio carries its own option_value (PDF-internal id, e.g. "0"/"1")
+    // and option_label (human label sniffed from nearby page text, e.g. "Male").
+    const radioGroups = {};
+    const renderQueue = [];
+    for (const f of data.fields) {
+        if (f.type === "radio") {
+            if (!radioGroups[f.name]) {
+                radioGroups[f.name] = { ...f, options: [] };
+                renderQueue.push({ kind: "radio_group", name: f.name });
+            }
+            if (f.option_value) {
+                const exists = radioGroups[f.name].options.some(o => o.value === f.option_value);
+                if (!exists) {
+                    radioGroups[f.name].options.push({
+                        value: f.option_value,
+                        label: f.option_label || f.option_value,
+                    });
+                }
+            }
+        } else if (f.type !== "button" && f.type !== "signature") {
+            renderQueue.push({ kind: "field", field: f });
+        }
+    }
+
+    // Group fields by page
+    let lastPage = 0;
+    for (const item of renderQueue) {
+        const f = item.kind === "field" ? item.field : radioGroups[item.name];
+        if (f.page !== lastPage) {
+            lastPage = f.page;
+            const sep = document.createElement("h3");
+            sep.style.cssText = "margin:1rem 0 .4rem 0;font-size:1rem;color:var(--muted);border-bottom:1px solid var(--border);padding-bottom:.3rem";
+            sep.textContent = `Page ${f.page}`;
+            container.appendChild(sep);
+        }
+        container.appendChild(buildField(f, item.kind === "radio_group"));
+    }
+}
+
+function buildField(f, isRadioGroup) {
+    const wrap = document.createElement("div");
+    wrap.className = "form-group";
+    wrap.style.cssText = "margin:.4rem 0";
+
+    const label = document.createElement("label");
+    label.textContent = f.label || f.name;
+    if (f.required) {
+        const req = document.createElement("span");
+        req.textContent = " *";
+        req.style.color = "var(--danger)";
+        label.appendChild(req);
+    }
+    label.style.cssText = "display:block;font-size:.92rem;margin-bottom:.2rem";
+    label.title = `Internal name: ${f.name} | Type: ${f.type}`;
+    wrap.appendChild(label);
+
+    let input;
+    if (f.type === "checkbox") {
+        const lbl = document.createElement("label");
+        lbl.style.cssText = "display:inline-flex;align-items:center;gap:.4rem";
+        input = document.createElement("input");
+        input.type = "checkbox";
+        input.dataset.fieldName = f.name;
+        input.dataset.fieldType = "checkbox";
+        // Pre-check if currently set to anything other than Off / "" / false
+        if (f.value && f.value !== "Off" && f.value !== "false") input.checked = true;
+        const span = document.createElement("span");
+        span.textContent = "Check this box";
+        span.style.fontSize = ".9rem";
+        lbl.appendChild(input);
+        lbl.appendChild(span);
+        wrap.appendChild(lbl);
+        return wrap;
+    } else if (isRadioGroup) {
+        // Render one radio per option (value + label pair sniffed from PDF)
+        const opts = (f.options && f.options.length)
+            ? f.options
+            : [{ value: "On", label: "On" }];
+        for (const opt of opts) {
+            const lbl = document.createElement("label");
+            lbl.style.cssText = "display:inline-flex;align-items:center;gap:.4rem;margin-right:1rem";
+            const r = document.createElement("input");
+            r.type = "radio";
+            r.name = `radio-${f.name}`;
+            r.value = opt.value;
+            r.dataset.fieldName = f.name;
+            r.dataset.fieldType = "radio";
+            if (f.value === opt.value) r.checked = true;
+            const span = document.createElement("span");
+            span.textContent = opt.label;
+            span.style.fontSize = ".9rem";
+            // Show the PDF-internal value as a tooltip so power users can
+            // map back to the underlying widget if they need to.
+            if (opt.label !== opt.value) {
+                lbl.title = `PDF on-state: "${opt.value}"`;
+            }
+            lbl.appendChild(r);
+            lbl.appendChild(span);
+            wrap.appendChild(lbl);
+        }
+        return wrap;
+    } else if (f.type === "combobox" && f.editable) {
+        // Editable combobox: free-text input with the choice list as suggestions.
+        // The user can pick from the list OR type something not in it.
+        input = document.createElement("input");
+        input.type = "text";
+        input.dataset.fieldName = f.name;
+        input.dataset.fieldType = "combobox";
+        input.value = f.value || "";
+        input.style.width = "100%";
+        const listId = `dl-${f.name.replace(/[^A-Za-z0-9_-]/g, "_")}`;
+        input.setAttribute("list", listId);
+        const dl = document.createElement("datalist");
+        dl.id = listId;
+        for (const c of f.choices || []) {
+            const opt = document.createElement("option");
+            if (Array.isArray(c)) opt.value = c[0];
+            else opt.value = c;
+            dl.appendChild(opt);
+        }
+        wrap.appendChild(dl);
+        const hint = document.createElement("small");
+        hint.style.cssText = "color:var(--muted);display:block;margin-top:.2rem";
+        hint.textContent = "Pick from suggestions or type any value";
+        wrap.appendChild(hint);
+    } else if (f.type === "listbox" || f.type === "combobox") {
+        // Strict choice list (combobox without Edit flag, or any listbox).
+        input = document.createElement("select");
+        input.dataset.fieldName = f.name;
+        input.dataset.fieldType = f.type;
+        const empty = document.createElement("option");
+        empty.value = "";
+        empty.textContent = "(blank)";
+        input.appendChild(empty);
+        for (const c of f.choices || []) {
+            const opt = document.createElement("option");
+            if (Array.isArray(c)) {
+                opt.value = c[0]; opt.textContent = c[1] || c[0];
+            } else {
+                opt.value = c; opt.textContent = c;
+            }
+            if (f.value === opt.value) opt.selected = true;
+            input.appendChild(opt);
+        }
+        const hint = document.createElement("small");
+        hint.style.cssText = "color:var(--muted);display:block;margin-top:.2rem";
+        hint.textContent = "Choices are defined inside the PDF; only these values are accepted";
+        wrap.appendChild(input);
+        wrap.appendChild(hint);
+        return wrap;
+    } else if (f.multiline) {
+        input = document.createElement("textarea");
+        input.rows = 3;
+        input.dataset.fieldName = f.name;
+        input.dataset.fieldType = "text";
+        input.value = f.value || "";
+        input.style.width = "100%";
+    } else {
+        input = document.createElement("input");
+        input.type = "text";
+        input.dataset.fieldName = f.name;
+        input.dataset.fieldType = "text";
+        input.value = f.value || "";
+        if (f.max_length) input.maxLength = f.max_length;
+        input.style.width = "100%";
+    }
+
+    if (f.readonly) {
+        input.disabled = true;
+        const note = document.createElement("small");
+        note.style.cssText = "color:var(--muted);margin-left:.4rem";
+        note.textContent = "(read-only)";
+        wrap.appendChild(note);
+    }
+
+    wrap.appendChild(input);
+    return wrap;
+}
+
+function collectValues() {
+    const map = {};
+    for (const el of document.querySelectorAll("[data-field-name]")) {
+        const name = el.dataset.fieldName;
+        const t = el.dataset.fieldType;
+        if (t === "checkbox") {
+            map[name] = el.checked;
+        } else if (t === "radio") {
+            if (el.checked) map[name] = el.value;
+        } else {
+            map[name] = el.value;
+        }
+    }
+    // For radio groups where nothing was checked, ensure we send "Off"
+    for (const grp of new Set(Array.from(document.querySelectorAll('[data-field-type="radio"]'))
+                                   .map(e => e.dataset.fieldName))) {
+        if (!(grp in map)) map[grp] = "Off";
+    }
+    return map;
+}
+
+async function applyValues() {
+    if (!pdfBlob) return;
+    const status = document.getElementById("apply-status");
+    status.textContent = "Applying values & generating filled PDF...";
+
+    const fd = new FormData();
+    fd.append("files", pdfBlob, pdfFilename);
+    fd.append("values", JSON.stringify(collectValues()));
+
+    try {
+        const r = await fetch("/pdf/form-fill", { method: "POST", body: fd });
+        if (!r.ok) {
+            const j = await r.json().catch(() => ({}));
+            status.innerHTML = `<span style="color:var(--danger)"><i class="bi bi-x-circle"></i> ${j.error || "Fill failed"}</span>`;
+            return;
+        }
+        const blob = await r.blob();
+        const applied = r.headers.get("X-Fields-Applied") || "?";
+        const skipped = r.headers.get("X-Fields-Skipped") || "0";
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = pdfFilename.replace(/\.pdf$/i, "") + "_filled.pdf";
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        status.innerHTML = `<span style="color:var(--success)"><i class="bi bi-check-circle"></i> Downloaded — ${applied} field${applied === "1" ? "" : "s"} filled` +
+                           (skipped !== "0" ? `, ${skipped} skipped` : "") + "</span>";
+    } catch (e) {
+        status.innerHTML = `<span style="color:var(--danger)"><i class="bi bi-x-circle"></i> Network error: ${e.message}</span>`;
+    }
+}
+
+function clearAllValues() {
+    for (const el of document.querySelectorAll("[data-field-name]")) {
+        if (el.dataset.fieldType === "checkbox" || el.dataset.fieldType === "radio") {
+            el.checked = false;
+        } else if (el.tagName === "SELECT") {
+            el.selectedIndex = 0;
+        } else {
+            el.value = "";
+        }
+    }
+}
+
+function resetForm() {
+    pdfBlob = null;
+    pdfFilename = "";
+    document.getElementById("pdf-input").value = "";
+    document.getElementById("step-2").style.display = "none";
+    document.getElementById("step-1").style.display = "block";
+    document.getElementById("inspect-status").textContent = "";
+    document.getElementById("apply-status").textContent = "";
+}
+
+function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    }[c]));
+}
+
+// Wire up step transition
+const _origInspect = inspectPdf;
+inspectPdf = async function () {
+    await _origInspect();
+    if (document.getElementById("fields-container").children.length > 0) {
+        document.getElementById("step-1").style.display = "none";
+        document.getElementById("step-2").style.display = "block";
+    }
+};
+</script>
+{% endblock %}

@@ -1,6 +1,6 @@
 # Your Everyday Tools
 
-A lightweight, self-hosted web app that bundles 91 everyday utilities into a single interface. Built with Python + Flask, zero JavaScript frameworks, and minimal CSS — no bloat, just tools.
+A lightweight, self-hosted web app that bundles 100 everyday utilities into a single interface. Built with Python + Flask, zero JavaScript frameworks, and minimal CSS — no bloat, just tools.
 
 ![Python](https://img.shields.io/badge/Python-3.10+-blue)
 ![Flask](https://img.shields.io/badge/Flask-3.x-green)
@@ -13,7 +13,6 @@ See [CHANGELOG.md](CHANGELOG.md) for release history and recent fixes.
 
 - Codeberg: https://codeberg.org/listyantidewi/your-everyday-tools
 - Bitbucket: https://bitbucket.org/your-everyday-tools/your-every-tools
-- GitHub: https://github.com/listyantidewi1/your-everyday-tools
 
 **Desktop App (Windows installer):**
 
@@ -128,6 +127,8 @@ Installer akan ada di `electron-wrapper/dist/`.
 | **Protect PDF**    | Encrypt a PDF with user and owner passwords (AES-256)                                                   |
 | **Unlock PDF**     | Remove password protection from a PDF                                                                   |
 | **Sign PDF**       | Stamp a signature image (PNG/JPG) onto selected pages with position, width, margin, and opacity control |
+| **Redact PDF**     | Permanently black-out sensitive text by literal match or regex (emails, card numbers, IDs, etc.). Underlying text is removed from the content stream so it can't be recovered with copy-paste. |
+| **Fill PDF Form**  | Upload a PDF that has AcroForm fields (tax forms, contracts, gov applications), fill text/checkbox/radio/dropdown fields in your browser, and download the filled PDF. Two-step flow: detect fields → fill → download. |
 
 ### Image Tools
 
@@ -147,6 +148,7 @@ Installer akan ada di `electron-wrapper/dist/`.
 | **Color Palette**       | Extract a dominant color palette (2–16 colors) from an image via quantization or grid sampling. Includes swatch preview with hex codes. |
 | **SVG to PNG**          | Rasterize SVG vectors to PNG at a chosen width, with optional transparent background                                                    |
 | **SVG Optimizer**       | Strip comments, editor metadata (Inkscape/Sketch/Adobe namespaces), and round decimals to shrink SVG files                              |
+| **HEIC Converter**      | Convert iPhone `.heic` / `.heif` photos to JPG, PNG, or WebP (single or bulk → ZIP). Once installed, all other image tools also accept HEIC inputs.                                          |
 
 ### Text & Data (client-side, no upload needed)
 
@@ -164,6 +166,8 @@ Installer akan ada di `electron-wrapper/dist/`.
 | **Slug Generator**   | Create URL-friendly slugs from any text                                            |
 | **JSON / YAML**      | Convert between JSON and YAML formats                                              |
 | **Lorem Ipsum**      | Generate placeholder text by paragraphs, sentences, or words                       |
+| **Line Tools**       | Sort A→Z / Z→A / numerically, dedupe (keep order or alphabetic), shuffle, reverse, trim, drop empty, number lines, count words/chars |
+| **Extract Patterns** | Pull emails, URLs, phone numbers, IPv4/IPv6 addresses, hashtags, @mentions, or numbers out of any text — with dedupe and sorting     |
 
 ### Calculators (client-side)
 
@@ -185,6 +189,7 @@ Installer akan ada di `electron-wrapper/dist/`.
 | **Generate QR**      | Create QR codes from text/URLs with custom size, border, and color                                |
 | **Read QR**          | Decode QR codes from uploaded images                                                              |
 | **Generate Barcode** | Create 1D barcodes — Code128, Code39, EAN-13/8, UPC-A, ISBN-10/13, ISSN, JAN, PZN — as PNG or SVG |
+| **WiFi QR Code**     | Generate a scan-to-join WiFi QR (WPA / WEP / open). Special characters in SSID/password are properly escaped. Print and stick on a wall. |
 
 ### Security
 
@@ -193,6 +198,8 @@ Installer akan ada di `electron-wrapper/dist/`.
 | **Password Generator** | Generate strong random passwords with configurable length, character types, and entropy display                 |
 | **Hash Generator**     | Generate MD5, SHA-1, SHA-256, and SHA-512 hashes from text                                                      |
 | **File Hash**          | Compute MD5, SHA-1, SHA-256, and SHA-512 hashes of an uploaded file (streamed, no size cap beyond upload limit) |
+| **Encrypt File**       | AES-256-CBC encrypt any file with a passphrase. PBKDF2-HMAC-SHA256 (600,000 iterations) for key derivation. Output is byte-identical to `openssl enc -aes-256-cbc -pbkdf2 -iter 600000`. |
+| **Decrypt File**       | Decrypt files produced by Encrypt File or by the matching `openssl` command. Wrong passphrase returns a clean error rather than corrupted output. |
 
 ### Developer Utilities
 
@@ -229,6 +236,8 @@ Installer akan ada di `electron-wrapper/dist/`.
 | **Video to GIF**      | Convert a clip to an animated GIF with configurable FPS, width, start, and duration          |
 | **Convert Subtitles** | Convert between SRT and WebVTT with optional time shift (positive or negative seconds)       |
 | **Burn Subtitles**    | Permanently render a `.srt`/`.vtt` into a video (hardsub) with font-size and quality control |
+| **Normalize Audio**   | Loudness-normalize audio (or video) to a target LUFS via FFmpeg `loudnorm`. Presets for streaming (-14), Apple Podcasts (-16), EBU R128 broadcast (-23), ATSC A/85 (-24). |
+| **Speech to Text**    | Local Whisper transcription to text, SRT, or VTT. Choose model size (tiny → large) and language hint. Optional install: `pip install openai-whisper`. Slow on CPU, fast on GPU.            |
 
 ---
 

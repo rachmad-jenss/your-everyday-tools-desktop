@@ -61,3 +61,13 @@ def json_yaml():
 @bp.route("/lorem-ipsum")
 def lorem_ipsum():
     return render_template("tools/lorem_ipsum.html")
+
+
+@bp.route("/line-tools")
+def line_tools():
+    return render_template("tools/line_tools.html")
+
+
+@bp.route("/extract-patterns")
+def extract_patterns():
+    return render_template("tools/extract_patterns.html")
