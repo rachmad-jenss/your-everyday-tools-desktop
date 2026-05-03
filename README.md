@@ -31,27 +31,25 @@ Tidak mau setup Python? Download installer desktop yang langsung jalan tanpa ins
 ### Fitur Desktop
 
 - **Langsung jalan** — Tidak perlu install Python, pip, atau dependency lainnya
-- **Installer ringan** — ~313 MB (FFmpeg & Tesseract didownload terpisah on-demand)
+- **Installer ringan** — ~315 MB (FFmpeg & Tesseract didownload terpisah, dipilih saat instalasi)
 - **Auto-update** — Notifikasi otomatis saat ada versi baru via GitHub Releases
-- **Download komponen on-demand** — Pilih FFmpeg & Tesseract saat pertama kali buka; bisa diubah kapan saja lewat **Help → Kelola Komponen**
+- **Kelola komponen** — Pilih FFmpeg & Tesseract langsung di wizard installer; bisa diubah kapan saja lewat **Help → Kelola Komponen**
 - **Tool availability** — Tools yang dependency-nya tidak tersedia otomatis di-disable
 
 ### Komponen Opsional
 
-Saat pertama kali buka, app akan menawarkan untuk mendownload:
+Dipilih saat proses instalasi (bisa di-skip dan diinstall nanti lewat **Help → Kelola Komponen**):
 
-| Komponen | Ukuran | Tools yang diaktifkan |
+| Komponen | Ukuran download | Tools yang diaktifkan |
 |---|---|---|
-| **FFmpeg** | ~70 MB | Convert/trim/compress audio & video, normalize audio, burn subtitles, video-to-GIF |
-| **Tesseract OCR** | ~63 MB | OCR PDF, Image to Text (English + Indonesia) |
-
-Bisa lewati dan download nanti lewat **Help → Kelola Komponen**.
+| **FFmpeg** | ~193 MB | Convert/trim/compress audio & video, normalize audio, burn subtitles, video-to-GIF |
+| **Tesseract OCR** | ~182 MB | OCR PDF, Image to Text (English + Indonesia) |
 
 ### Cara Install
 
 1. Download `Your Everyday Tools Setup x.x.x.exe` dari [Releases](https://github.com/rachmad-jenss/your-everyday-tools-desktop/releases/latest)
 2. Jalankan installer, pilih lokasi instalasi
-3. Saat pertama kali buka, centang komponen yang mau didownload (opsional)
+3. Di halaman **Komponen Opsional**, centang FFmpeg dan/atau Tesseract yang mau didownload — download langsung terjadi selama proses instalasi
 4. Selesai!
 
 ### Upgrade
@@ -68,7 +66,7 @@ pip install -r requirements.txt
 pyinstaller your-everyday-tools.spec --noconfirm
 
 # 2. Copy hasil build ke Electron resources
-xcopy /E /I /Y dist\YourEverydayTools electron-wrapper\resources\backend
+robocopy dist\YourEverydayTools electron-wrapper\resources\backend /E /NFL /NDL /NJH /NJS
 
 # 3. Build installer
 cd electron-wrapper

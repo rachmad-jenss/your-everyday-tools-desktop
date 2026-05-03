@@ -2,6 +2,22 @@
 
 All notable changes to **Your Everyday Tools** are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project loosely follows [Semantic Versioning](https://semver.org/).
 
+## [Desktop 1.2.2] — 2026-05-03
+
+Desktop-only release. No changes to the Flask/Python backend.
+
+### Fixed
+
+- **`ModuleNotFoundError: No module named 'jaraco'`** — Flask failed to start because `pkg_resources` (imported by the PyInstaller runtime hook `pyi_rth_pkgres`) pulls in `jaraco.text` at module level. Added `jaraco.text` as an explicit `hiddenimport` in the `.spec` file so PyInstaller bundles it correctly.
+- **curl.exe crash (0xc0000142) during component download** — NSIS `makensis.exe` is a 32-bit process; `$SYSDIR` therefore resolves to `SysWOW64`, where the Windows-bundled `curl.exe` fails to initialize under `CREATE_NO_WINDOW`. Replaced all curl calls with `PowerShell WebClient.DownloadFile`, which works correctly in the NSIS `nsExec::ExecToLog` environment.
+- **Console windows appearing during install** — switched component download/extract commands from `ExecWait` (creates a visible console window) to `nsExec::ExecToLog` (runs hidden, logs output to the NSIS detail box).
+- **Cek Update showed no dialog when already up to date** — `update-not-available` event only logged to console; `checkForUpdatesManual()` also had a broken promise-chain check. Fixed with a `isManualUpdateCheck` flag: manual checks now always show a dialog ("Tidak ada update" or "Tidak bisa cek update").
+
+### Improved
+
+- **Component selection moved into the NSIS installer wizard** — FFmpeg and Tesseract checkboxes now appear as a dedicated wizard page (after directory selection, before the Installing progress screen). Downloads and extraction happen during installation rather than on first app launch.
+- **Kelola Komponen shows installed status** — when opening *Help → Kelola Komponen*, components that are already installed now show a green **✓ Terinstall** badge and are unchecked by default (no accidental re-download). If all components are installed, the subtitle changes to "Semua komponen sudah terinstall. Centang jika ingin menginstall ulang." and the skip button becomes "Tutup".
+
 ## [0.6.2] — 2026-04-29
 
 ### Improved — Requirements & expectations on every tool page
