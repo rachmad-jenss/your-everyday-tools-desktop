@@ -218,6 +218,19 @@ a { color: var(--primary); text-decoration: none; }
 .tool-card .card-body h3 { font-size: .95rem; font-weight: 600; margin-bottom: .15rem; }
 .tool-card .card-body p { font-size: .8rem; color: var(--text-light); line-height: 1.35; }
 
+/* ── Disabled tools (desktop build) ──────────── */
+.tool-card.disabled {
+    opacity: .38;
+    pointer-events: none;
+    cursor: default;
+    filter: grayscale(1);
+}
+.nav-item.disabled {
+    opacity: .38;
+    pointer-events: none;
+    cursor: default;
+}
+
 /* ── Tool Page ────────────────────────────────── */
 .tool-page { max-width: 700px; }
 .tool-header { margin-bottom: 1.5rem; }

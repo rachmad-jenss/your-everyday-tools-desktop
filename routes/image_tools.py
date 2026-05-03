@@ -1,4 +1,6 @@
 import io
+import os
+import sys as _sys
 from flask import Blueprint, render_template, request, send_file, jsonify
 from PIL import Image, ImageDraw, ImageFont
 from PIL.ExifTags import TAGS
@@ -8,11 +10,19 @@ from routes._helpers import safe_int, safe_float, log_error, NO_FILE_SINGLE
 try:
     from rembg import remove as rembg_remove
     HAS_REMBG = True
-except ImportError:
+except (ImportError, SystemExit):
     HAS_REMBG = False
 
 try:
     import pytesseract
+    if getattr(_sys, "frozen", False):
+        _tess_dir = os.path.join(_sys._MEIPASS, "vendor", "tesseract")
+    else:
+        _tess_dir = os.path.join(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")), "vendor", "tesseract")
+    _tess_exe = os.path.join(_tess_dir, "tesseract.exe" if _sys.platform == "win32" else "tesseract")
+    if os.path.isfile(_tess_exe):
+        pytesseract.pytesseract.tesseract_cmd = _tess_exe
+        os.environ.setdefault("TESSDATA_PREFIX", os.path.join(_tess_dir, "tessdata"))
     HAS_TESSERACT = True
 except ImportError:
     HAS_TESSERACT = False

@@ -1,8 +1,8 @@
 import io
+import os
 import fitz  # PyMuPDF
 from flask import Blueprint, render_template, request, send_file, jsonify
 from PIL import Image
-import img2pdf
 from docx import Document as DocxDocument
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -27,6 +27,15 @@ except ImportError:
 
 try:
     import pytesseract
+    import sys as _sys
+    if getattr(_sys, "frozen", False):
+        _tess_dir = os.path.join(_sys._MEIPASS, "vendor", "tesseract")
+    else:
+        _tess_dir = os.path.join(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")), "vendor", "tesseract")
+    _tess_exe = os.path.join(_tess_dir, "tesseract.exe" if _sys.platform == "win32" else "tesseract")
+    if os.path.isfile(_tess_exe):
+        pytesseract.pytesseract.tesseract_cmd = _tess_exe
+        os.environ.setdefault("TESSDATA_PREFIX", os.path.join(_tess_dir, "tessdata"))
     HAS_TESSERACT = True
 except ImportError:
     HAS_TESSERACT = False
@@ -39,7 +48,7 @@ try:
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     HAS_EZDXF = True
-except ImportError:
+except (ImportError, ModuleNotFoundError, OSError):
     HAS_EZDXF = False
 
 import shutil

@@ -21,9 +21,15 @@
                 </button>
                 <div class="nav-items">
                     {% for tool in cat.tools %}
+                    {% if tool.disabled %}
+                    <span class="nav-item disabled" title="{{ tool.disabled_reason }}">
+                        <i class="bi {{ tool.icon }}"></i> {{ tool.name }}
+                    </span>
+                    {% else %}
                     <a href="/{{ cat.id }}/{{ tool.id }}" class="nav-item">
                         <i class="bi {{ tool.icon }}"></i> {{ tool.name }}
                     </a>
+                    {% endif %}
                     {% endfor %}
                 </div>
             </div>

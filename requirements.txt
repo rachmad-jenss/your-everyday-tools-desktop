@@ -16,6 +16,10 @@ sqlparse
 croniter
 jsonpath-ng
 
+# Production WSGI servers (waitress works cross-platform, gunicorn is unix-only)
+waitress
+gunicorn; sys_platform != 'win32'
+
 # Optional (app works without these, shows install message if missing)
 rembg
 pyzbar

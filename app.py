@@ -1,7 +1,36 @@
 import os
+import sys
+import signal
+import socket
 from flask import Flask, render_template
 
-app = Flask(__name__)
+IS_FROZEN = getattr(sys, "frozen", False)
+
+
+def resource_path(relative_path):
+    if IS_FROZEN:
+        base = sys._MEIPASS
+    else:
+        base = os.path.abspath(os.path.dirname(__file__))
+    return os.path.join(base, relative_path)
+
+
+def find_free_port(start=5000, end=5010):
+    for port in range(start, end + 1):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            try:
+                s.bind(("127.0.0.1", port))
+                return port
+            except OSError:
+                continue
+    return start
+
+
+app = Flask(
+    __name__,
+    template_folder=resource_path("templates"),
+    static_folder=resource_path("static"),
+)
 app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024  # 100 MB max upload
 
 TOOL_CATEGORIES = [
@@ -175,9 +204,54 @@ TOOL_CATEGORIES = [
 ]
 
 
+# Tools that are permanently unavailable in the desktop (frozen) build
+# because their dependencies are too large to bundle.
+FROZEN_DISABLED_TOOLS = {
+    ("image", "remove-bg"): "Butuh rembg + onnxruntime (~2 GB)",
+    ("qr", "read"): "Butuh pyzbar + zbar DLL",
+}
+
+# Tools that require FFmpeg
+FFMPEG_TOOLS = {
+    ("media", "convert-audio"), ("media", "convert-video"),
+    ("media", "extract-audio"), ("media", "trim"),
+    ("media", "compress-video"), ("media", "video-to-gif"),
+    ("media", "burn-subtitles"),
+}
+
+# Tools that require Tesseract
+TESSERACT_TOOLS = {
+    ("convert", "ocr-pdf"),
+    ("image", "ocr"),
+}
+
+
 @app.context_processor
 def inject_tools():
-    return {"tool_categories": TOOL_CATEGORIES}
+    if not IS_FROZEN:
+        return {"tool_categories": TOOL_CATEGORIES}
+
+    import copy
+    import shutil
+
+    # Check if FFmpeg/Tesseract are actually available
+    from routes.media_tools import FFMPEG
+    from routes.image_tools import HAS_TESSERACT
+
+    categories = copy.deepcopy(TOOL_CATEGORIES)
+    for cat in categories:
+        for tool in cat["tools"]:
+            key = (cat["id"], tool["id"])
+            if key in FROZEN_DISABLED_TOOLS:
+                tool["disabled"] = True
+                tool["disabled_reason"] = FROZEN_DISABLED_TOOLS[key]
+            elif key in FFMPEG_TOOLS and not FFMPEG:
+                tool["disabled"] = True
+                tool["disabled_reason"] = "FFmpeg tidak terinstall"
+            elif key in TESSERACT_TOOLS and not HAS_TESSERACT:
+                tool["disabled"] = True
+                tool["disabled_reason"] = "Tesseract OCR tidak terinstall"
+    return {"tool_categories": categories}
 
 
 @app.route("/")
@@ -220,5 +294,55 @@ app.register_blueprint(dev_bp, url_prefix="/dev")
 app.register_blueprint(archive_bp, url_prefix="/archive")
 app.register_blueprint(media_bp, url_prefix="/media")
 
+def _shutdown_handler(signum, frame):
+    raise SystemExit(0)
+
+
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    signal.signal(signal.SIGINT, _shutdown_handler)
+    signal.signal(signal.SIGTERM, _shutdown_handler)
+
+    port = find_free_port()
+
+    if IS_FROZEN:
+        # Write the chosen port so Electron can read it
+        port_file = os.path.join(
+            os.environ.get("TEMP", os.environ.get("TMPDIR", "/tmp")),
+            "yet-desktop-port.txt",
+        )
+        with open(port_file, "w") as f:
+            f.write(str(port))
+
+        wrapped_by_electron = os.environ.get("ELECTRON_WRAPPER") == "1"
+
+        if not wrapped_by_electron:
+            import webbrowser
+            import threading
+            threading.Timer(1.5, webbrowser.open, args=[f"http://127.0.0.1:{port}"]).start()
+
+        if sys.platform == "win32":
+            from waitress import serve
+            serve(app, host="127.0.0.1", port=port)
+        else:
+            try:
+                import gunicorn.app.base
+
+                class StandaloneGunicorn(gunicorn.app.base.BaseApplication):
+                    def __init__(self, flask_app, options=None):
+                        self.options = options or {}
+                        self.flask_app = flask_app
+                        super().__init__()
+
+                    def load_config(self):
+                        for k, v in self.options.items():
+                            self.cfg.set(k.lower(), v)
+
+                    def load(self):
+                        return self.flask_app
+
+                StandaloneGunicorn(app, {"bind": f"127.0.0.1:{port}", "workers": 2}).run()
+            except ImportError:
+                from waitress import serve
+                serve(app, host="127.0.0.1", port=port)
+    else:
+        app.run(debug=True, host="127.0.0.1", port=port)

@@ -1,3 +1,23 @@
 .claude
 __pycache__
 .gitignore
+
+# PyInstaller
+build/
+dist/
+*.spec.bak
+
+# Python venv
+venv/
+
+# Electron
+electron-wrapper/node_modules/
+electron-wrapper/dist/
+electron-wrapper/resources/backend/
+
+# Vendor binaries (FFmpeg, Tesseract — too large for git)
+vendor/
+
+# Temp files
+*.pyc
+*.pyo

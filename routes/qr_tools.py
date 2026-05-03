@@ -9,7 +9,7 @@ try:
     from pyzbar.pyzbar import decode as pyzbar_decode
     from PIL import Image
     HAS_PYZBAR = True
-except ImportError:
+except (ImportError, FileNotFoundError, OSError):
     HAS_PYZBAR = False
 
 try:

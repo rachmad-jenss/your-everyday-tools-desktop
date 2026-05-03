@@ -1,0 +1,78 @@
+{
+  "name": "your-everyday-tools-desktop",
+  "version": "1.1.0",
+  "description": "Your Everyday Tools — 89+ offline utilities in a desktop app",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build-win": "electron-builder --win",
+    "build-mac": "electron-builder --mac"
+  },
+  "author": "Your Everyday Tools",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "com.youreverydaytools.desktop",
+    "productName": "Your Everyday Tools",
+    "asar": true,
+    "directories": {
+      "output": "dist"
+    },
+    "extraResources": [
+      {
+        "from": "resources/backend/",
+        "to": "backend",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "../images/icon.ico",
+      "sign": "./sign.js"
+    },
+    "forceCodeSigning": false,
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "../images/icon.ico",
+      "include": "installer.nsh",
+      "warningsAsErrors": false
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "rachmad-jenss",
+        "repo": "your-everyday-tools-desktop"
+      }
+    ],
+    "mac": {
+      "target": "dmg",
+      "icon": "../images/icon.icns",
+      "category": "public.app-category.utilities",
+      "identity": null
+    },
+    "dmg": {
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    }
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.3"
+  }
+}
