@@ -1,9 +1,11 @@
-const { app, BrowserWindow, Menu, shell, dialog, Notification } = require("electron");
+const { app, BrowserWindow, Menu, shell, dialog, ipcMain } = require("electron");
 const { spawn, execFileSync } = require("child_process");
 const { autoUpdater } = require("electron-updater");
 const path = require("path");
 const fs = require("fs");
 const http = require("http");
+const https = require("https");
+const os = require("os");
 
 let mainWindow = null;
 let flaskProcess = null;
@@ -273,6 +275,13 @@ function buildMenu() {
           label: "Cek Update...",
           click: () => checkForUpdatesManual(),
         },
+        {
+          label: "Kelola Komponen...",
+          click: async () => {
+            if (downloaderWindow) { downloaderWindow.focus(); return; }
+            await showDownloaderWindow(true);
+          },
+        },
         { type: "separator" },
         {
           label: "About Your Everyday Tools",
@@ -344,7 +353,7 @@ function createWindow(port) {
   });
 }
 
-// ── First-run component selection ────────────────────────
+// ── Component download system ─────────────────────────────
 
 function getVendorPath() {
   const isPackaged = !process.defaultApp;
@@ -354,76 +363,194 @@ function getVendorPath() {
   return path.join(__dirname, "..", "dist", "YourEverydayTools", "_internal", "vendor");
 }
 
-const COMPONENT_FLAG = path.join(
-  app.getPath("userData"),
-  "components-configured.json"
-);
+const COMPONENT_FLAG = path.join(app.getPath("userData"), "components-configured.json");
 
-async function showComponentSelection() {
-  // Skip if already configured
-  if (fs.existsSync(COMPONENT_FLAG)) return;
+// ─── Update these URLs after uploading zips to GitHub Releases ───────────────
+// Tag: components-v1  (create once, never changes)
+// Upload: ffmpeg-windows.zip, tesseract-windows.zip
+const COMPONENT_DOWNLOADS = {
+  ffmpeg: {
+    name: "FFmpeg",
+    url: "https://github.com/rachmad-jenss/your-everyday-tools-desktop/releases/download/components-v1/ffmpeg-windows.zip",
+    dest: "ffmpeg",
+  },
+  tesseract: {
+    name: "Tesseract OCR",
+    url: "https://github.com/rachmad-jenss/your-everyday-tools-desktop/releases/download/components-v1/tesseract-windows.zip",
+    dest: "tesseract",
+  },
+};
+// ─────────────────────────────────────────────────────────────────────────────
 
-  const vendorDir = getVendorPath();
-  const ffmpegDir = path.join(vendorDir, "ffmpeg");
-  const tesseractDir = path.join(vendorDir, "tesseract");
+/** Stream-download a URL to destPath, calling onProgress(0-100). Follows redirects. */
+function downloadFile(url, destPath, onProgress) {
+  return new Promise((resolve, reject) => {
+    const file = fs.createWriteStream(destPath);
+    let downloaded = 0;
 
-  const hasFFmpeg = fs.existsSync(ffmpegDir);
-  const hasTesseract = fs.existsSync(tesseractDir);
-
-  // Skip if nothing to configure (vendor dirs don't exist)
-  if (!hasFFmpeg && !hasTesseract) {
-    fs.writeFileSync(COMPONENT_FLAG, JSON.stringify({ ffmpeg: false, tesseract: false }));
-    return;
-  }
-
-  const choices = [];
-  if (hasFFmpeg) choices.push("FFmpeg — Audio/Video tools (~193 MB)");
-  if (hasTesseract) choices.push("Tesseract OCR — English + Indonesia (~182 MB)");
-  choices.push("Simpan semua komponen");
-
-  const { response } = await dialog.showMessageBox({
-    type: "question",
-    title: "Pilih Komponen",
-    message: "Komponen tambahan mana yang ingin kamu simpan?",
-    detail:
-      "Kamu bisa menghapus komponen yang tidak diperlukan untuk menghemat disk space.\n\n" +
-      (hasFFmpeg ? "• FFmpeg (~193 MB): Dibutuhkan untuk convert audio/video, extract audio, trim, merge\n" : "") +
-      (hasTesseract ? "• Tesseract OCR (~182 MB): Dibutuhkan untuk OCR PDF, image to text\n" : "") +
-      "\nPilih komponen yang ingin DIHAPUS, atau simpan semua.",
-    buttons: [
-      ...(hasFFmpeg ? ["Hapus FFmpeg"] : []),
-      ...(hasTesseract ? ["Hapus Tesseract"] : []),
-      "Simpan Semua",
-    ],
-    defaultId: choices.length - 1,
-    cancelId: choices.length - 1,
-    noLink: true,
+    const doGet = (reqUrl, hops) => {
+      if (hops > 10) { reject(new Error("Too many redirects")); return; }
+      const client = reqUrl.startsWith("https") ? https : http;
+      client.get(reqUrl, { headers: { "User-Agent": "YETDesktop" } }, (res) => {
+        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          res.resume();
+          doGet(res.headers.location, hops + 1);
+          return;
+        }
+        if (res.statusCode !== 200) {
+          file.destroy();
+          reject(new Error(`HTTP ${res.statusCode} — ${reqUrl}`));
+          return;
+        }
+        const total = parseInt(res.headers["content-length"] || "0", 10);
+        res.on("data", (chunk) => {
+          downloaded += chunk.length;
+          file.write(chunk);
+          if (total > 0) onProgress(Math.round((downloaded / total) * 100));
+        });
+        res.on("end", () => { file.end(); resolve(); });
+        res.on("error", (err) => { file.destroy(); reject(err); });
+      }).on("error", (err) => { file.destroy(); reject(err); });
+    };
+    doGet(url, 0);
   });
+}
 
-  const config = { ffmpeg: hasFFmpeg, tesseract: hasTesseract };
-  const buttonLabels = [];
-  if (hasFFmpeg) buttonLabels.push("ffmpeg");
-  if (hasTesseract) buttonLabels.push("tesseract");
+/** Extract a zip file to destDir using PowerShell (Windows) or unzip (macOS/Linux). */
+function extractZip(zipPath, destDir) {
+  return new Promise((resolve, reject) => {
+    fs.mkdirSync(destDir, { recursive: true });
+    let cmd, args;
+    if (process.platform === "win32") {
+      cmd = "powershell";
+      args = [
+        "-NonInteractive", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command",
+        `Expand-Archive -LiteralPath '${zipPath.replace(/'/g, "''")}' -DestinationPath '${destDir.replace(/'/g, "''")}' -Force`,
+      ];
+    } else {
+      cmd = "unzip";
+      args = ["-o", zipPath, "-d", destDir];
+    }
+    const proc = spawn(cmd, args, { windowsHide: true, stdio: "pipe" });
+    let stderr = "";
+    proc.stderr.on("data", (d) => (stderr += d.toString()));
+    proc.on("close", (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`Extraction failed (exit ${code}): ${stderr.slice(0, 300)}`));
+    });
+    proc.on("error", reject);
+  });
+}
 
-  const selected = buttonLabels[response];
-  if (selected === "ffmpeg" && hasFFmpeg) {
-    fs.rmSync(ffmpegDir, { recursive: true, force: true });
-    config.ffmpeg = false;
-    console.log("[Setup] Removed FFmpeg");
-  } else if (selected === "tesseract" && hasTesseract) {
-    fs.rmSync(tesseractDir, { recursive: true, force: true });
-    config.tesseract = false;
-    console.log("[Setup] Removed Tesseract");
+/** Download + extract one component, sending IPC progress to the downloader window. */
+async function downloadComponent(id, win) {
+  const comp = COMPONENT_DOWNLOADS[id];
+  const vendorDir = getVendorPath();
+  const destDir = path.join(vendorDir, comp.dest);
+  const tmpPath = path.join(os.tmpdir(), `yet-${id}-${Date.now()}.zip`);
+
+  const send = (data) => {
+    if (win && !win.isDestroyed()) win.webContents.send("download:progress", data);
+  };
+
+  try {
+    send({ id, percent: 0, statusText: "Menghubungi server...", noteText: "", mode: "download" });
+    await downloadFile(comp.url, tmpPath, (pct) => {
+      send({ id, percent: pct, statusText: `${pct}%`, noteText: "", mode: "download" });
+    });
+
+    send({ id, percent: 100, statusText: "Mengekstrak...", noteText: "Mohon tunggu...", mode: "extract" });
+    await extractZip(tmpPath, destDir);
+    try { fs.unlinkSync(tmpPath); } catch (_) {}
+
+    console.log(`[Downloader] ${id} installed to ${destDir}`);
+    if (win && !win.isDestroyed()) win.webContents.send("download:component-done", { id, success: true });
+    return true;
+  } catch (err) {
+    console.error(`[Downloader] ${id} failed:`, err.message);
+    try { fs.unlinkSync(tmpPath); } catch (_) {}
+    try { fs.rmSync(destDir, { recursive: true, force: true }); } catch (_) {}
+    if (win && !win.isDestroyed()) {
+      win.webContents.send("download:component-done", { id, success: false, error: err.message });
+    }
+    return false;
+  }
+}
+
+let downloaderWindow = null;
+
+/** Open the component downloader window. Resolves when the window closes. */
+function showDownloaderWindow(forceShow = false) {
+  // Skip if already configured (unless forced from menu)
+  if (!forceShow && fs.existsSync(COMPONENT_FLAG)) return Promise.resolve();
+
+  return new Promise((resolve) => {
+    downloaderWindow = new BrowserWindow({
+      width: 460,
+      height: 490,
+      resizable: false,
+      maximizable: false,
+      title: "Komponen Opsional — Your Everyday Tools",
+      webPreferences: {
+        preload: path.join(__dirname, "preload-downloader.js"),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
+    });
+
+    downloaderWindow.setMenuBarVisibility(false);
+    downloaderWindow.loadFile(path.join(__dirname, "downloader.html"));
+
+    downloaderWindow.on("closed", () => {
+      downloaderWindow = null;
+      resolve();
+    });
+  });
+}
+
+// ── IPC handlers for downloader window ───────────────────
+
+ipcMain.on("download:start", async (event, components) => {
+  const win = downloaderWindow;
+  let anySuccess = false;
+  let anyError = false;
+
+  for (const id of components) {
+    if (!COMPONENT_DOWNLOADS[id]) continue;
+    const ok = await downloadComponent(id, win);
+    if (ok) anySuccess = true; else anyError = true;
   }
 
-  fs.writeFileSync(COMPONENT_FLAG, JSON.stringify(config));
-}
+  // Save flag so first-run dialog doesn't repeat
+  try {
+    const vendorDir = getVendorPath();
+    const config = {};
+    for (const id of Object.keys(COMPONENT_DOWNLOADS)) {
+      config[id] = fs.existsSync(path.join(vendorDir, COMPONENT_DOWNLOADS[id].dest));
+    }
+    fs.writeFileSync(COMPONENT_FLAG, JSON.stringify(config));
+  } catch (_) {}
+
+  if (win && !win.isDestroyed()) {
+    win.webContents.send("download:all-done", { anySuccess, anyError });
+  }
+});
+
+ipcMain.on("download:skip", () => {
+  try { fs.writeFileSync(COMPONENT_FLAG, JSON.stringify({ skipped: true })); } catch (_) {}
+  if (downloaderWindow && !downloaderWindow.isDestroyed()) downloaderWindow.close();
+});
+
+ipcMain.on("download:finish", () => {
+  if (downloaderWindow && !downloaderWindow.isDestroyed()) downloaderWindow.close();
+});
 
 app.whenReady().then(async () => {
   buildMenu();
 
-  // First-run: let user remove optional components
-  await showComponentSelection();
+  // First-run: let user download optional components
+  await showDownloaderWindow();
 
   startFlask();
 

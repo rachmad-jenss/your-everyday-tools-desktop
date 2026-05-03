@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Komponen Opsional — Your Everyday Tools</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+  background: #f8f9fa;
+  color: #212529;
+  padding: 24px;
+  user-select: none;
+  -webkit-app-region: no-drag;
+  height: 100vh;
+  overflow: hidden;
+}
+h1 { font-size: 17px; font-weight: 700; margin-bottom: 6px; }
+.subtitle { color: #6c757d; margin-bottom: 18px; line-height: 1.55; font-size: 13px; }
+
+.component {
+  background: #fff;
+  border: 1.5px solid #dee2e6;
+  border-radius: 8px;
+  padding: 13px 15px;
+  margin-bottom: 9px;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.component:hover { border-color: #86b7fe; }
+.component.checked { border-color: #0d6efd; background: #f0f7ff; }
+.comp-header { display: flex; align-items: center; gap: 10px; }
+.comp-header input[type=checkbox] {
+  width: 15px; height: 15px;
+  accent-color: #0d6efd;
+  cursor: pointer;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+.comp-name { font-weight: 600; flex: 1; }
+.comp-size { color: #6c757d; font-size: 12px; white-space: nowrap; }
+.comp-desc { margin-top: 5px; margin-left: 25px; color: #6c757d; font-size: 12px; line-height: 1.5; }
+
+.total-bar {
+  background: #e9ecef;
+  border-radius: 6px;
+  padding: 9px 13px;
+  margin: 13px 0;
+  font-size: 13px;
+  color: #495057;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.total-label { font-weight: 500; }
+#total-size { font-weight: 600; color: #212529; }
+
+.btn-row { display: flex; gap: 8px; }
+.btn {
+  flex: 1;
+  padding: 9px 14px;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s, opacity 0.12s;
+}
+.btn-primary { background: #0d6efd; color: #fff; }
+.btn-primary:hover:not(:disabled) { background: #0b5ed7; }
+.btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }
+.btn-secondary { background: #e9ecef; color: #495057; }
+.btn-secondary:hover { background: #dee2e6; }
+
+#progress-panel { display: none; }
+.prog-item { margin-bottom: 16px; }
+.prog-label { display: flex; justify-content: space-between; margin-bottom: 5px; }
+.prog-name { font-weight: 600; font-size: 13px; }
+.prog-status { color: #6c757d; font-size: 12px; }
+.prog-track { height: 7px; background: #e9ecef; border-radius: 4px; overflow: hidden; }
+.prog-fill {
+  height: 100%;
+  background: #0d6efd;
+  border-radius: 4px;
+  width: 0%;
+  transition: width 0.25s ease;
+}
+.prog-fill.done { background: #198754; width: 100% !important; }
+.prog-fill.error { background: #dc3545; }
+.prog-fill.extracting { background: #fd7e14; animation: pulse 1s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.6} }
+.prog-note { margin-top: 4px; font-size: 11px; color: #6c757d; min-height: 16px; }
+#done-row { margin-top: 6px; }
+</style>
+</head>
+<body>
+
+<!-- Select Panel -->
+<div id="select-panel">
+  <h1>Komponen Opsional</h1>
+  <p class="subtitle">
+    Pilih komponen yang ingin didownload sekarang.<br>
+    Bisa diatur ulang nanti lewat <em>Help &rarr; Kelola Komponen</em>.
+  </p>
+
+  <div class="component checked" id="wrap-ffmpeg" onclick="toggle('ffmpeg')">
+    <div class="comp-header">
+      <input type="checkbox" id="chk-ffmpeg" checked>
+      <span class="comp-name">FFmpeg</span>
+      <span class="comp-size">~193 MB</span>
+    </div>
+    <div class="comp-desc">Convert/trim/compress audio &amp; video &middot; Normalize audio &middot; Burn subtitles &middot; Video &rarr; GIF</div>
+  </div>
+
+  <div class="component checked" id="wrap-tesseract" onclick="toggle('tesseract')">
+    <div class="comp-header">
+      <input type="checkbox" id="chk-tesseract" checked>
+      <span class="comp-name">Tesseract OCR</span>
+      <span class="comp-size">~182 MB</span>
+    </div>
+    <div class="comp-desc">OCR PDF dan Image to Text &middot; English + Indonesia</div>
+  </div>
+
+  <div class="total-bar">
+    <span class="total-label">Total download</span>
+    <span id="total-size">~375 MB</span>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-primary" id="btn-download" onclick="startDownload()">Download yang Dipilih</button>
+    <button class="btn btn-secondary" onclick="skip()">Lewati</button>
+  </div>
+</div>
+
+<!-- Progress Panel -->
+<div id="progress-panel">
+  <h1 id="prog-title">Mendownload Komponen...</h1>
+  <p class="subtitle" id="prog-subtitle">Mohon tunggu, jangan tutup jendela ini.</p>
+  <div id="prog-items"></div>
+  <div class="btn-row" id="done-row" style="display:none">
+    <button class="btn btn-primary" onclick="finish()">Mulai Aplikasi</button>
+  </div>
+</div>
+
+<script>
+const COMP_INFO = {
+  ffmpeg:    { name: 'FFmpeg',        sizeMB: 193 },
+  tesseract: { name: 'Tesseract OCR', sizeMB: 182 },
+};
+const state = { ffmpeg: true, tesseract: true };
+
+function toggle(id) {
+  state[id] = !state[id];
+  document.getElementById('chk-' + id).checked = state[id];
+  document.getElementById('wrap-' + id).classList.toggle('checked', state[id]);
+  updateTotal();
+}
+
+function updateTotal() {
+  const total = Object.keys(state).filter(function(k){ return state[k]; })
+                      .reduce(function(s,k){ return s + COMP_INFO[k].sizeMB; }, 0);
+  document.getElementById('total-size').textContent = total > 0 ? ('~' + total + ' MB') : '—';
+  document.getElementById('btn-download').disabled = total === 0;
+}
+
+function buildProgItem(id) {
+  const item = document.createElement('div');
+  item.className = 'prog-item';
+  item.id = 'item-' + id;
+
+  const labelRow = document.createElement('div');
+  labelRow.className = 'prog-label';
+
+  const nameEl = document.createElement('span');
+  nameEl.className = 'prog-name';
+  nameEl.textContent = COMP_INFO[id].name;
+
+  const statusEl = document.createElement('span');
+  statusEl.className = 'prog-status';
+  statusEl.id = 'status-' + id;
+  statusEl.textContent = 'Menunggu...';
+
+  labelRow.appendChild(nameEl);
+  labelRow.appendChild(statusEl);
+
+  const track = document.createElement('div');
+  track.className = 'prog-track';
+  const fill = document.createElement('div');
+  fill.className = 'prog-fill';
+  fill.id = 'bar-' + id;
+  track.appendChild(fill);
+
+  const note = document.createElement('div');
+  note.className = 'prog-note';
+  note.id = 'note-' + id;
+
+  item.appendChild(labelRow);
+  item.appendChild(track);
+  item.appendChild(note);
+  return item;
+}
+
+function startDownload() {
+  var selected = Object.keys(state).filter(function(k){ return state[k]; });
+  if (!selected.length) { skip(); return; }
+
+  document.getElementById('select-panel').style.display = 'none';
+  document.getElementById('progress-panel').style.display = 'block';
+
+  var container = document.getElementById('prog-items');
+  container.textContent = '';
+  selected.forEach(function(id) { container.appendChild(buildProgItem(id)); });
+
+  window.downloaderAPI.startDownload(selected);
+}
+
+function skip()   { window.downloaderAPI.skip(); }
+function finish() { window.downloaderAPI.finish(); }
+
+window.downloaderAPI.onProgress(function(data) {
+  var bar    = document.getElementById('bar-'    + data.id);
+  var status = document.getElementById('status-' + data.id);
+  var note   = document.getElementById('note-'   + data.id);
+  if (!bar) return;
+  bar.style.width = data.percent + '%';
+  bar.className = 'prog-fill' + (data.mode === 'extract' ? ' extracting' : '');
+  if (status) status.textContent = data.statusText || (data.percent + '%');
+  if (note && data.noteText !== undefined) note.textContent = data.noteText;
+});
+
+window.downloaderAPI.onComponentDone(function(data) {
+  var bar    = document.getElementById('bar-'    + data.id);
+  var status = document.getElementById('status-' + data.id);
+  var note   = document.getElementById('note-'   + data.id);
+  if (data.success) {
+    if (bar)    bar.className = 'prog-fill done';
+    if (status) status.textContent = '✓ Selesai';
+    if (note)   note.textContent = '';
+  } else {
+    if (bar)    bar.className = 'prog-fill error';
+    if (status) status.textContent = '✗ Gagal';
+    if (note)   note.textContent = data.error || 'Coba lagi lewat Help → Kelola Komponen.';
+  }
+});
+
+window.downloaderAPI.onAllDone(function(data) {
+  var title    = document.getElementById('prog-title');
+  var subtitle = document.getElementById('prog-subtitle');
+  if (!data.anySuccess && data.anyError) {
+    title.textContent    = 'Download Gagal';
+    subtitle.textContent = 'Bisa diunduh ulang lewat Help → Kelola Komponen.';
+  } else if (data.anyError) {
+    title.textContent    = 'Sebagian Berhasil';
+    subtitle.textContent = 'Komponen yang gagal bisa diunduh ulang lewat Help → Kelola Komponen.';
+  } else {
+    title.textContent    = 'Download Selesai!';
+    subtitle.textContent = 'Semua komponen berhasil diinstall.';
+  }
+  document.getElementById('done-row').style.display = 'flex';
+});
+</script>
+</body>
+</html>

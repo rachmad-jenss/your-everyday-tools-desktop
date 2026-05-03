@@ -1,6 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 import sys
 import os
+import glob
 
 block_cipher = None
 
@@ -11,18 +12,41 @@ ROOT = os.path.abspath(os.path.dirname(SPECPATH)) if 'SPECPATH' in dir() else os
 is_win = sys.platform == 'win32'
 is_mac = sys.platform == 'darwin'
 
+# ── Collect native binaries for small bundled deps ─────────────────────────
+# pyzbar: libiconv.dll + libzbar-64.dll live inside the pyzbar package dir
+import pyzbar as _pyzbar
+_pyzbar_dir = os.path.dirname(_pyzbar.__file__)
+
+# pillow-heif: libheif, libde265, libx265 live in site-packages root
+import site as _site
+_site_dir = next(iter(_site.getsitepackages()), os.path.dirname(_pyzbar_dir))
+
+def _collect_dlls(base_dir, patterns):
+    """Return list of (src_path, dest_subdir) tuples for PyInstaller binaries."""
+    result = []
+    for pattern in patterns:
+        for p in glob.glob(os.path.join(base_dir, pattern)):
+            result.append((p, '.'))
+    return result
+
+_pyzbar_dlls   = _collect_dlls(_pyzbar_dir, ['*.dll'])
+_heif_dlls     = _collect_dlls(_site_dir,   ['libheif*.dll', 'libde265*.dll', 'libx265*.dll'])
+_heif_pyd      = _collect_dlls(_site_dir,   ['_pillow_heif*.pyd'])
+_bundled_bins  = _pyzbar_dlls + _heif_dlls + _heif_pyd
+# ───────────────────────────────────────────────────────────────────────────
+
 a = Analysis(
     ['app.py'],
     pathex=[ROOT],
-    binaries=[],
+    binaries=_bundled_bins,
     datas=[
         ('templates', 'templates'),
         ('static', 'static'),
         ('utils', 'utils'),
         ('routes', 'routes'),
         ('images', 'images'),
-        ('vendor/ffmpeg', 'vendor/ffmpeg'),
-        ('vendor/tesseract', 'vendor/tesseract'),
+        # vendor/ffmpeg and vendor/tesseract are NOT bundled —
+        # they are downloaded on first run via the Electron downloader.
     ],
     hiddenimports=[
         # Route blueprints
@@ -78,6 +102,11 @@ a = Analysis(
         'matplotlib.pyplot',
         'matplotlib.backends',
         'matplotlib.backends.backend_agg',
+        # Bundled small deps (now always included)
+        'pyzbar',
+        'pyzbar.pyzbar',
+        'pyzbar.libraries',
+        'pillow_heif',
         # WSGI server
         'waitress',
         # Jinja2 / Flask internals

@@ -218,8 +218,6 @@ TOOL_CATEGORIES = [
 # because their dependencies are too large to bundle.
 FROZEN_DISABLED_TOOLS = {
     ("image", "remove-bg"): "Butuh rembg + onnxruntime (~2 GB)",
-    ("qr", "read"): "Butuh pyzbar + zbar DLL",
-    ("image", "heic-convert"): "Butuh pillow-heif",
     ("media", "transcribe"): "Butuh openai-whisper (~3 GB)",
 }
 
