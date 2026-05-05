@@ -26,12 +26,14 @@ Don't want to set up Python? Download the desktop installer — it runs out of t
 
 ### Download
 
-[![Download](https://img.shields.io/github/v/release/rachmad-jenss/your-everyday-tools-desktop?label=Download&style=for-the-badge)](https://github.com/rachmad-jenss/your-everyday-tools-desktop/releases/latest)
+[![Download](https://img.shields.io/badge/Download-All%20Releases-blue?style=for-the-badge)](https://github.com/rachmad-jenss/your-everyday-tools-desktop/releases)
 
 | Platform | File | Notes |
 |----------|------|-------|
 | **Windows** | `Your Everyday Tools Setup x.x.x.exe` | NSIS installer, x64 |
 | **macOS** | `Your Everyday Tools-x.x.x-arm64.dmg` | Apple Silicon (M1/M2/M3/M4). Intel Macs supported via Rosetta 2 |
+
+> **Note:** Windows and macOS builds may be in separate releases until they are unified under a single tag.
 
 ### Features
 
