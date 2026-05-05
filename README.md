@@ -14,7 +14,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release history and recent fixes.
 - Codeberg: https://codeberg.org/listyantidewi/your-everyday-tools
 - Bitbucket: https://bitbucket.org/your-everyday-tools/your-every-tools
 
-**Desktop App (Windows installer):**
+**Desktop App (Windows & macOS):**
 
 - https://github.com/rachmad-jenss/your-everyday-tools-desktop/releases
 
@@ -22,50 +22,64 @@ See [CHANGELOG.md](CHANGELOG.md) for release history and recent fixes.
 
 ## Desktop App
 
-Tidak mau setup Python? Download installer desktop yang langsung jalan tanpa install Python, pip, atau dependency apapun.
+Don't want to set up Python? Download the desktop installer — it runs out of the box with no Python, pip, or dependency setup required.
 
 ### Download
 
 [![Download](https://img.shields.io/github/v/release/rachmad-jenss/your-everyday-tools-desktop?label=Download&style=for-the-badge)](https://github.com/rachmad-jenss/your-everyday-tools-desktop/releases/latest)
 
-### Fitur Desktop
+| Platform | File | Notes |
+|----------|------|-------|
+| **Windows** | `Your Everyday Tools Setup x.x.x.exe` | NSIS installer, x64 |
+| **macOS** | `Your Everyday Tools-x.x.x-arm64.dmg` | Apple Silicon (M1/M2/M3/M4). Intel Macs supported via Rosetta 2 |
 
-- **Langsung jalan** — Tidak perlu install Python, pip, atau dependency lainnya
-- **Installer ringan** — ~315 MB (FFmpeg & Tesseract didownload terpisah, dipilih saat instalasi)
-- **Auto-update** — Notifikasi otomatis saat ada versi baru via GitHub Releases
-- **Kelola komponen** — Pilih FFmpeg & Tesseract langsung di wizard installer; bisa diubah kapan saja lewat **Help → Kelola Komponen**
-- **Tool availability** — Tools yang dependency-nya tidak tersedia otomatis di-disable
+### Features
 
-### Komponen Opsional
+- **Works out of the box** — No Python, pip, or dependency installation required
+- **Windows + macOS** — Both platforms are built automatically via GitHub Actions CI/CD
+- **Lightweight installer** — ~315 MB on Windows / ~280 MB on macOS (FFmpeg & Tesseract downloaded separately)
+- **Auto-update** — Automatic notifications when a new version is available via GitHub Releases
+- **Component manager** — Choose FFmpeg & Tesseract during the installer wizard; change anytime via **Help → Manage Components** (Windows)
+- **Tool availability** — Tools whose dependencies are unavailable are automatically disabled with a clear message
 
-Dipilih saat proses instalasi (bisa di-skip dan diinstall nanti lewat **Help → Kelola Komponen**):
+### Optional Components
 
-| Komponen | Ukuran download | Tools yang diaktifkan |
-|---|---|---|
+Selected during installation (can be skipped and installed later via **Help → Manage Components**):
+
+| Component | Download size | Tools enabled |
+|-----------|---------------|---------------|
 | **FFmpeg** | ~193 MB | Convert/trim/compress audio & video, normalize audio, burn subtitles, video-to-GIF |
-| **Tesseract OCR** | ~182 MB | OCR PDF, Image to Text (English + Indonesia) |
+| **Tesseract OCR** | ~182 MB | OCR PDF, Image to Text (English + Indonesian) |
 
-### Cara Install
+### Install — Windows
 
-1. Download `Your Everyday Tools Setup x.x.x.exe` dari [Releases](https://github.com/rachmad-jenss/your-everyday-tools-desktop/releases/latest)
-2. Jalankan installer, pilih lokasi instalasi
-3. Di halaman **Komponen Opsional**, centang FFmpeg dan/atau Tesseract yang mau didownload — download langsung terjadi selama proses instalasi
-4. Selesai!
+1. Download `Your Everyday Tools Setup x.x.x.exe` from [Releases](https://github.com/rachmad-jenss/your-everyday-tools-desktop/releases/latest)
+2. Run the installer, choose installation directory
+3. On the **Optional Components** page, check FFmpeg and/or Tesseract to download — downloads happen during installation
+4. Done!
+
+### Install — macOS
+
+1. Download the `.dmg` from [Releases](https://github.com/rachmad-jenss/your-everyday-tools-desktop/releases/latest)
+2. Open the DMG, drag the app to the Applications folder
+3. First launch: right-click the app → **Open** → click **Open** again (the app is not code-signed)
+4. Done! Install FFmpeg & Tesseract via `brew install ffmpeg tesseract` if needed
 
 ### Upgrade
 
-Jalankan installer versi baru — versi lama akan otomatis di-uninstall. Atau buka lewat menu **Help → Cek Update...** di dalam aplikasi.
+Run the new version installer — the old version is automatically uninstalled. Or check from within the app via **Help → Check for Updates...**.
 
-### Build dari Source
+### Build from Source
 
+**Windows:**
 ```bash
-# 1. Build backend dengan PyInstaller
+# 1. Build backend with PyInstaller
 python -m venv venv
 venv\Scripts\activate
 pip install -r requirements.txt
 pyinstaller your-everyday-tools.spec --noconfirm
 
-# 2. Copy hasil build ke Electron resources
+# 2. Copy build output to Electron resources
 robocopy dist\YourEverydayTools electron-wrapper\resources\backend /E /NFL /NDL /NJH /NJS
 
 # 3. Build installer
@@ -73,6 +87,13 @@ cd electron-wrapper
 npm install
 npm run build-win
 ```
+
+**macOS:**
+```bash
+./scripts/build-macos.sh
+```
+
+**CI/CD (recommended):** Push a `v*` tag to GitHub → the workflow automatically builds Windows + macOS and uploads to the GitHub Release. See `.github/workflows/build-desktop.yml`.
 
 Installer akan ada di `electron-wrapper/dist/`.
 

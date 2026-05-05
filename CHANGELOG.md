@@ -2,6 +2,18 @@
 
 All notable changes to **Your Everyday Tools** are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project loosely follows [Semantic Versioning](https://semver.org/).
 
+## [Desktop 1.2.2-mac] — 2026-05-05
+
+### Added
+
+- **macOS support (Apple Silicon)** — The desktop app is now available as a `.dmg` for macOS arm64 (M1/M2/M3/M4). Intel Mac users can run via Rosetta 2. Note: the macOS build is not code-signed; users need to right-click → Open on first launch.
+- **GitHub Actions CI/CD** — Unified workflow (`.github/workflows/build-desktop.yml`) automatically builds both Windows and macOS installers when a `v*` tag is pushed. Releases are created as draft, both platforms upload their artifacts, then the release is published.
+
+### Notes
+
+- macOS build does not include the NSIS component downloader (FFmpeg/Tesseract). Mac users should install these via Homebrew: `brew install ffmpeg tesseract`.
+- Auto-update via `electron-updater` is supported on macOS (`latest-mac.yml` is published alongside the DMG).
+
 ## [Desktop 1.2.2] — 2026-05-03
 
 Desktop-only release. No changes to the Flask/Python backend.
