@@ -2,6 +2,19 @@
 
 All notable changes to **Your Everyday Tools** are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project loosely follows [Semantic Versioning](https://semver.org/).
 
+## [0.6.4] — 2026-06-07
+
+### Added — UI navigation and theming
+
+- Added a theme switcher (system / light / dark) in the top bar. Preference is persisted in `localStorage` and applied before first paint to avoid flash.
+- Added tool search on the home page — filter tool cards by name or description.
+- Added global search in the top bar — available on every page with a dropdown of matching tools.
+
+### Changed — Icons and theme UX
+
+- Replaced the Bootstrap Icons shim with fully vendored font files (`woff` / `woff2`) for offline use.
+- Theme transitions animate smoothly; the active theme button shows a brief spin on click.
+
 ## [0.6.3] — 2026-06-06
 
 ### Added — Local conversion fidelity layer

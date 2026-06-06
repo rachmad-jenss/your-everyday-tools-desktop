@@ -365,8 +365,8 @@ your-everyday-tools/
 │   ├── media_tools.py              # FFmpeg-powered audio & video tools
 │   └── capabilities.py             # /capabilities endpoint
 ├── templates/
-│   ├── base.html                   # Main layout (sidebar + content area)
-│   ├── index.html                  # Home page with tool cards
+│   ├── base.html                   # Main layout (sidebar, global search, theme switcher)
+│   ├── index.html                  # Home page with tool cards and search
 │   ├── upload_tool.html            # Universal template for all file-based tools
 │   └── tools/                      # Individual client-side tool templates
 │       ├── calculator.html
@@ -395,7 +395,7 @@ your-everyday-tools/
     ├── css/style.css               # All styles, no framework
     ├── css/icons.css               # Vendored Bootstrap Icons; no CDN required
     ├── fonts/bootstrap-icons.woff2 # Bootstrap Icons font files
-    └── js/main.js                  # File upload, AJAX, sidebar, shared logic
+    └── js/main.js                  # Sidebar, theme, search, file upload, shared logic
 ```
 
 ### Architecture Notes
