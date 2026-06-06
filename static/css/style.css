@@ -272,6 +272,34 @@ html.theme-animate *::after {
 .home-hero h1 { font-size: 2rem; margin-bottom: .4rem; }
 .home-hero p { color: var(--text-light); font-size: 1.05rem; }
 
+.home-search {
+    margin: 1.25rem auto 0;
+    max-width: 480px;
+}
+.home-search input {
+    width: 100%;
+    padding: .55rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--text);
+    font-size: .95rem;
+    font-family: var(--font);
+    outline: none;
+    transition: border-color .15s, box-shadow .15s;
+}
+.home-search input:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(67,97,238,.12);
+}
+
+.search-empty {
+    text-align: center;
+    padding: 2rem;
+    color: var(--text-light);
+    font-size: .95rem;
+}
+
 .category-section { margin-bottom: 2rem; }
 .category-title {
     font-size: 1.1rem;

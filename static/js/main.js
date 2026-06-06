@@ -89,11 +89,42 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     initTheme();
+    initToolSearch();
     initUploadZone();
     initToolForm();
     initDependentOptions();
     initCapabilityStatus();
 });
+
+/* ── Home Page Tool Search ────────────────────── */
+function initToolSearch() {
+    const input = document.getElementById("tool-search");
+    if (!input) return;
+
+    const cards = Array.from(document.querySelectorAll(".tool-card"));
+    const sections = Array.from(document.querySelectorAll(".category-section"));
+    const empty = document.getElementById("search-empty");
+
+    input.addEventListener("input", () => {
+        const query = input.value.trim().toLowerCase();
+
+        cards.forEach(card => {
+            const match = !query || card.dataset.search.includes(query);
+            card.style.display = match ? "" : "none";
+        });
+
+        sections.forEach(section => {
+            const hasVisible = Array.from(section.querySelectorAll(".tool-card"))
+                .some(c => c.style.display !== "none");
+            section.style.display = hasVisible ? "" : "none";
+        });
+
+        if (empty) {
+            const anyVisible = cards.some(c => c.style.display !== "none");
+            empty.style.display = anyVisible ? "none" : "";
+        }
+    });
+}
 
 async function initCapabilityStatus() {
     const box = document.getElementById("capability-status");
