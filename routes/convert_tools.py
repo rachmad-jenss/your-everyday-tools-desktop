@@ -1,7 +1,7 @@
 import io
-import fitz  # PyMuPDF
+import importlib.util
 from flask import Blueprint, render_template, request, send_file, jsonify
-from PIL import Image
+from PIL import Image, ImageOps
 import img2pdf
 from docx import Document as DocxDocument
 from reportlab.lib.pagesizes import A4
@@ -10,6 +10,9 @@ from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
+from utils.pymupdf import import_pymupdf
+
+fitz = import_pymupdf()
 
 try:
     from pdf2docx import Converter as Pdf2DocxConverter
@@ -17,13 +20,9 @@ try:
 except ImportError:
     HAS_PDF2DOCX = False
 
-# Marker is loaded lazily inside the route to avoid the ~2GB model preload
-# on server start. We only check importability here.
-try:
-    import marker  # type: ignore
-    HAS_MARKER = True
-except ImportError:
-    HAS_MARKER = False
+# Marker is loaded lazily inside the route to avoid heavy model/module work
+# on server start. We only check package presence here.
+HAS_MARKER = importlib.util.find_spec("marker") is not None
 
 try:
     import pytesseract
@@ -32,64 +31,28 @@ except ImportError:
     HAS_TESSERACT = False
 
 try:
-    import ezdxf
-    from ezdxf.addons.drawing import RenderContext, Frontend
-    from ezdxf.addons.drawing.matplotlib import MatplotlibBackend
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-    HAS_EZDXF = True
+    import pdfplumber
+    HAS_PDFPLUMBER = True
 except ImportError:
-    HAS_EZDXF = False
+    HAS_PDFPLUMBER = False
 
-import shutil
+HAS_EZDXF = (
+    importlib.util.find_spec("ezdxf") is not None
+    and importlib.util.find_spec("matplotlib") is not None
+)
+
 from routes._helpers import safe_int, safe_float, log_error, NO_FILE_SINGLE, NO_FILE_MULTIPLE
+from utils.capabilities import (
+    QUALITY_BASIC,
+    QUALITY_HIGH,
+    find_soffice,
+    set_conversion_metadata,
+    soffice_convert,
+)
+import shutil
 
 ODA_CONVERTER = shutil.which("ODAFileConverter") or shutil.which("oda_file_converter")
-def _find_soffice() -> str | None:
-    """Detect LibreOffice. PATH first, then common per-OS install locations.
-
-    Most users — especially on Windows — install LibreOffice via the regular
-    installer but never add it to PATH, so `shutil.which` fails to find it
-    and the app silently falls back to a low-fidelity converter.
-    """
-    found = shutil.which("soffice") or shutil.which("libreoffice")
-    if found:
-        return found
-
-    import os
-    import sys
-
-    candidates: list[str] = []
-    if sys.platform == "win32":
-        program_files = [
-            os.environ.get("ProgramFiles", r"C:\Program Files"),
-            os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)"),
-            os.environ.get("ProgramW6432", r"C:\Program Files"),
-        ]
-        for pf in program_files:
-            if pf:
-                candidates.append(os.path.join(pf, "LibreOffice", "program", "soffice.exe"))
-                candidates.append(os.path.join(pf, "LibreOffice", "program", "soffice.com"))
-    elif sys.platform == "darwin":
-        candidates.append("/Applications/LibreOffice.app/Contents/MacOS/soffice")
-    else:  # linux / other unix
-        candidates.extend([
-            "/usr/bin/soffice",
-            "/usr/bin/libreoffice",
-            "/usr/local/bin/soffice",
-            "/usr/local/bin/libreoffice",
-            "/opt/libreoffice/program/soffice",
-            "/snap/bin/libreoffice",
-        ])
-
-    for c in candidates:
-        if c and os.path.isfile(c):
-            return c
-    return None
-
-
-SOFFICE = _find_soffice()
+SOFFICE = find_soffice()
 
 try:
     from pptx import Presentation
@@ -99,6 +62,16 @@ except ImportError:
     HAS_PPTX = False
 
 bp = Blueprint("convert", __name__)
+
+
+def _load_cad_modules():
+    import ezdxf
+    from ezdxf.addons.drawing import RenderContext, Frontend
+    from ezdxf.addons.drawing.matplotlib import MatplotlibBackend
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    return ezdxf, RenderContext, Frontend, MatplotlibBackend, plt
 
 
 # ── LibreOffice availability note (PPT/ODP/DOC conversion) ──────
@@ -131,41 +104,8 @@ def _soffice_available_notes():
 
 def _soffice_convert(file_data: bytes, source_ext: str, target_ext: str = "pdf",
                      timeout: int = 180):
-    """Run LibreOffice's headless converter on the given bytes.
-
-    Returns the converted file as bytes on success, or None if soffice is not
-    available / the conversion failed (caller falls back to a different engine).
-
-    `source_ext` is used for the temp filename (e.g. "docx", "html", "xlsx").
-    """
-    if not SOFFICE:
-        return None
-    import os
-    import subprocess
-    import tempfile
-
-    with tempfile.TemporaryDirectory() as tmp:
-        in_path = os.path.join(tmp, f"input.{source_ext}")
-        with open(in_path, "wb") as fp:
-            fp.write(file_data)
-        try:
-            proc = subprocess.run(
-                [SOFFICE, "--headless", "--convert-to", target_ext,
-                 "--outdir", tmp, in_path],
-                capture_output=True, timeout=timeout,
-            )
-        except (subprocess.TimeoutExpired, FileNotFoundError) as e:
-            log_error(e, f"soffice {source_ext}->{target_ext}")
-            return None
-        if proc.returncode != 0:
-            err = proc.stderr.decode("utf-8", errors="replace")[:200]
-            log_error(RuntimeError(err), f"soffice {source_ext}->{target_ext}")
-            return None
-        out_path = os.path.join(tmp, f"input.{target_ext}")
-        if not os.path.exists(out_path):
-            return None
-        with open(out_path, "rb") as fp:
-            return fp.read()
+    """Compatibility wrapper around the shared hardened LibreOffice converter."""
+    return soffice_convert(file_data, source_ext, target_ext, timeout)
 
 
 # ── Page Routes ──────────────────────────────────
@@ -205,7 +145,12 @@ def to_pdf_page():
         endpoint="/convert/to-pdf",
         accept=".jpg,.jpeg,.png,.bmp,.tiff,.webp,.txt,.docx,.doc,.odt",
         multiple=True,
-        options=[])
+        options=[
+            {"type": "checkbox", "name": "use_basic_fallback",
+             "label": "Fallback",
+             "check_label": "Allow basic Python fallback if LibreOffice is unavailable or fails",
+             "default": False},
+        ])
 
 
 @bp.route("/pdf-to-word")
@@ -241,10 +186,13 @@ def pdf_to_word_page():
             {"type": "select", "name": "mode", "label": "Mode", "default": "layout",
              "choices": [
                  {"value": "layout",    "label": "Layout — preserve tables, columns, figures"},
+                 {"value": "exact",     "label": "Exact visual copy — non-editable page images"},
                  {"value": "structure", "label": "Smart structure — detect headings & lists"},
                  {"value": "text",      "label": "Flowing text — clean paragraphs, no structure"},
                  {"value": "marker",    "label": "Marker (ML) — best fidelity, slow, needs install"},
              ]},
+            {"type": "number", "name": "exact_dpi", "label": "Exact visual copy DPI",
+             "default": 180, "min": 96, "max": 300, "depends_on": {"mode": "exact"}},
             {"type": "text", "name": "pages", "label": "Pages (blank = all)",
              "placeholder": "e.g. 1-3, 5, 8-10"},
             {"type": "checkbox", "name": "extract_tables",
@@ -347,6 +295,12 @@ def pdf_to_excel_page():
                  {"value": "auto",  "label": "Auto — lines first, fall back to text alignment"},
                  {"value": "lines", "label": "Lines only (ruled tables)"},
                  {"value": "text",  "label": "Text alignment only (borderless tables)"},
+             ]},
+            {"type": "select", "name": "table_engine", "label": "Table engine", "default": "auto",
+             "choices": [
+                 {"value": "auto", "label": "Auto — pdfplumber if installed, then PyMuPDF"},
+                 {"value": "pymupdf", "label": "PyMuPDF built-in"},
+                 {"value": "pdfplumber", "label": "pdfplumber (optional, often better on borderless tables)"},
              ]},
             {"type": "select", "name": "mode", "label": "Extraction mode", "default": "tables",
              "choices": [
@@ -514,7 +468,12 @@ def html_to_pdf_page():
         text_placeholder="<h1>Hello World</h1>\n<p>Paste your HTML here...</p>",
         accept="",
         multiple=False,
-        options=[],
+        options=[
+            {"type": "checkbox", "name": "use_basic_fallback",
+             "label": "Fallback",
+             "check_label": "Allow basic PyMuPDF fallback if LibreOffice is unavailable or fails",
+             "default": False},
+        ],
         button_text="Convert to PDF")
 
 
@@ -692,10 +651,13 @@ def to_pdf():
     if not files or not files[0].filename:
         return jsonify(error=NO_FILE_MULTIPLE), 400
 
+    allow_basic_fallback = request.form.get("use_basic_fallback") == "on"
     pdf_doc = fitz.open()
     # Track which engine ran on Word docs so the response can advertise it
     # (helps users diagnose "why is my output low-fidelity" without log access).
-    word_engine_used: str | None = None
+    engine_used = "pymupdf"
+    quality = QUALITY_HIGH
+    warnings: list[str] = []
 
     for f in files:
         name = f.filename.lower()
@@ -709,8 +671,14 @@ def to_pdf():
             try:
                 pdf_bytes = _soffice_convert(data, ext, "pdf")
                 if pdf_bytes is not None:
-                    word_engine_used = "libreoffice"
+                    engine_used = "libreoffice"
+                    quality = QUALITY_HIGH
                 else:
+                    if not allow_basic_fallback:
+                        return jsonify(error=(
+                            f"High-fidelity conversion for '{f.filename}' requires LibreOffice. "
+                            "Tick 'Allow basic Python fallback' to continue with lower layout fidelity."
+                        )), 400
                     if ext != "docx":
                         return jsonify(error=(
                             f"'{f.filename}' requires LibreOffice (soffice) on PATH. "
@@ -718,7 +686,11 @@ def to_pdf():
                             "Install LibreOffice for full layout fidelity."
                         )), 400
                     pdf_bytes = _docx_to_pdf(data)
-                    word_engine_used = "fallback"
+                    engine_used = "python-docx/reportlab"
+                    quality = QUALITY_BASIC
+                    warnings.append(
+                        "Word document used basic fallback; headers, custom layout, and precise positioning may differ."
+                    )
                 with fitz.open(stream=pdf_bytes, filetype="pdf") as docx_pdf:
                     pdf_doc.insert_pdf(docx_pdf)
             except Exception as e:
@@ -734,6 +706,7 @@ def to_pdf():
             # Image → PDF page
             try:
                 with Image.open(io.BytesIO(data)) as pil_img:
+                    pil_img = ImageOps.exif_transpose(pil_img)
                     if pil_img.mode in ("RGBA", "P"):
                         pil_img = pil_img.convert("RGB")
                     buf = io.BytesIO()
@@ -755,9 +728,7 @@ def to_pdf():
 
     resp = send_file(output, mimetype="application/pdf",
                      as_attachment=True, download_name="converted.pdf")
-    if word_engine_used:
-        resp.headers["X-Conversion-Engine"] = word_engine_used
-    return resp
+    return set_conversion_metadata(resp, engine_used, quality, warnings)
 
 
 @bp.route("/pdf-to-word", methods=["POST"])
@@ -798,8 +769,10 @@ def pdf_to_word():
         except Exception as e:
             log_error(e, "pdf-to-word text")
             return jsonify(error="Could not extract text from the PDF (it may be a scan — try OCR PDF first)."), 400
-        return send_file(io.BytesIO(buf), mimetype=docx_mime,
+        resp = send_file(io.BytesIO(buf), mimetype=docx_mime,
                          as_attachment=True, download_name=f"{base}.docx")
+        return set_conversion_metadata(resp, "pymupdf/python-docx", QUALITY_BASIC,
+                                       "Flowing text prioritizes clean editable text over visual layout.")
 
     if mode == "structure":
         try:
@@ -809,8 +782,22 @@ def pdf_to_word():
         except Exception as e:
             log_error(e, "pdf-to-word structure")
             return jsonify(error="Smart-structure analysis failed. Try Flowing text mode instead."), 400
-        return send_file(io.BytesIO(buf), mimetype=docx_mime,
+        resp = send_file(io.BytesIO(buf), mimetype=docx_mime,
                          as_attachment=True, download_name=f"{base}.docx")
+        return set_conversion_metadata(resp, "pymupdf/python-docx", "medium",
+                                       "Smart structure is editable but drops precise layout, figures, and tables.")
+
+    if mode == "exact":
+        dpi = safe_int(request.form.get("exact_dpi"), 180, min_val=96, max_val=300)
+        try:
+            buf = _pdf_to_docx_exact_visual(pdf_data, target_pages, dpi)
+        except Exception as e:
+            log_error(e, "pdf-to-word exact")
+            return jsonify(error="Exact visual copy failed. The PDF may be corrupted or password-protected."), 400
+        resp = send_file(io.BytesIO(buf), mimetype=docx_mime,
+                         as_attachment=True, download_name=f"{base}.docx")
+        return set_conversion_metadata(resp, "pymupdf/python-docx", QUALITY_HIGH,
+                                       "Exact visual copy preserves appearance by embedding page images; text is not editable.")
 
     if mode == "marker":
         if not HAS_MARKER:
@@ -824,8 +811,10 @@ def pdf_to_word():
             log_error(e, "pdf-to-word marker")
             return jsonify(error="Marker conversion failed. Check the server log; "
                            "first run downloads ~2 GB and may need extra time."), 400
-        return send_file(io.BytesIO(buf), mimetype=docx_mime,
+        resp = send_file(io.BytesIO(buf), mimetype=docx_mime,
                          as_attachment=True, download_name=f"{base}.docx")
+        return set_conversion_metadata(resp, "marker-pdf/python-docx", QUALITY_HIGH,
+                                       "Marker output is editable structured content, not pixel-perfect layout.")
 
     # ── Layout mode (default) ──────────────────────────────
     if not HAS_PDF2DOCX:
@@ -863,8 +852,10 @@ def pdf_to_word():
 
     result.seek(0)
     name = files[0].filename.rsplit(".", 1)[0] + ".docx"
-    return send_file(result, mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    resp = send_file(result, mimetype="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                      as_attachment=True, download_name=name)
+    return set_conversion_metadata(resp, "pdf2docx", "medium",
+                                   "Layout mode is editable but PDF-to-Word conversion is inherently lossy.")
 
 
 # ── PDF → Word helpers (one per non-pdf2docx mode) ─────────
@@ -890,6 +881,48 @@ def _pdf_to_docx_flowing_text(pdf_data: bytes, target_pages: list[int]) -> bytes
                     para = para.replace("\n", " ").strip()
                     if para:
                         doc.add_paragraph(para)
+        buf = io.BytesIO()
+        doc.save(buf)
+        return buf.getvalue()
+
+
+def _pdf_to_docx_exact_visual(pdf_data: bytes, target_pages: list[int], dpi: int) -> bytes:
+    """Render PDF pages into a DOCX as full-page images.
+
+    This mode is intentionally non-editable. It exists for users who care more
+    about visual fidelity than editable Word content.
+    """
+    from docx import Document as DocxDocument
+    from docx.shared import Inches
+
+    with fitz.open(stream=pdf_data, filetype="pdf") as src:
+        doc = DocxDocument()
+        section = doc.sections[0]
+        section.top_margin = Inches(0)
+        section.bottom_margin = Inches(0)
+        section.left_margin = Inches(0)
+        section.right_margin = Inches(0)
+
+        mat = fitz.Matrix(dpi / 72, dpi / 72)
+        first = True
+        for pno in target_pages:
+            page = src[pno]
+            page_w_in = page.rect.width / 72
+            page_h_in = page.rect.height / 72
+            if first:
+                section.page_width = Inches(page_w_in)
+                section.page_height = Inches(page_h_in)
+                first = False
+            else:
+                doc.add_page_break()
+
+            pix = page.get_pixmap(matrix=mat, alpha=False)
+            png_bytes = pix.tobytes("png")
+            paragraph = doc.add_paragraph()
+            paragraph.paragraph_format.space_before = 0
+            paragraph.paragraph_format.space_after = 0
+            paragraph.add_run().add_picture(io.BytesIO(png_bytes), width=Inches(page_w_in))
+
         buf = io.BytesIO()
         doc.save(buf)
         return buf.getvalue()
@@ -1167,21 +1200,41 @@ def pdf_to_excel():
     strategy = request.form.get("strategy", "auto")
     if strategy not in ("auto", "lines", "text"):
         strategy = "auto"
+    table_engine = request.form.get("table_engine", "auto")
+    if table_engine not in ("auto", "pymupdf", "pdfplumber"):
+        table_engine = "auto"
+    if table_engine == "pdfplumber" and not HAS_PDFPLUMBER:
+        return jsonify(error="pdfplumber is not installed. Install it or choose Auto/PyMuPDF."), 400
     pages_spec = request.form.get("pages", "").strip()
+    pdf_data = files[0].read()
 
     try:
-        doc = fitz.open(stream=files[0].read(), filetype="pdf")
+        doc = fitz.open(stream=pdf_data, filetype="pdf")
     except Exception as e:
         log_error(e, "pdf-to-excel open")
         return jsonify(error="Could not open PDF (the file may be corrupted or password-protected)."), 400
+
+    plumber_doc = None
+    if table_engine in ("auto", "pdfplumber") and HAS_PDFPLUMBER:
+        try:
+            plumber_doc = pdfplumber.open(io.BytesIO(pdf_data))
+        except Exception as e:
+            log_error(e, "pdf-to-excel pdfplumber open")
+            if table_engine == "pdfplumber":
+                doc.close()
+                return jsonify(error="pdfplumber could not open this PDF. Try Auto or PyMuPDF."), 400
 
     try:
         target_pages = parse_page_ranges(pages_spec, len(doc))
     except (ValueError, IndexError):
         doc.close()
+        if plumber_doc:
+            plumber_doc.close()
         return jsonify(error="Invalid page range. Use e.g. '1-3, 5, 8-10'."), 400
     if not target_pages:
         doc.close()
+        if plumber_doc:
+            plumber_doc.close()
         return jsonify(error="No valid pages selected."), 400
 
     wb = Workbook()
@@ -1189,6 +1242,8 @@ def pdf_to_excel():
     used_names: set[str] = set()
     total_tables = 0
     total_text_pages = 0
+    warnings: list[str] = []
+    table_engines_used: set[str] = set()
 
     def _safe_name(base: str) -> str:
         name = re.sub(r"[\[\]\*\?\/\\:]", "_", base)[:31] or "Sheet"
@@ -1253,6 +1308,50 @@ def pdf_to_excel():
             log_error(e, f"find_tables strategy={strategy}")
             return []
 
+    def _clean_table_rows(rows) -> list[list[str]]:
+        cleaned = []
+        for row in rows or []:
+            normalized = ["" if cell is None else str(cell) for cell in row]
+            if any(cell.strip() for cell in normalized):
+                cleaned.append(normalized)
+        return cleaned
+
+    def _pymupdf_table_rows(page) -> list[list[list[str]]]:
+        rows_list = []
+        for table in _find_tables_robust(page):
+            try:
+                rows = _clean_table_rows(table.extract())
+            except Exception as e:
+                log_error(e, "pdf-to-excel table extract")
+                continue
+            if rows:
+                rows_list.append(rows)
+        if rows_list:
+            table_engines_used.add("pymupdf")
+        return rows_list
+
+    def _table_rows_for_page(page, pno: int) -> list[list[list[str]]]:
+        if plumber_doc is not None:
+            try:
+                rows_list = [
+                    rows for rows in
+                    (_clean_table_rows(rows) for rows in (plumber_doc.pages[pno].extract_tables() or []))
+                    if rows
+                ]
+            except Exception as e:
+                log_error(e, f"pdfplumber extract page {pno + 1}")
+                rows_list = []
+            if rows_list:
+                table_engines_used.add("pdfplumber")
+                return rows_list
+            if table_engine == "pdfplumber":
+                return []
+
+        rows_list = _pymupdf_table_rows(page)
+        if rows_list and plumber_doc is not None and table_engine == "auto":
+            warnings.append("pdfplumber found no table on at least one page; PyMuPDF fallback was used.")
+        return rows_list
+
     # ── "combined" — stream everything into a single sheet ────────────
     if organize == "combined":
         ws = wb.create_sheet(_safe_name("Extracted"))
@@ -1262,9 +1361,8 @@ def pdf_to_excel():
             page_had_content = False
 
             if mode in ("tables", "tables_text"):
-                tables = _find_tables_robust(page)
-                for t in tables:
-                    rows = t.extract()
+                tables = _table_rows_for_page(page, pno)
+                for rows in tables:
                     if not rows:
                         continue
                     ws.cell(row=next_row, column=1, value=f"Page {pno + 1} – table").font = Font(bold=True, italic=True)
@@ -1277,6 +1375,7 @@ def pdf_to_excel():
             if mode == "text" or (mode == "tables_text" and not page_had_content):
                 text_rows = _text_rows(page)
                 if text_rows:
+                    table_engines_used.add("pymupdf")
                     ws.cell(row=next_row, column=1, value=f"Page {pno + 1} – text").font = Font(bold=True, italic=True)
                     next_row += 1
                     next_row = _write_rows(ws, text_rows, start_row=next_row, header=False)
@@ -1290,8 +1389,7 @@ def pdf_to_excel():
             tables_rows = []  # list of (label, rows)
 
             if mode in ("tables", "tables_text"):
-                for tidx, t in enumerate(_find_tables_robust(page), start=1):
-                    rows = t.extract()
+                for tidx, rows in enumerate(_table_rows_for_page(page, pno), start=1):
                     if rows:
                         tables_rows.append((f"Table {tidx}", rows))
                         total_tables += 1
@@ -1299,6 +1397,7 @@ def pdf_to_excel():
             if mode == "text" or (mode == "tables_text" and not tables_rows):
                 text_rows = _text_rows(page)
                 if text_rows:
+                    table_engines_used.add("pymupdf")
                     tables_rows.append(("Text", text_rows))
                     total_text_pages += 1
 
@@ -1321,6 +1420,8 @@ def pdf_to_excel():
                     next_row += 1
 
     doc.close()
+    if plumber_doc:
+        plumber_doc.close()
 
     if not wb.sheetnames:
         msg = "No tables found on the selected pages."
@@ -1347,12 +1448,15 @@ def pdf_to_excel():
     output.seek(0)
 
     name = files[0].filename.rsplit(".", 1)[0] + ".xlsx"
-    return send_file(
+    engine = "+".join(sorted(table_engines_used)) or "pymupdf"
+    quality = "medium" if total_tables else QUALITY_BASIC
+    resp = send_file(
         output,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         as_attachment=True,
         download_name=name,
     )
+    return set_conversion_metadata(resp, engine, quality, warnings)
 
 
 @bp.route("/md-to-pdf", methods=["POST"])
@@ -1559,6 +1663,7 @@ def html_to_pdf():
     html = request.form.get("text", "").strip()
     if not html:
         return jsonify(error="Please enter some HTML content."), 400
+    allow_basic_fallback = request.form.get("use_basic_fallback") == "on"
 
     # Wrap in basic structure if no <html> tag present
     if "<html" not in html.lower():
@@ -1566,8 +1671,19 @@ def html_to_pdf():
 
     # Prefer LibreOffice for proper CSS rendering
     pdf_bytes = _soffice_convert(html.encode("utf-8"), "html", "pdf")
+    engine = "libreoffice"
+    quality = QUALITY_HIGH
+    warnings: list[str] = []
 
     if pdf_bytes is None:
+        if not allow_basic_fallback:
+            return jsonify(error=(
+                "High-fidelity HTML to PDF requires LibreOffice. Tick "
+                "'Allow basic PyMuPDF fallback' to continue with limited CSS/layout support."
+            )), 400
+        engine = "pymupdf"
+        quality = QUALITY_BASIC
+        warnings.append("Basic HTML fallback supports only simple markup and may not preserve CSS/layout.")
         # Fallback: PyMuPDF's minimal HTML rendering
         doc = fitz.open()
         try:
@@ -1588,8 +1704,9 @@ def html_to_pdf():
     output = io.BytesIO(pdf_bytes)
     output.seek(0)
 
-    return send_file(output, mimetype="application/pdf",
+    resp = send_file(output, mimetype="application/pdf",
                      as_attachment=True, download_name="converted.pdf")
+    return set_conversion_metadata(resp, engine, quality, warnings)
 
 
 @bp.route("/ocr-pdf", methods=["POST"])
@@ -1667,16 +1784,19 @@ def cad_to_pdf():
 
     target = request.form.get("format", "pdf")
     dpi = safe_int(request.form.get("dpi"), 150, min_val=72, max_val=600)
+    ezdxf, RenderContext, Frontend, MatplotlibBackend, plt = _load_cad_modules()
 
     filename = files[0].filename
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
     file_data = files[0].read()
+    engine_used = "ezdxf/matplotlib"
 
     import tempfile, os, subprocess
     with tempfile.TemporaryDirectory() as tmpdir:
         if ext == "dwg":
             if not ODA_CONVERTER:
                 return jsonify(error="DWG support requires ODA File Converter. Download it free from https://www.opendesign.com/guestfiles/oda_file_converter and ensure it is on your PATH. Or convert your DWG to DXF first."), 400
+            engine_used = "oda/ezdxf/matplotlib"
 
             in_dir = os.path.join(tmpdir, "in")
             out_dir = os.path.join(tmpdir, "out")
@@ -1734,14 +1854,26 @@ def cad_to_pdf():
             fig.savefig(buf, format="pdf", bbox_inches="tight", pad_inches=0.2)
             plt.close(fig)
             buf.seek(0)
-            return send_file(buf, mimetype="application/pdf",
+            resp = send_file(buf, mimetype="application/pdf",
                              as_attachment=True, download_name=base_name + ".pdf")
+            return set_conversion_metadata(
+                resp,
+                engine_used,
+                "medium",
+                "CAD rendering may omit or simplify unsupported entities, fonts, and line styles.",
+            )
         else:
             fig.savefig(buf, format="png", dpi=dpi, bbox_inches="tight", pad_inches=0.2)
             plt.close(fig)
             buf.seek(0)
-            return send_file(buf, mimetype="image/png",
+            resp = send_file(buf, mimetype="image/png",
                              as_attachment=True, download_name=base_name + ".png")
+            return set_conversion_metadata(
+                resp,
+                engine_used,
+                "medium",
+                "CAD rendering may omit or simplify unsupported entities, fonts, and line styles.",
+            )
 
 
 # ── PDF → PowerPoint ─────────────────────────────────────
@@ -1866,8 +1998,9 @@ def pdf_to_pptx():
                 "use features LibreOffice's PDF importer can't handle. Try Image mode instead."
             )), 400
 
-        return send_file(io.BytesIO(pptx_bytes), mimetype=PPTX_MIME,
+        resp = send_file(io.BytesIO(pptx_bytes), mimetype=PPTX_MIME,
                          as_attachment=True, download_name=f"{base}.pptx")
+        return set_conversion_metadata(resp, "libreoffice", QUALITY_HIGH)
 
     # ── Image mode (page-image-per-slide) ─────────────────
     if not HAS_PPTX:
@@ -1921,8 +2054,14 @@ def pdf_to_pptx():
     finally:
         doc.close()
 
-    return send_file(output, mimetype=PPTX_MIME,
+    resp = send_file(output, mimetype=PPTX_MIME,
                      as_attachment=True, download_name=f"{base}.pptx")
+    return set_conversion_metadata(
+        resp,
+        "pymupdf/python-pptx",
+        QUALITY_HIGH,
+        "Image mode preserves appearance but slides are not editable.",
+    )
 
 
 # ── PowerPoint → PDF ─────────────────────────────────────
@@ -1942,10 +2081,7 @@ def pptx_to_pdf_page():
 
 @bp.route("/pptx-to-pdf", methods=["POST"])
 def pptx_to_pdf():
-    import os
-    import tempfile
-    import subprocess
-    from routes._helpers import log_error, NO_FILE_SINGLE
+    from routes._helpers import NO_FILE_SINGLE
 
     if not SOFFICE:
         return jsonify(error="LibreOffice (soffice) is not installed or not on PATH. Install LibreOffice and restart the server."), 400
@@ -1959,35 +2095,11 @@ def pptx_to_pdf():
     if ext not in ("pptx", "ppt", "odp"):
         return jsonify(error="Unsupported format. Upload .pptx, .ppt, or .odp."), 400
 
-    safe_name = "input." + ext
-    with tempfile.TemporaryDirectory() as tmp:
-        in_path = os.path.join(tmp, safe_name)
-        f.save(in_path)
-
-        try:
-            proc = subprocess.run(
-                [SOFFICE, "--headless", "--convert-to", "pdf",
-                 "--outdir", tmp, in_path],
-                capture_output=True, timeout=300,
-            )
-        except subprocess.TimeoutExpired:
-            return jsonify(error="Conversion timed out (file is too complex or too large)."), 400
-        except Exception as e:
-            log_error(e, "pptx-to-pdf subprocess")
-            return jsonify(error="LibreOffice failed to launch."), 400
-
-        if proc.returncode != 0:
-            err = proc.stderr.decode("utf-8", errors="replace")[:200] or "unknown error"
-            log_error(RuntimeError(err), "pptx-to-pdf")
-            return jsonify(error="LibreOffice could not convert this file."), 400
-
-        out_pdf = os.path.join(tmp, "input.pdf")
-        if not os.path.exists(out_pdf):
-            return jsonify(error="Conversion produced no output (file may be corrupted or empty)."), 400
-
-        with open(out_pdf, "rb") as fp:
-            data = fp.read()
+    data = soffice_convert(f.read(), ext, "pdf", timeout=300)
+    if data is None:
+        return jsonify(error="LibreOffice could not convert this file."), 400
 
     base = f.filename.rsplit(".", 1)[0]
-    return send_file(io.BytesIO(data), mimetype="application/pdf",
+    resp = send_file(io.BytesIO(data), mimetype="application/pdf",
                      as_attachment=True, download_name=f"{base}.pdf")
+    return set_conversion_metadata(resp, "libreoffice", QUALITY_HIGH)

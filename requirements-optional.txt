@@ -1,0 +1,11 @@
+# Optional local packages. The launcher installs these best-effort so one
+# missing wheel or heavy dependency does not prevent the app from starting.
+rembg[cpu]
+pyzbar
+pdf2docx
+pdfplumber
+pytesseract
+ezdxf
+matplotlib
+pillow-heif
+openai-whisper

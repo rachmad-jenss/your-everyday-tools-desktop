@@ -1,28 +1,8 @@
-# Core
-Flask
-Pillow
-PyMuPDF
-qrcode[pil]
-python-barcode
-markdown
-reportlab
-svglib
-img2pdf
-python-docx
-python-pptx
-openpyxl
-xlrd
-sqlparse
-croniter
-jsonpath-ng
-cryptography
-
-# Optional (app works without these, shows install message if missing)
-rembg
-pyzbar
-pdf2docx
-pytesseract
-ezdxf
-matplotlib
-pillow-heif
-openai-whisper
+# Full install for developers/manual setup.
+#
+# The one-click launchers install requirements-core.txt first, then install
+# requirements-optional.txt best-effort so optional package failures do not
+# prevent the app from starting.
+-r requirements-core.txt
+-r requirements-optional.txt
+-r requirements-dev.txt

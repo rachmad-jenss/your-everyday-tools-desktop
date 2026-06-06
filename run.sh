@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 # Launcher for Linux. Run with: ./run.sh
-# (macOS users: use run.command — identical content, different filename
-#  so Finder recognises it as double-clickable.)
 
-exec "$(dirname "$0")/run.command" "$@"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec "$SCRIPT_DIR/run.command" "$@"

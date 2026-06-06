@@ -33,7 +33,42 @@ document.addEventListener("DOMContentLoaded", () => {
     initUploadZone();
     initToolForm();
     initDependentOptions();
+    initCapabilityStatus();
 });
+
+async function initCapabilityStatus() {
+    const box = document.getElementById("capability-status");
+    if (!box) return;
+    const endpoint = box.dataset.endpoint;
+    if (!endpoint) return;
+    try {
+        const resp = await fetch("/capabilities");
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const status = data.routes && data.routes[endpoint];
+        if (!status) return;
+        box.className = "capability-status " + status.quality;
+        box.style.display = "block";
+
+        const missing = (status.missing_engines || [])
+            .map(id => data.engines[id]?.label || id)
+            .join(", ");
+        const engines = (status.required_engines || [])
+            .map(id => data.engines[id]?.label || id)
+            .join(", ");
+        const detail = status.quality === "high"
+            ? `Using local high-fidelity engine${engines ? ": " + engines : ""}.`
+            : status.quality === "basic"
+                ? `High-fidelity engine missing${missing ? ": " + missing : ""}. ${status.fallback || ""}`
+                : `Required local engine missing${missing ? ": " + missing : ""}.`;
+
+        box.innerHTML = `
+            <strong><i class="bi ${status.quality === "high" ? "bi-check-circle-fill" : "bi-exclamation-triangle-fill"}"></i> ${status.status}</strong>
+            <span>${status.label}</span>
+            <small>${detail}</small>
+        `;
+    } catch (_) {}
+}
 
 
 /* ── Upload Zone ──────────────────────────────── */
@@ -176,10 +211,16 @@ function initToolForm() {
                 const url = URL.createObjectURL(blob);
 
                 // If image, show preview
+                const meta = {
+                    engine: resp.headers.get("X-Conversion-Engine") || "",
+                    quality: resp.headers.get("X-Conversion-Quality") || "",
+                    warnings: resp.headers.get("X-Fidelity-Warnings") || ""
+                };
+
                 if (ct.startsWith("image/")) {
-                    showFileResult(url, filename, true);
+                    showFileResult(url, filename, true, meta);
                 } else {
-                    showFileResult(url, filename, false);
+                    showFileResult(url, filename, false, meta);
                 }
             }
         } catch (err) {
@@ -202,7 +243,7 @@ function showError(msg) {
     document.getElementById("error-message").textContent = msg;
 }
 
-function showFileResult(url, filename, isImage) {
+function showFileResult(url, filename, isImage, meta = {}) {
     const area = document.getElementById("result-area");
     area.style.display = "block";
     document.getElementById("result-error").style.display = "none";
@@ -225,6 +266,19 @@ function showFileResult(url, filename, isImage) {
     } else {
         preview.style.display = "none";
     }
+
+    const oldMeta = success.querySelector(".result-meta");
+    if (oldMeta) oldMeta.remove();
+    if (meta.engine || meta.quality || meta.warnings) {
+        const div = document.createElement("div");
+        div.className = "result-meta";
+        const parts = [];
+        if (meta.engine) parts.push(`<span>Engine: ${escapeHtml(meta.engine)}</span>`);
+        if (meta.quality) parts.push(`<span>Quality: ${escapeHtml(meta.quality)}</span>`);
+        if (meta.warnings) parts.push(`<span>Warnings: ${escapeHtml(meta.warnings)}</span>`);
+        div.innerHTML = parts.join("");
+        success.appendChild(div);
+    }
 }
 
 function showTextResult(text) {
@@ -243,6 +297,16 @@ function showTextResult(text) {
 function copyResult() {
     const text = document.getElementById("result-text-content")?.textContent;
     if (text) navigator.clipboard.writeText(text);
+}
+
+function escapeHtml(text) {
+    return String(text).replace(/[&<>"']/g, c => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+    }[c]));
 }
 
 

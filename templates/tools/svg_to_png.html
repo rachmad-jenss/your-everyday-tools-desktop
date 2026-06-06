@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% block title %}SVG to PNG - EveryTools{% endblock %}
+{% block top_title %}SVG to PNG{% endblock %}
+
+{% block content %}
+<div class="tool-page">
+    <div class="tool-header">
+        <h1>SVG to PNG</h1>
+        <p>Rasterise an SVG file to a PNG image locally in your browser.</p>
+    </div>
+
+    <div id="capability-status" class="capability-status" data-endpoint="/image/svg-to-png" style="display:none"></div>
+
+    <form id="svg-png-form">
+        <div class="upload-zone" id="svg-upload-zone">
+            <input type="file" id="svg-file-input" accept=".svg,image/svg+xml">
+            <div class="upload-prompt" id="svg-upload-prompt">
+                <i class="bi bi-cloud-arrow-up"></i>
+                <p>Drag &amp; drop SVG here</p>
+                <span>or click to browse</span>
+                <small>Accepted: .svg</small>
+            </div>
+        </div>
+        <div class="file-list" id="svg-file-list"></div>
+
+        <div class="tool-options">
+            <div class="form-group">
+                <label for="svg-width">Output width (pixels, 0 = native size)</label>
+                <input type="number" id="svg-width" value="0" min="0" max="10000" step="1">
+            </div>
+            <div class="form-group">
+                <label>Background</label>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="svg-transparent" checked>
+                    <span>Transparent (otherwise white)</span>
+                </label>
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary" id="svg-render-btn">
+            <i class="bi bi-image"></i> Render in browser
+        </button>
+        <button type="button" class="btn btn-secondary" id="svg-server-btn">
+            <i class="bi bi-arrow-repeat"></i> Use server fallback
+        </button>
+    </form>
+
+    <div id="result-area" class="result-area" style="display:none">
+        <div id="result-success" class="result-success" style="display:none">
+            <i class="bi bi-check-circle-fill"></i>
+            <span id="result-message">Done!</span>
+            <a id="download-btn" class="btn btn-success" download>
+                <i class="bi bi-download"></i> Download
+            </a>
+            <div id="result-preview" style="display:none"></div>
+        </div>
+        <div id="result-error" class="result-error" style="display:none">
+            <i class="bi bi-exclamation-circle-fill"></i>
+            <span id="error-message"></span>
+        </div>
+    </div>
+</div>
+
+<script>
+(() => {
+    const zone = document.getElementById("svg-upload-zone");
+    const input = document.getElementById("svg-file-input");
+    const list = document.getElementById("svg-file-list");
+    const prompt = document.getElementById("svg-upload-prompt");
+    const form = document.getElementById("svg-png-form");
+    const fallbackBtn = document.getElementById("svg-server-btn");
+    let selectedFile = null;
+
+    function setFile(file) {
+        selectedFile = file || null;
+        if (!selectedFile) {
+            list.innerHTML = "";
+            prompt.style.display = "";
+            return;
+        }
+        prompt.style.display = "none";
+        list.innerHTML = `<div class="file-item"><span><i class="bi bi-file-earmark"></i> ${escapeHtml(selectedFile.name)} <small>(${formatSize(selectedFile.size)})</small></span><button type="button" class="remove-file" id="svg-clear-file">&times;</button></div>`;
+        document.getElementById("svg-clear-file").addEventListener("click", () => setFile(null));
+    }
+
+    function showError(message) {
+        document.getElementById("result-area").style.display = "block";
+        document.getElementById("result-success").style.display = "none";
+        document.getElementById("result-error").style.display = "flex";
+        document.getElementById("error-message").textContent = message;
+    }
+
+    function showResult(url, filename, metaText) {
+        document.getElementById("result-area").style.display = "block";
+        document.getElementById("result-error").style.display = "none";
+        document.getElementById("result-success").style.display = "flex";
+        const link = document.getElementById("download-btn");
+        link.href = url;
+        link.download = filename;
+        const preview = document.getElementById("result-preview");
+        preview.style.display = "block";
+        preview.innerHTML = `<img src="${url}" alt="PNG preview" style="max-width:100%;max-height:420px;border-radius:6px;margin-top:1rem">${metaText ? `<div class="result-meta">${metaText}</div>` : ""}`;
+    }
+
+    function intrinsicSize(svgText, img) {
+        const parsed = new DOMParser().parseFromString(svgText, "image/svg+xml");
+        const svg = parsed.documentElement;
+        const viewBox = (svg.getAttribute("viewBox") || "").trim().split(/\s+/).map(Number);
+        if (viewBox.length === 4 && viewBox.every(Number.isFinite) && viewBox[2] > 0 && viewBox[3] > 0) {
+            return { width: viewBox[2], height: viewBox[3] };
+        }
+        return {
+            width: img.naturalWidth || 1024,
+            height: img.naturalHeight || 1024,
+        };
+    }
+
+    async function renderClient() {
+        if (!selectedFile) {
+            showError("Please select an SVG file first.");
+            return;
+        }
+        const svgText = await selectedFile.text();
+        const blobUrl = URL.createObjectURL(new Blob([svgText], { type: "image/svg+xml" }));
+        const img = new Image();
+        img.decoding = "async";
+        await new Promise((resolve, reject) => {
+            img.onload = resolve;
+            img.onerror = () => reject(new Error("Browser could not render this SVG."));
+            img.src = blobUrl;
+        });
+
+        const size = intrinsicSize(svgText, img);
+        const targetWidth = Math.max(0, Math.min(10000, Number(document.getElementById("svg-width").value) || 0));
+        const scale = targetWidth > 0 ? targetWidth / size.width : 1;
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, Math.round(size.width * scale));
+        canvas.height = Math.max(1, Math.round(size.height * scale));
+        const ctx = canvas.getContext("2d");
+        const transparent = document.getElementById("svg-transparent").checked;
+        if (!transparent) {
+            ctx.fillStyle = "#fff";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(blobUrl);
+
+        const pngBlob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+        const url = URL.createObjectURL(pngBlob);
+        const base = selectedFile.name.replace(/\.[^.]+$/, "") || "image";
+        showResult(url, `${base}.png`, "Engine: browser canvas | Quality: high");
+    }
+
+    async function renderServerFallback() {
+        if (!selectedFile) {
+            showError("Please select an SVG file first.");
+            return;
+        }
+        const fd = new FormData();
+        fd.append("files", selectedFile);
+        fd.append("width", document.getElementById("svg-width").value || "0");
+        if (document.getElementById("svg-transparent").checked) fd.append("transparent", "on");
+        const resp = await fetch("/image/svg-to-png", { method: "POST", body: fd });
+        if (!resp.ok) {
+            let message = "Server fallback failed.";
+            try {
+                const json = await resp.json();
+                message = json.error || message;
+            } catch (_) {}
+            showError(message);
+            return;
+        }
+        const blob = await resp.blob();
+        const url = URL.createObjectURL(blob);
+        const base = selectedFile.name.replace(/\.[^.]+$/, "") || "image";
+        showResult(url, `${base}.png`, "Engine: svglib/reportlab | Quality: basic fallback");
+    }
+
+    zone.addEventListener("click", () => input.click());
+    zone.addEventListener("dragover", e => { e.preventDefault(); zone.classList.add("dragover"); });
+    zone.addEventListener("dragleave", () => zone.classList.remove("dragover"));
+    zone.addEventListener("drop", e => {
+        e.preventDefault();
+        zone.classList.remove("dragover");
+        setFile(e.dataTransfer.files[0]);
+    });
+    input.addEventListener("change", () => setFile(input.files[0]));
+    form.addEventListener("submit", e => {
+        e.preventDefault();
+        renderClient().catch(err => showError(err.message || "Browser rendering failed."));
+    });
+    fallbackBtn.addEventListener("click", () => {
+        renderServerFallback().catch(err => showError(err.message || "Server fallback failed."));
+    });
+})();
+</script>
+{% endblock %}

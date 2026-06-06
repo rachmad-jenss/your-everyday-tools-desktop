@@ -1,0 +1,62 @@
+/* Local Bootstrap Icons shim.
+   The original project used the Bootstrap Icons CDN. This lightweight local
+   fallback keeps the app offline without changing every template. */
+.bi {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.15em;
+    height: 1.15em;
+    line-height: 1;
+    vertical-align: -0.125em;
+}
+
+.bi::before {
+    content: "";
+    display: inline-block;
+    width: .78em;
+    height: .78em;
+    border: 1.8px solid currentColor;
+    border-radius: 2px;
+}
+
+.bi-tools::before,
+.bi-rulers::before { border-radius: 0; transform: rotate(45deg); }
+.bi-chevron-down::before { content: "v"; border: 0; width: auto; height: auto; font-size: .78em; }
+.bi-list::before { content: "="; border: 0; width: auto; height: auto; font-weight: 700; }
+.bi-check-circle-fill::before,
+.bi-check-circle::before { border-radius: 50%; background: currentColor; box-shadow: inset 0 0 0 3px #fff; }
+.bi-exclamation-circle-fill::before,
+.bi-exclamation-triangle-fill::before { border-radius: 50%; border-width: 2px; }
+.bi-arrow-repeat::before,
+.bi-arrow-clockwise::before { border-radius: 50%; border-right-color: transparent; }
+.bi-download::before,
+.bi-cloud-arrow-up::before,
+.bi-box-arrow-up::before { border-top: 0; border-left: 0; transform: rotate(45deg); }
+.bi-scissors::before { border-radius: 50%; box-shadow: .35em .35em 0 -.15em currentColor; }
+.bi-lock-fill::before,
+.bi-unlock-fill::before,
+.bi-shield-lock-fill::before { border-radius: 2px 2px 4px 4px; }
+.bi-file-pdf-fill::before,
+.bi-file-word-fill::before,
+.bi-file-image-fill::before,
+.bi-file-text-fill::before,
+.bi-file-earmark-spreadsheet-fill::before,
+.bi-file-earmark-slides-fill::before,
+.bi-file-earmark-pdf-fill::before,
+.bi-file-earmark-text-fill::before,
+.bi-file-zip-fill::before,
+.bi-file-earmark-play-fill::before,
+.bi-file-earmark::before,
+.bi-file-pdf::before,
+.bi-file-zip::before { border-radius: 1px; border-top-right-radius: 5px; }
+.bi-qr-code::before,
+.bi-qr-code-scan::before,
+.bi-upc-scan::before { box-shadow: inset .28em .28em 0 currentColor, inset -.28em -.28em 0 currentColor; }
+.bi-calculator::before,
+.bi-calculator-fill::before { box-shadow: inset 0 .25em 0 currentColor; }
+.bi-percent::before,
+.bi-123::before,
+.bi-hash::before { content: "#"; border: 0; width: auto; height: auto; font-weight: 700; }
+.bi-code-slash::before,
+.bi-braces::before { content: "{}"; border: 0; width: auto; height: auto; font-size: .78em; font-weight: 700; }

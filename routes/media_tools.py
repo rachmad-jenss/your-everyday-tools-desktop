@@ -1,10 +1,13 @@
 import os
+import json
+import importlib.util
 import shutil
 import subprocess
 import tempfile
 from flask import Blueprint, render_template, request, send_file, jsonify
 
 from routes._helpers import safe_int, safe_float, log_error, NO_FILE_SINGLE
+from utils.capabilities import QUALITY_HIGH, set_conversion_metadata
 
 bp = Blueprint("media", __name__)
 
@@ -62,6 +65,65 @@ def _save_upload(file_storage, tmpdir: str) -> str:
     path = os.path.join(tmpdir, "input_" + file_storage.filename.replace("/", "_").replace("\\", "_"))
     file_storage.save(path)
     return path
+
+
+def _probe_media(path: str) -> dict | None:
+    if not FFPROBE:
+        return None
+    try:
+        proc = subprocess.run(
+            [
+                FFPROBE,
+                "-v", "error",
+                "-print_format", "json",
+                "-show_streams",
+                "-show_format",
+                path,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+    except Exception:
+        return None
+    if proc.returncode != 0:
+        return None
+    try:
+        return json.loads(proc.stdout or "{}")
+    except json.JSONDecodeError:
+        return None
+
+
+def _first_codec(probe: dict | None, codec_type: str) -> str | None:
+    for stream in (probe or {}).get("streams", []):
+        if stream.get("codec_type") == codec_type:
+            return stream.get("codec_name")
+    return None
+
+
+def _can_copy_video(probe: dict | None, target_fmt: str) -> bool:
+    video = _first_codec(probe, "video")
+    audio = _first_codec(probe, "audio")
+    if target_fmt == "mp4":
+        return video in {"h264", "hevc", "mpeg4"} and (audio in {None, "aac", "mp3", "alac"})
+    if target_fmt == "webm":
+        return video in {"vp8", "vp9", "av1"} and (audio in {None, "vorbis", "opus"})
+    if target_fmt == "mkv":
+        return True
+    if target_fmt == "mov":
+        return video in {"h264", "hevc", "prores"} and (audio in {None, "aac", "pcm_s16le", "alac"})
+    return False
+
+
+def _media_response(data: bytes, *, mimetype: str | None = None,
+                    download_name: str, warnings: list[str] | None = None):
+    resp = send_file(
+        _bytes_io(data),
+        mimetype=mimetype,
+        as_attachment=True,
+        download_name=download_name,
+    )
+    return set_conversion_metadata(resp, "ffmpeg", QUALITY_HIGH, warnings or [])
 
 
 # ── Audio convert ──────────────────────────────────────
@@ -128,12 +190,7 @@ def convert_audio():
             data = fp.read()
 
     base = f.filename.rsplit(".", 1)[0]
-    return send_file(
-        _bytes_io(data),
-        mimetype=f"audio/{fmt}",
-        as_attachment=True,
-        download_name=f"{base}.{fmt}",
-    )
+    return _media_response(data, mimetype=f"audio/{fmt}", download_name=f"{base}.{fmt}")
 
 
 # ── Video convert ──────────────────────────────────────
@@ -157,6 +214,17 @@ def convert_video():
                     "default": "mp4",
                     "choices": [{"value": f, "label": f.upper()} for f in VIDEO_FORMATS],
                 },
+                {
+                    "name": "quality",
+                    "label": "Quality",
+                    "type": "select",
+                    "default": "auto",
+                    "choices": [
+                        {"value": "auto", "label": "Auto preserve when compatible"},
+                        {"value": "high", "label": "High quality re-encode"},
+                        {"value": "standard", "label": "Standard re-encode"},
+                    ],
+                },
             ],
             button_text="Convert",
         )
@@ -167,18 +235,31 @@ def convert_video():
     fmt = request.form.get("format", "mp4")
     if fmt not in VIDEO_FORMATS:
         return jsonify({"error": "Unsupported target format."}), 400
+    quality = request.form.get("quality", "auto")
+    if quality not in ("auto", "high", "standard"):
+        quality = "auto"
+    warnings = []
 
     with tempfile.TemporaryDirectory() as tmp:
         in_path = _save_upload(f, tmp)
         out_path = os.path.join(tmp, f"output.{fmt}")
 
+        probe = _probe_media(in_path)
         args = ["-i", in_path]
-        if fmt == "webm":
-            args += ["-c:v", "libvpx-vp9", "-c:a", "libopus", out_path]
-        elif fmt == "mp4":
-            args += ["-c:v", "libx264", "-c:a", "aac", "-preset", "medium", out_path]
+        if quality == "auto" and _can_copy_video(probe, fmt):
+            args += ["-c", "copy", out_path]
         else:
-            args += [out_path]
+            if quality == "auto" and probe is None:
+                warnings.append("ffprobe metadata was unavailable; FFmpeg re-encoded streams instead of attempting stream copy.")
+            elif quality == "auto":
+                warnings.append("Input streams were not compatible with the target container; FFmpeg re-encoded them.")
+            crf = "20" if quality == "high" else "23"
+            if fmt == "webm":
+                args += ["-c:v", "libvpx-vp9", "-crf", "30" if quality == "standard" else "24", "-b:v", "0", "-c:a", "libopus", out_path]
+            elif fmt == "mp4":
+                args += ["-c:v", "libx264", "-crf", crf, "-c:a", "aac", "-preset", "medium", out_path]
+            else:
+                args += [out_path]
 
         _, err = _run_ffmpeg(args, timeout=600)
         if err:
@@ -188,12 +269,7 @@ def convert_video():
             data = fp.read()
 
     base = f.filename.rsplit(".", 1)[0]
-    return send_file(
-        _bytes_io(data),
-        mimetype=f"video/{fmt}",
-        as_attachment=True,
-        download_name=f"{base}.{fmt}",
-    )
+    return _media_response(data, mimetype=f"video/{fmt}", download_name=f"{base}.{fmt}", warnings=warnings)
 
 
 # ── Extract audio from video ───────────────────────────
@@ -252,12 +328,7 @@ def extract_audio():
             data = fp.read()
 
     base = f.filename.rsplit(".", 1)[0]
-    return send_file(
-        _bytes_io(data),
-        mimetype=f"audio/{fmt}",
-        as_attachment=True,
-        download_name=f"{base}.{fmt}",
-    )
+    return _media_response(data, mimetype=f"audio/{fmt}", download_name=f"{base}.{fmt}")
 
 
 # ── Trim media ─────────────────────────────────────────
@@ -322,11 +393,7 @@ def trim():
             data = fp.read()
 
     base = f.filename.rsplit(".", 1)[0]
-    return send_file(
-        _bytes_io(data),
-        as_attachment=True,
-        download_name=f"{base}_trimmed.{ext}",
-    )
+    return _media_response(data, download_name=f"{base}_trimmed.{ext}")
 
 
 # ── Compress video ─────────────────────────────────────
@@ -396,12 +463,7 @@ def compress_video():
             data = fp.read()
 
     base = f.filename.rsplit(".", 1)[0]
-    return send_file(
-        _bytes_io(data),
-        mimetype="video/mp4",
-        as_attachment=True,
-        download_name=f"{base}_compressed.mp4",
-    )
+    return _media_response(data, mimetype="video/mp4", download_name=f"{base}_compressed.mp4")
 
 
 # ── Video to GIF ───────────────────────────────────────
@@ -458,12 +520,7 @@ def video_to_gif():
             data = fp.read()
 
     base = f.filename.rsplit(".", 1)[0]
-    return send_file(
-        _bytes_io(data),
-        mimetype="image/gif",
-        as_attachment=True,
-        download_name=f"{base}.gif",
-    )
+    return _media_response(data, mimetype="image/gif", download_name=f"{base}.gif")
 
 
 # ── Subtitle convert / shift ───────────────────────────
@@ -618,12 +675,13 @@ def subtitle_convert():
 
     out_text = _write_srt(cues) if target == "srt" else _write_vtt(cues)
     base = f.filename.rsplit(".", 1)[0]
-    return send_file(
+    resp = send_file(
         _bytes_io(out_text.encode("utf-8")),
         mimetype="text/plain",
         as_attachment=True,
         download_name=f"{base}.{target}",
     )
+    return set_conversion_metadata(resp, "python", QUALITY_HIGH)
 
 
 # ── Burn subtitles ─────────────────────────────────────
@@ -710,12 +768,7 @@ def burn_subtitles():
             data = fp.read()
 
     base = f.filename.rsplit(".", 1)[0]
-    return send_file(
-        _bytes_io(data),
-        mimetype="video/mp4",
-        as_attachment=True,
-        download_name=f"{base}_subs.mp4",
-    )
+    return _media_response(data, mimetype="video/mp4", download_name=f"{base}_subs.mp4")
 
 
 # ── Audio Normalize (FFmpeg loudnorm, EBU R128) ────────
@@ -808,24 +861,16 @@ def normalize_audio():
     mime_map = {"mp3": "audio/mpeg", "wav": "audio/wav", "flac": "audio/flac",
                 "ogg": "audio/ogg", "m4a": "audio/mp4", "opus": "audio/opus"}
     mime = mime_map.get(out_ext, "application/octet-stream")
-    return send_file(
-        _bytes_io(data),
-        mimetype=mime,
-        as_attachment=True,
-        download_name=f"{base}_normalized.{out_ext}",
-    )
+    return _media_response(data, mimetype=mime, download_name=f"{base}_normalized.{out_ext}")
 
 
 # ── Speech to Text (Whisper, optional) ──────────────
 
-try:
-    import whisper as _whisper  # type: ignore
-    HAS_WHISPER = True
-except ImportError:
-    HAS_WHISPER = False
+HAS_WHISPER = importlib.util.find_spec("whisper") is not None
 
 WHISPER_MODELS = ["tiny", "base", "small", "medium", "large"]
 _whisper_model_cache: dict = {}
+_whisper_module = None
 
 
 @bp.route("/transcribe", methods=["GET", "POST"])
@@ -913,9 +958,13 @@ def transcribe():
         in_path = _save_upload(f, tmp)
 
         try:
+            global _whisper_module
+            if _whisper_module is None:
+                import whisper as whisper_module  # type: ignore
+                _whisper_module = whisper_module
             model = _whisper_model_cache.get(model_size)
             if model is None:
-                model = _whisper.load_model(model_size)
+                model = _whisper_module.load_model(model_size)
                 _whisper_model_cache[model_size] = model
             result = model.transcribe(in_path, language=language, verbose=False)
         except Exception as e:
@@ -926,7 +975,12 @@ def transcribe():
     base = f.filename.rsplit(".", 1)[0]
 
     if out_fmt == "txt":
-        return jsonify({"text": (result.get("text") or "").strip() or "(no speech detected)"})
+        return jsonify({
+            "text": (result.get("text") or "").strip() or "(no speech detected)",
+            "engine": "whisper",
+            "quality": QUALITY_HIGH,
+            "warnings": [],
+        })
 
     # Build SRT / VTT from segments
     segments = result.get("segments") or []
@@ -946,8 +1000,9 @@ def transcribe():
             lines.append((seg.get("text") or "").strip())
             lines.append("")
         body = "\n".join(lines).rstrip() + "\n"
-        return send_file(_bytes_io(body.encode("utf-8")), mimetype="text/plain",
+        resp = send_file(_bytes_io(body.encode("utf-8")), mimetype="text/plain",
                          as_attachment=True, download_name=f"{base}.srt")
+        return set_conversion_metadata(resp, "whisper", QUALITY_HIGH)
 
     # vtt
     lines = ["WEBVTT", ""]
@@ -958,8 +1013,9 @@ def transcribe():
         lines.append((seg.get("text") or "").strip())
         lines.append("")
     body = "\n".join(lines).rstrip() + "\n"
-    return send_file(_bytes_io(body.encode("utf-8")), mimetype="text/plain",
+    resp = send_file(_bytes_io(body.encode("utf-8")), mimetype="text/plain",
                      as_attachment=True, download_name=f"{base}.vtt")
+    return set_conversion_metadata(resp, "whisper", QUALITY_HIGH)
 
 
 # ── helpers ────────────────────────────────────────────

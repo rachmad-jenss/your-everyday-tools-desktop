@@ -2,6 +2,51 @@
 
 All notable changes to **Your Everyday Tools** are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project loosely follows [Semantic Versioning](https://semver.org/).
 
+## [0.6.3] — 2026-06-06
+
+### Added — Local conversion fidelity layer
+
+- Added a shared local capability detector for LibreOffice, FFmpeg/ffprobe, Tesseract, ODA File Converter, PyMuPDF, pdf2docx, pdfplumber, Marker, pyzbar, rembg, pillow-heif, Whisper, and python-pptx.
+- Added `GET /capabilities`, returning engine availability, detected paths/versions when known, route quality tier, missing engines, and install hints.
+- Added standard conversion metadata on file responses: `X-Conversion-Engine`, `X-Conversion-Quality`, and `X-Fidelity-Warnings`. JSON responses can now include `engine`, `quality`, and `warnings`.
+- Added a shared upload-page status banner showing **High fidelity**, **Basic fallback**, or **Unavailable** before users convert.
+- Added a shared cross-platform launcher (`scripts/launcher.py`) used by `run.bat`, `run.command`, and `run.sh`. It creates a private `.venv`, installs core dependencies, best-effort installs optional Python packages, verifies PyMuPDF, opens the browser, and starts the app.
+- Added PDF to Word **Exact visual copy** mode, which renders each PDF page into a Word page as a non-editable image for best appearance preservation.
+- Added a browser-rendered SVG to PNG path for better SVG fidelity, with the existing local server renderer kept as fallback.
+- Added a first `tests/fidelity` scaffold covering capabilities, fallback gating, metadata headers, and future golden-fixture strategy.
+- Added a PyMuPDF import guard so the common wrong-package `fitz`/`frontend` install fails with clear setup instructions instead of a misleading Starlette traceback.
+
+### Improved — Document and layout conversions
+
+- Hardened LibreOffice conversion with an isolated temporary user profile, `--headless`, `--nologo`, `--nofirststartwizard`, `--norestore`, safer timeout handling, and robust output-file detection.
+- Word/HTML/Excel/PowerPoint to PDF now prefer LibreOffice when available for high-fidelity layout preservation.
+- Excel to PDF now performs full-fidelity local conversion through LibreOffice; the older ReportLab table renderer remains available only as an explicit basic fallback.
+- Layout-sensitive fallbacks are no longer silent. Word/HTML/Excel to PDF now return a clear error unless the user explicitly allows the basic fallback.
+- PDF to Excel can use optional `pdfplumber` before falling back to PyMuPDF table detection.
+- PDF to PowerPoint and PowerPoint to PDF now report conversion engine and quality metadata.
+
+### Improved — Images, SVG, media, and CAD
+
+- Image tools now apply EXIF orientation before processing.
+- Image saves preserve ICC profiles where supported.
+- Compress Image now offers Auto, Photo/JPEG, Lossless PNG, and WebP modes instead of always forcing JPEG.
+- Media conversion uses ffprobe metadata to preserve compatible audio/video streams when possible, and otherwise exposes re-encode warnings and quality presets.
+- CAD outputs now include engine metadata and warnings about unsupported entities, fonts, and line styles.
+
+### Changed — Offline UX
+
+- Replaced the Bootstrap Icons CDN dependency with a local icon shim so the app UI remains offline.
+- README now documents the local fidelity model, `/capabilities`, response metadata headers, explicit fallback behavior, and updated optional dependencies.
+- One-click launchers are now isolated from global/user Python packages and no longer fail the whole app when an optional Python package cannot be installed.
+- Optional heavy modules (`rembg`, Whisper, Marker, CAD/matplotlib stack) are now lazy-loaded only when their specific tool runs, reducing startup stalls before Flask prints its server banner.
+
+### Dependencies
+
+- Added optional `pdfplumber`.
+- Added `pytest` for the test suite.
+- Split dependency files into `requirements-core.txt`, `requirements-optional.txt`, and `requirements-dev.txt`; `requirements.txt` remains the full aggregate install.
+- Optional background removal now installs/checks `rembg[cpu]` so incomplete `rembg` installs without ONNX Runtime do not block app startup.
+
 ## [0.6.2] — 2026-04-29
 
 ### Improved — Requirements & expectations on every tool page

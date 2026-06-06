@@ -1,15 +1,17 @@
 import io
+import importlib.util
 from flask import Blueprint, render_template, request, send_file, jsonify
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 from PIL.ExifTags import TAGS
 
 from routes._helpers import safe_int, safe_float, log_error, NO_FILE_SINGLE
+from utils.capabilities import QUALITY_BASIC, QUALITY_HIGH, set_conversion_metadata
 
-try:
-    from rembg import remove as rembg_remove
-    HAS_REMBG = True
-except ImportError:
-    HAS_REMBG = False
+HAS_REMBG = (
+    importlib.util.find_spec("rembg") is not None
+    and importlib.util.find_spec("onnxruntime") is not None
+)
+REMBG_IMPORT_ERROR = "" if HAS_REMBG else "Install rembg with CPU support: pip install \"rembg[cpu]\""
 
 try:
     import pytesseract
@@ -38,7 +40,7 @@ def get_pil_image(file):
     Used by routes that need a single in-memory PIL.Image. Routes that should
     properly close the image on error paths use _safe_open_image() instead.
     """
-    return Image.open(io.BytesIO(file.read()))
+    return ImageOps.exif_transpose(Image.open(io.BytesIO(file.read())))
 
 
 def _safe_open_image(file):
@@ -47,7 +49,7 @@ def _safe_open_image(file):
     Returns the opened image (caller should close or use as a context manager).
     """
     try:
-        return Image.open(io.BytesIO(file.read()))
+        return ImageOps.exif_transpose(Image.open(io.BytesIO(file.read())))
     except Exception as e:
         log_error(e, "Image.open")
         raise ValueError("Could not read image (file may be corrupted or not an image).")
@@ -56,6 +58,7 @@ def _safe_open_image(file):
 def image_to_bytes(img, fmt, quality=85):
     buf = io.BytesIO()
     save_kwargs = {"format": fmt}
+    icc_profile = img.info.get("icc_profile")
 
     if fmt.upper() == "JPEG":
         if img.mode in ("RGBA", "P", "LA"):
@@ -66,6 +69,8 @@ def image_to_bytes(img, fmt, quality=85):
         save_kwargs["optimize"] = True
     elif fmt.upper() == "WEBP":
         save_kwargs["quality"] = quality
+    if icc_profile and fmt.upper() in ("JPEG", "PNG", "WEBP"):
+        save_kwargs["icc_profile"] = icc_profile
 
     img.save(buf, **save_kwargs)
     buf.seek(0)
@@ -116,10 +121,9 @@ def compress_page():
         title="Compress Image",
         description="Reduce image file size while controlling quality",
         notes=(
-            '<p><strong>Output is always JPG</strong> regardless of the input format — '
-            'JPG is the most compressible format and best for photos. If you need to keep '
-            'transparency or sharp text/diagrams, use <a href="/image/convert">Convert Format</a> '
-            'with PNG or WebP instead.</p>'
+            '<p><strong>Auto mode</strong> keeps transparency lossless and uses photo compression '
+            'for opaque images. Choose Photo/JPEG for smaller photos, Lossless PNG for diagrams '
+            'or transparent artwork, or WebP for modern lossy compression.</p>'
             '<p><strong>Quality guide:</strong> 70–80% is the sweet spot for photos (large '
             'savings, no visible loss). Below 50% you\'ll start seeing JPEG artefacts. '
             'Above 90% gives diminishing returns.</p>'
@@ -128,6 +132,13 @@ def compress_page():
         accept=IMAGE_ACCEPT,
         multiple=False,
         options=[
+            {"type": "select", "name": "compression_mode", "label": "Mode", "default": "auto",
+             "choices": [
+                 {"value": "auto", "label": "Auto"},
+                 {"value": "photo", "label": "Photo/JPEG"},
+                 {"value": "lossless", "label": "Lossless PNG"},
+                 {"value": "webp", "label": "WebP"},
+             ]},
             {"type": "range", "name": "quality", "label": "Quality",
              "default": 70, "min": 10, "max": 100, "step": 5, "suffix": "%"},
         ])
@@ -166,7 +177,7 @@ def remove_bg_page():
         status = (
             '<p><i class="bi bi-exclamation-triangle-fill" style="color:#ffb703"></i> '
             '<strong>Background removal is unavailable.</strong> Install with '
-            '<code>pip install rembg</code> and restart the server. First use will '
+            '<code>pip install "rembg[cpu]"</code> and restart the server. First use will '
             'download the AI model (~170 MB) automatically.</p>'
         )
     return render_template("upload_tool.html",
@@ -355,28 +366,7 @@ def palette_page():
 
 @bp.route("/svg-to-png")
 def svg_to_png_page():
-    return render_template("upload_tool.html",
-        title="SVG to PNG",
-        description="Rasterise an SVG file to a PNG image",
-        notes=(
-            '<p><strong>Renders via <code>svglib</code> + reportlab.</strong> Supports the '
-            'common SVG features: paths, shapes, basic styling, embedded raster images. '
-            '<strong>Limitations:</strong> some advanced SVG 2 features (filters, masks, '
-            'animations, web fonts loaded via <code>@font-face</code>) may render incorrectly '
-            'or not at all. For pixel-perfect rendering of complex SVGs, open the SVG in a '
-            'browser and use Print → Save as PDF, then convert that PDF to PNG.</p>'
-            '<p style="font-size:.9em;color:var(--muted)"><strong>No external dependencies '
-            'beyond <code>svglib</code></strong> (already installed).</p>'
-        ),
-        endpoint="/image/svg-to-png",
-        accept=".svg",
-        multiple=False,
-        options=[
-            {"type": "number", "name": "width", "label": "Output width (pixels, 0 = native size)",
-             "default": 0, "min": 0, "max": 8192},
-            {"type": "checkbox", "name": "transparent", "label": "Background",
-             "default": True, "check_label": "Transparent (otherwise white)"},
-        ])
+    return render_template("tools/svg_to_png.html")
 
 
 @bp.route("/svg-optimize")
@@ -486,16 +476,35 @@ def compress():
         return jsonify(error=NO_FILE_SINGLE), 400
 
     quality = safe_int(request.form.get("quality"), 70, min_val=1, max_val=100)
+    mode = request.form.get("compression_mode", "auto")
+    if mode not in ("auto", "photo", "lossless", "webp"):
+        mode = "auto"
     try:
         img = _safe_open_image(files[0])
     except ValueError as e:
         return jsonify(error=str(e)), 400
 
-    # Always output as JPEG for best compression
-    buf = image_to_bytes(img, "JPEG", quality=quality)
+    has_alpha = img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info)
+    if mode == "auto":
+        mode = "lossless" if has_alpha else "photo"
 
-    name = files[0].filename.rsplit(".", 1)[0] + "_compressed.jpg"
-    return send_file(buf, mimetype="image/jpeg", as_attachment=True, download_name=name)
+    if mode == "lossless":
+        png_img = img.convert("RGBA") if has_alpha else img.convert("RGB")
+        buf = image_to_bytes(png_img, "PNG", quality=quality)
+        mime, ext, quality_label = "image/png", "png", QUALITY_HIGH
+    elif mode == "webp":
+        buf = image_to_bytes(img, "WEBP", quality=quality)
+        mime, ext, quality_label = "image/webp", "webp", "medium"
+    else:
+        buf = image_to_bytes(img, "JPEG", quality=quality)
+        mime, ext, quality_label = "image/jpeg", "jpg", QUALITY_BASIC
+
+    name = files[0].filename.rsplit(".", 1)[0] + f"_compressed.{ext}"
+    resp = send_file(buf, mimetype=mime, as_attachment=True, download_name=name)
+    warnings = []
+    if mode == "photo" and has_alpha:
+        warnings.append("Photo/JPEG mode flattens transparency.")
+    return set_conversion_metadata(resp, "pillow", quality_label, warnings)
 
 
 @bp.route("/convert", methods=["POST"])
@@ -521,7 +530,8 @@ def convert():
 @bp.route("/remove-bg", methods=["POST"])
 def remove_bg():
     if not HAS_REMBG:
-        return jsonify(error="Background removal requires the 'rembg' package. Install with: pip install rembg"), 400
+        detail = f" Details: {REMBG_IMPORT_ERROR[:180]}" if REMBG_IMPORT_ERROR else ""
+        return jsonify(error="Background removal requires rembg with an ONNX Runtime backend. Install with: pip install \"rembg[cpu]\"." + detail), 400
 
     files = request.files.getlist("files")
     if not files or not files[0].filename:
@@ -529,10 +539,11 @@ def remove_bg():
 
     input_data = files[0].read()
     try:
+        from rembg import remove as rembg_remove
         output_data = rembg_remove(input_data)
     except Exception as e:
         log_error(e, "remove_bg")
-        return jsonify(error="Background removal failed (the file may not be a valid image)."), 400
+        return jsonify(error="Background removal failed. If this is a setup issue, install with: pip install \"rembg[cpu]\""), 400
 
     name = files[0].filename.rsplit(".", 1)[0] + "_nobg.png"
     return send_file(io.BytesIO(output_data), mimetype="image/png",
@@ -997,8 +1008,14 @@ def svg_to_png():
         out_bytes = png_bytes
 
     name = files[0].filename.rsplit(".", 1)[0] + ".png"
-    return send_file(io.BytesIO(out_bytes), mimetype="image/png",
+    resp = send_file(io.BytesIO(out_bytes), mimetype="image/png",
                      as_attachment=True, download_name=name)
+    return set_conversion_metadata(
+        resp,
+        "svglib/reportlab",
+        QUALITY_BASIC,
+        "Server fallback may miss advanced SVG filters, masks, animations, and web fonts.",
+    )
 
 
 @bp.route("/svg-optimize", methods=["POST"])
