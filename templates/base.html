@@ -30,7 +30,7 @@
                 </button>
                 <div class="nav-items">
                     {% for tool in cat.tools %}
-                    <a href="/{{ cat.id }}/{{ tool.id }}" class="nav-item">
+                    <a href="/{{ cat.id }}/{{ tool.id }}" class="nav-item" data-desc="{{ tool.desc | lower }}">
                         <i class="bi {{ tool.icon }}"></i> {{ tool.name }}
                     </a>
                     {% endfor %}
@@ -46,6 +46,10 @@
         <header class="top-bar">
             <button class="menu-btn" onclick="openSidebar()"><i class="bi bi-list"></i></button>
             <span class="top-title">{% block top_title %}Your Everyday Tools{% endblock %}</span>
+            <div class="global-search" id="global-search">
+                <input type="text" id="global-search-input" placeholder="Search tools..." autocomplete="off" aria-label="Search tools" aria-expanded="false" aria-controls="global-search-dropdown">
+                <div class="global-search-dropdown" id="global-search-dropdown" role="listbox"></div>
+            </div>
             <div class="theme-switcher" id="theme-switcher" role="group" aria-label="Color theme">
                 <button class="theme-btn" data-theme-mode="system" title="System theme"><i class="bi bi-circle-half"></i></button>
                 <button class="theme-btn" data-theme-mode="light" title="Light theme"><i class="bi bi-sun-fill"></i></button>

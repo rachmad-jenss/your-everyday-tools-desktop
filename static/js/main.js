@@ -90,11 +90,119 @@ document.addEventListener("DOMContentLoaded", () => {
 
     initTheme();
     initToolSearch();
+    initGlobalSearch();
     initUploadZone();
     initToolForm();
     initDependentOptions();
     initCapabilityStatus();
 });
+
+/* ── Global Toolbar Search ────────────────────── */
+function initGlobalSearch() {
+    const wrapper = document.getElementById("global-search");
+    const input = document.getElementById("global-search-input");
+    const dropdown = document.getElementById("global-search-dropdown");
+    if (!wrapper || !input || !dropdown) return;
+
+    // Hide on home page; show everywhere else
+    if (window.location.pathname === "/") {
+        wrapper.style.display = "none";
+        return;
+    }
+    wrapper.style.display = "";
+
+    // Build tool list from sidebar nav items (already in DOM)
+    const tools = [];
+    document.querySelectorAll(".nav-category").forEach(cat => {
+        const catBtn = cat.querySelector(".nav-category-btn");
+        const catName = catBtn ? catBtn.textContent.trim() : "";
+        cat.querySelectorAll(".nav-item").forEach(a => {
+            tools.push({
+                name: a.textContent.trim(),
+                href: a.getAttribute("href"),
+                cat: catName,
+                desc: a.dataset.desc || "",
+            });
+        });
+    });
+
+    let activeIdx = -1;
+
+    function openDropdown() {
+        dropdown.classList.add("open");
+        input.setAttribute("aria-expanded", "true");
+    }
+
+    function closeDropdown() {
+        dropdown.classList.remove("open");
+        input.setAttribute("aria-expanded", "false");
+        activeIdx = -1;
+    }
+
+    function renderResults(query) {
+        if (!query) { closeDropdown(); return; }
+
+        const matches = tools.filter(t =>
+            t.name.toLowerCase().includes(query) ||
+            t.cat.toLowerCase().includes(query) ||
+            t.desc.includes(query)
+        ).slice(0, 8);
+
+        if (matches.length === 0) {
+            dropdown.innerHTML = `<div class="global-search-empty">No tools found.</div>`;
+            openDropdown();
+            return;
+        }
+
+        dropdown.innerHTML = matches.map((t, i) => `
+            <a href="${t.href}" class="global-search-result" role="option" data-idx="${i}">
+                <span class="result-info">
+                    <span class="result-name">${escapeHtml(t.name)}</span>
+                    <span class="result-desc">${escapeHtml(t.desc)}</span>
+                </span>
+                <span class="result-cat">${escapeHtml(t.cat)}</span>
+            </a>
+        `).join("");
+        activeIdx = -1;
+        openDropdown();
+    }
+
+    function setActive(idx) {
+        const items = dropdown.querySelectorAll(".global-search-result");
+        items.forEach(el => el.classList.remove("active"));
+        if (idx >= 0 && idx < items.length) {
+            items[idx].classList.add("active");
+            items[idx].scrollIntoView({ block: "nearest" });
+        }
+        activeIdx = idx;
+    }
+
+    input.addEventListener("input", () => {
+        renderResults(input.value.trim().toLowerCase());
+    });
+
+    input.addEventListener("keydown", e => {
+        const items = dropdown.querySelectorAll(".global-search-result");
+        if (e.key === "ArrowDown") {
+            e.preventDefault();
+            setActive(Math.min(activeIdx + 1, items.length - 1));
+        } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            setActive(Math.max(activeIdx - 1, 0));
+        } else if (e.key === "Enter") {
+            if (activeIdx >= 0 && items[activeIdx]) {
+                window.location.href = items[activeIdx].getAttribute("href");
+            }
+        } else if (e.key === "Escape") {
+            input.blur();
+            closeDropdown();
+        }
+    });
+
+    document.addEventListener("click", e => {
+        if (!wrapper.contains(e.target)) closeDropdown();
+    });
+}
 
 /* ── Home Page Tool Search ────────────────────── */
 function initToolSearch() {
