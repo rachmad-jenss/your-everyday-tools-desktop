@@ -182,6 +182,7 @@ a { color: var(--primary); text-decoration: none; }
     border-radius: 20px;
     padding: 3px;
     margin-left: auto;
+    transition: background .3s ease, border-color .3s ease;
 }
 .theme-btn {
     border: none;
@@ -195,13 +196,32 @@ a { color: var(--primary); text-decoration: none; }
     align-items: center;
     justify-content: center;
     font-size: .9rem;
-    transition: background .15s, color .15s;
+    transition: background .2s ease, color .2s ease, transform .2s ease, box-shadow .2s ease;
 }
-.theme-btn:hover { background: var(--border); color: var(--text); }
+.theme-btn:hover { background: var(--border); color: var(--text); transform: scale(1.1); }
+.theme-btn:active { transform: scale(.92); }
 .theme-btn.active {
     background: var(--surface);
     color: var(--primary);
-    box-shadow: 0 1px 3px rgba(0,0,0,.15);
+    box-shadow: 0 1px 4px rgba(0,0,0,.18);
+}
+.theme-btn i {
+    transition: transform .35s ease;
+}
+.theme-btn.spinning i {
+    transform: rotate(360deg);
+}
+
+/* ── Theme transition (only when user switches, not on page load) ── */
+html.theme-animate,
+html.theme-animate *,
+html.theme-animate *::before,
+html.theme-animate *::after {
+    transition:
+        background-color .35s ease,
+        color .35s ease,
+        border-color .35s ease,
+        box-shadow .35s ease !important;
 }
 
 .content-area {

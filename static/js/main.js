@@ -11,19 +11,41 @@ function resolveTheme(mode) {
     return (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light";
 }
 
-function applyTheme(mode) {
+function applyTheme(mode, animate) {
     localStorage.setItem(THEME_KEY, mode);
-    document.documentElement.dataset.theme = resolveTheme(mode);
+    const html = document.documentElement;
+
+    if (animate) {
+        html.classList.add("theme-animate");
+    }
+
+    html.dataset.theme = resolveTheme(mode);
+
     document.querySelectorAll(".theme-btn").forEach(btn => {
         btn.classList.toggle("active", btn.dataset.themeMode === mode);
     });
+
+    if (animate) {
+        clearTimeout(applyTheme._timer);
+        applyTheme._timer = setTimeout(() => html.classList.remove("theme-animate"), 400);
+    }
 }
 
 function initTheme() {
     const mode = getStoredTheme();
-    applyTheme(mode);
+    applyTheme(mode, false);
     document.querySelectorAll(".theme-btn").forEach(btn => {
-        btn.addEventListener("click", () => applyTheme(btn.dataset.themeMode));
+        btn.addEventListener("click", () => {
+            // Spin the icon
+            const icon = btn.querySelector("i");
+            if (icon) {
+                btn.classList.remove("spinning");
+                void btn.offsetWidth; // force reflow to restart animation
+                btn.classList.add("spinning");
+                setTimeout(() => btn.classList.remove("spinning"), 380);
+            }
+            applyTheme(btn.dataset.themeMode, true);
+        });
     });
     if (window.matchMedia) {
         window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
