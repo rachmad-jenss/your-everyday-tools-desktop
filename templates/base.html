@@ -4,6 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Your Everyday Tools{% endblock %}</title>
+    <script>
+        (function () {
+            var stored = localStorage.getItem('theme') || 'system';
+            var resolved = stored === 'dark' ? 'dark'
+                : stored === 'light' ? 'light'
+                : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+            document.documentElement.dataset.theme = resolved;
+        })();
+    </script>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/icons.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
@@ -37,6 +46,11 @@
         <header class="top-bar">
             <button class="menu-btn" onclick="openSidebar()"><i class="bi bi-list"></i></button>
             <span class="top-title">{% block top_title %}Your Everyday Tools{% endblock %}</span>
+            <div class="theme-switcher" id="theme-switcher" role="group" aria-label="Color theme">
+                <button class="theme-btn" data-theme-mode="system" title="System theme"><i class="bi bi-circle-half"></i></button>
+                <button class="theme-btn" data-theme-mode="light" title="Light theme"><i class="bi bi-sun-fill"></i></button>
+                <button class="theme-btn" data-theme-mode="dark" title="Dark theme"><i class="bi bi-moon-fill"></i></button>
+            </div>
         </header>
         <div class="content-area">
             {% block content %}{% endblock %}

@@ -1,3 +1,39 @@
+/* ── Theme ────────────────────────────────────── */
+const THEME_KEY = "theme";
+
+function getStoredTheme() {
+    return localStorage.getItem(THEME_KEY) || "system";
+}
+
+function resolveTheme(mode) {
+    if (mode === "dark") return "dark";
+    if (mode === "light") return "light";
+    return (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light";
+}
+
+function applyTheme(mode) {
+    localStorage.setItem(THEME_KEY, mode);
+    document.documentElement.dataset.theme = resolveTheme(mode);
+    document.querySelectorAll(".theme-btn").forEach(btn => {
+        btn.classList.toggle("active", btn.dataset.themeMode === mode);
+    });
+}
+
+function initTheme() {
+    const mode = getStoredTheme();
+    applyTheme(mode);
+    document.querySelectorAll(".theme-btn").forEach(btn => {
+        btn.addEventListener("click", () => applyTheme(btn.dataset.themeMode));
+    });
+    if (window.matchMedia) {
+        window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+            if (getStoredTheme() === "system") {
+                document.documentElement.dataset.theme = resolveTheme("system");
+            }
+        });
+    }
+}
+
 /* ── Sidebar ──────────────────────────────────── */
 function toggleCategory(btn) {
     btn.classList.toggle("open");
@@ -30,6 +66,7 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
+    initTheme();
     initUploadZone();
     initToolForm();
     initDependentOptions();
