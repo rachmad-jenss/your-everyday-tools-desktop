@@ -365,8 +365,8 @@ your-everyday-tools/
 │   ├── media_tools.py              # FFmpeg-powered audio & video tools
 │   └── capabilities.py             # /capabilities endpoint
 ├── templates/
-│   ├── base.html                   # Main layout (sidebar + content area)
-│   ├── index.html                  # Home page with tool cards
+│   ├── base.html                   # Main layout (sidebar, global search, theme switcher)
+│   ├── index.html                  # Home page with tool cards and search
 │   ├── upload_tool.html            # Universal template for all file-based tools
 │   └── tools/                      # Individual client-side tool templates
 │       ├── calculator.html
@@ -393,8 +393,9 @@ your-everyday-tools/
 │       └── hash_generator.html
 └── static/
     ├── css/style.css               # All styles, no framework
-    ├── css/icons.css               # Local icon shim; no CDN required
-    └── js/main.js                  # File upload, AJAX, sidebar, shared logic
+    ├── css/icons.css               # Vendored Bootstrap Icons; no CDN required
+    ├── fonts/bootstrap-icons.woff2 # Bootstrap Icons font files
+    └── js/main.js                  # Sidebar, theme, search, file upload, shared logic
 ```
 
 ### Architecture Notes
@@ -402,7 +403,7 @@ your-everyday-tools/
 - **One universal template** — `upload_tool.html` powers all 25+ server-side tools. Each route passes title, description, accepted file types, and form options as template variables. No per-tool template duplication.
 - **Client-side tools** (text utilities, calculators, security tools) run entirely in the browser with vanilla JavaScript — zero server round-trips.
 - **Local-first processing** — pure browser tools never leave the page; server routes process files locally. Some engines such as LibreOffice, FFmpeg, ODA, and pdf2docx use isolated temporary directories when their CLI/library workflow requires files.
-- **No CSS framework or CDN dependency** — custom CSS with CSS Grid, Flexbox, CSS custom properties, and a local icon shim.
+- **No CSS framework or CDN dependency** — custom CSS with CSS Grid, Flexbox, CSS custom properties, and vendored Bootstrap Icons.
 - **Graceful degradation** — optional packages and external binaries (`LibreOffice`, `FFmpeg`, `ffprobe`, `Tesseract`, ODA File Converter, `rembg`, `pyzbar`, `pdf2docx`, `pdfplumber`, `pytesseract`, `pillow-heif`, Whisper, etc.) are reported through `/capabilities` and tool-page status banners. Missing high-fidelity engines either show a clear unavailable state or require explicit basic fallback consent.
 
 ---
