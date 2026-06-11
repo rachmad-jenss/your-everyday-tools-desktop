@@ -114,7 +114,7 @@ def _scale_to_height(img: Image.Image, height: int) -> Image.Image:
     height = max(1, height)
     if img.height == height:
         return img
-    width = max(1, round(img.width * height / img.height))
+    width = max(1, math.floor(img.width * height / img.height))
     return img.resize((width, height), Image.LANCZOS)
 
 
@@ -123,7 +123,7 @@ def _scale_to_width(img: Image.Image, width: int) -> Image.Image:
     width = max(1, width)
     if img.width == width:
         return img
-    height = max(1, round(img.height * width / img.width))
+    height = max(1, math.floor(img.height * width / img.width))
     return img.resize((width, height), Image.LANCZOS)
 
 
@@ -203,11 +203,16 @@ def _combine_images(
 
     if layout == "horizontal":
         # Common height; total width = sum of per-image widths at that height.
-        target_h = max(img.height for img in images)
         aspect_sum = sum(img.width / img.height for img in images)
-        natural_w = aspect_sum * target_h + spacing * (n - 1)
-        factor = _fit_factor(natural_w, target_h, width_cap)
-        target_h = max(1, round(target_h * factor))
+        spacing_total = spacing * (n - 1)
+        max_content_w = max(1, width_cap - spacing_total)
+        target_h = min(
+            max(img.height for img in images),
+            math.floor(max_content_w / aspect_sum) if aspect_sum else 1,
+            MERGE_MAX_SIDE,
+            math.floor(MERGE_MAX_PIXELS / width_cap),
+        )
+        target_h = max(1, target_h)
 
         scaled = [_scale_to_height(img, target_h) for img in images]
         total_w = sum(img.width for img in scaled) + spacing * (n - 1)
@@ -1335,12 +1340,18 @@ def merge():
             img = _safe_open_image(f).convert("RGBA")
             images.append(img)
         except ValueError:
+            for img in images:
+                img.close()
             return jsonify(error=f"Could not read '{f.filename}' (corrupted or not an image)."), 400
         except Exception as e:
             log_error(e, f"merge: {f.filename}")
+            for img in images:
+                img.close()
             return jsonify(error=f"Could not read '{f.filename}' (corrupted or not an image)."), 400
 
     if len(images) < 2:
+        for img in images:
+            img.close()
         return jsonify(error="Please upload at least 2 images."), 400
 
     combined = None
