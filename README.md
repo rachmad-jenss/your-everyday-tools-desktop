@@ -93,6 +93,7 @@ See [CHANGELOG.md](CHANGELOG.md) for release history and recent fixes.
 | **SVG to PNG**          | Rasterize SVG vectors to PNG in the browser first for better SVG fidelity, with the existing local server renderer as fallback.                                                    |
 | **SVG Optimizer**       | Strip comments, editor metadata (Inkscape/Sketch/Adobe namespaces), and round decimals to shrink SVG files                              |
 | **HEIC Converter**      | Convert iPhone `.heic` / `.heif` photos to JPG, PNG, or WebP (single or bulk → ZIP). Once installed, all other image tools also accept HEIC inputs.                                          |
+| **Merge Images**        | Combine multiple images into one — balanced grid by default, plus horizontal or vertical layouts. Images are scaled (aspect ratio preserved) so rows line up flush with no gaps. Output size is bounded by a configurable max width so merging large photos stays fast. Supports spacing, background color, and PNG/JPG/WebP output. Images merge in upload order. |
 
 ### Text & Data (client-side, no upload needed)
 

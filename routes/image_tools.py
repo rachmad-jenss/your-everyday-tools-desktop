@@ -1,5 +1,6 @@
 import io
 import importlib.util
+import math
 from flask import Blueprint, render_template, request, send_file, jsonify
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 from PIL.ExifTags import TAGS
@@ -85,6 +86,191 @@ FORMAT_MAP = {
     "bmp": ("BMP", "image/bmp", "bmp"),
     "tiff": ("TIFF", "image/tiff", "tiff"),
 }
+
+
+def _parse_hex_color(value: str, default: str = "#ffffff") -> tuple[int, int, int, int]:
+    """Parse a #RRGGBB or #RRGGBBAA hex color to an RGBA tuple."""
+    raw = (value or default).strip().lstrip("#")
+    if len(raw) == 3:
+        raw = "".join(c * 2 for c in raw)
+    if len(raw) == 6:
+        raw += "ff"
+    if len(raw) != 8:
+        raw = default.lstrip("#")
+        if len(raw) == 6:
+            raw += "ff"
+    try:
+        r = int(raw[0:2], 16)
+        g = int(raw[2:4], 16)
+        b = int(raw[4:6], 16)
+        a = int(raw[6:8], 16)
+        return (r, g, b, a)
+    except ValueError:
+        return (255, 255, 255, 255)
+
+
+def _scale_to_height(img: Image.Image, height: int) -> Image.Image:
+    """Resize *img* to an exact height, preserving aspect ratio."""
+    height = max(1, height)
+    if img.height == height:
+        return img
+    width = max(1, round(img.width * height / img.height))
+    return img.resize((width, height), Image.LANCZOS)
+
+
+def _scale_to_width(img: Image.Image, width: int) -> Image.Image:
+    """Resize *img* to an exact width, preserving aspect ratio."""
+    width = max(1, width)
+    if img.width == width:
+        return img
+    height = max(1, round(img.height * width / img.width))
+    return img.resize((width, height), Image.LANCZOS)
+
+
+def _split_balanced_rows(images: list[Image.Image], columns: int) -> list[list[Image.Image]]:
+    """Split images into rows of at most *columns*, balancing counts per row.
+
+    Example: 5 images with columns=3 -> rows of [2, 3] rather than [3, 2],
+    so the collage reads as a tidy block instead of one very wide strip.
+    """
+    n = len(images)
+    cols = max(1, columns)
+    rows = math.ceil(n / cols)
+    base = n // rows
+    fuller = n % rows
+    row_sizes = [base] * (rows - fuller) + [base + 1] * fuller
+    row_sizes = [s for s in row_sizes if s > 0]
+
+    result = []
+    start = 0
+    for size in row_sizes:
+        result.append(images[start:start + size])
+        start += size
+    return result
+
+
+# Hard safety caps so huge source photos can't create a multi-hundred-megapixel
+# canvas that hangs the resize/encode step. Applied on top of the user max_width.
+MERGE_MAX_SIDE = 12000
+MERGE_MAX_PIXELS = 60_000_000
+
+
+def _fit_factor(width: float, height: float, width_cap: int) -> float:
+    """Largest scale factor (<= 1) keeping a canvas within all size caps."""
+    if width <= 0 or height <= 0:
+        return 1.0
+    factor = min(
+        1.0,
+        width_cap / width,
+        MERGE_MAX_SIDE / width,
+        MERGE_MAX_SIDE / height,
+        math.sqrt(MERGE_MAX_PIXELS / (width * height)),
+    )
+    return max(factor, 1e-6)
+
+
+def _combine_images(
+    images: list[Image.Image],
+    layout: str,
+    columns: int,
+    spacing: int,
+    bg_rgba: tuple[int, int, int, int],
+    max_width: int = 3000,
+) -> Image.Image:
+    """Stitch *images* into one canvas with a justified, size-bounded layout.
+
+    Images are scaled (aspect ratio preserved) so rows/columns line up flush
+    with no leftover background bands, matching the look of online collage
+    tools. The final canvas is bounded by *max_width* and hard safety caps so
+    that very large source photos can't blow up into a canvas that takes
+    minutes to build/encode.
+
+    Dimensions are computed analytically first, then images are resized once at
+    the final (bounded) size — we never build an oversized canvas.
+    """
+    n = len(images)
+    if n == 0:
+        raise ValueError("No images to combine.")
+
+    width_cap = max(1, min(max_width, MERGE_MAX_SIDE))
+
+    if n == 1:
+        target_w = min(images[0].width, width_cap)
+        scaled = _scale_to_width(images[0], target_w)
+        canvas = Image.new("RGBA", scaled.size, bg_rgba)
+        canvas.paste(scaled, (0, 0), scaled)
+        return canvas
+
+    if layout == "horizontal":
+        # Common height; total width = sum of per-image widths at that height.
+        target_h = max(img.height for img in images)
+        aspect_sum = sum(img.width / img.height for img in images)
+        natural_w = aspect_sum * target_h + spacing * (n - 1)
+        factor = _fit_factor(natural_w, target_h, width_cap)
+        target_h = max(1, round(target_h * factor))
+
+        scaled = [_scale_to_height(img, target_h) for img in images]
+        total_w = sum(img.width for img in scaled) + spacing * (n - 1)
+        canvas = Image.new("RGBA", (max(1, total_w), target_h), bg_rgba)
+        x = 0
+        for img in scaled:
+            canvas.paste(img, (x, 0), img)
+            x += img.width + spacing
+        return canvas
+
+    if layout == "vertical":
+        # Common width; total height = sum of per-image heights at that width.
+        target_w = max(img.width for img in images)
+        inv_aspect_sum = sum(img.height / img.width for img in images)
+        natural_h = inv_aspect_sum * target_w + spacing * (n - 1)
+        factor = _fit_factor(target_w, natural_h, width_cap)
+        target_w = max(1, round(target_w * factor))
+
+        scaled = [_scale_to_width(img, target_w) for img in images]
+        total_h = sum(img.height for img in scaled) + spacing * (n - 1)
+        canvas = Image.new("RGBA", (target_w, max(1, total_h)), bg_rgba)
+        y = 0
+        for img in scaled:
+            canvas.paste(img, (0, y), img)
+            y += img.height + spacing
+        return canvas
+
+    # Grid — balanced, justified rows (each row scaled to the same width).
+    image_rows = _split_balanced_rows(images, columns)
+    row_aspect_sums = [sum(img.width / img.height for img in row) for row in image_rows]
+
+    # Natural width = widest row at native size; sparser rows scale up to match.
+    natural_widths = [
+        sum(img.width for img in row) + spacing * (len(row) - 1)
+        for row in image_rows
+    ]
+    target_w = max(natural_widths)
+
+    def _row_heights(width: int) -> list[int]:
+        heights = []
+        for row, aspect_sum in zip(image_rows, row_aspect_sums):
+            avail = width - spacing * (len(row) - 1)
+            heights.append(max(1, round(avail / aspect_sum)) if aspect_sum else 1)
+        return heights
+
+    natural_h = sum(_row_heights(target_w)) + spacing * (len(image_rows) - 1)
+    factor = _fit_factor(target_w, natural_h, width_cap)
+    target_w = max(1, round(target_w * factor))
+
+    row_heights = _row_heights(target_w)
+    canvas_h = sum(row_heights) + spacing * (len(image_rows) - 1)
+    canvas = Image.new("RGBA", (target_w, max(1, canvas_h)), bg_rgba)
+
+    y = 0
+    for row, row_h in zip(image_rows, row_heights):
+        x = 0
+        for img in row:
+            scaled = _scale_to_height(img, row_h)
+            canvas.paste(scaled, (x, y), scaled)
+            x += scaled.width + spacing
+        y += row_h + spacing
+
+    return canvas
 
 
 # ── Page Routes ──────────────────────────────────
@@ -412,6 +598,53 @@ def watermark_page():
              "default": 40, "min": 10, "max": 100, "step": 5, "suffix": "%"},
             {"type": "number", "name": "fontsize", "label": "Font Size", "default": 36, "min": 10, "max": 200},
         ])
+
+
+@bp.route("/merge")
+def merge_page():
+    return render_template("upload_tool.html",
+        title="Merge Images",
+        description="Combine multiple images into one — grid, horizontal, or vertical layout",
+        notes=(
+            '<p>Images are combined in the order they appear in the file list. '
+            'To change order, remove a file and add it again in the desired position '
+            '(same as <a href="/pdf/merge">Merge PDFs</a>).</p>'
+            '<p>Images are scaled (keeping their aspect ratio) so rows line up flush '
+            'with no leftover background bands. <strong>Grid</strong> balances the rows '
+            'automatically — 5 images at 3 per row become a tidy 2-over-3 collage '
+            'instead of one very wide strip.</p>'
+            '<p><strong>Spacing</strong> adds gaps between images; the background color '
+            'fills those gaps. <strong>Max output width</strong> caps the final image '
+            'size so merging large photos stays fast — lower it if processing is slow, '
+            'raise it for more detail.</p>'
+        ),
+        endpoint="/image/merge",
+        accept=IMAGE_ACCEPT,
+        multiple=True,
+        options=[
+            {"type": "select", "name": "layout", "label": "Layout", "default": "grid",
+             "choices": [
+                 {"value": "grid", "label": "Grid (best for screenshots)"},
+                 {"value": "horizontal", "label": "Horizontal (side by side)"},
+                 {"value": "vertical", "label": "Vertical (stacked)"},
+             ]},
+            {"type": "number", "name": "columns", "label": "Max images per row",
+             "default": 3, "min": 1, "max": 10,
+             "depends_on": {"layout": "grid"}},
+            {"type": "number", "name": "spacing", "label": "Spacing (px)",
+             "default": 0, "min": 0, "max": 200},
+            {"type": "number", "name": "max_width", "label": "Max output width (px)",
+             "default": 3000, "min": 200, "max": 12000},
+            {"type": "color", "name": "bg_color", "label": "Background / border color",
+             "default": "#ffffff"},
+            {"type": "select", "name": "format", "label": "Output format", "default": "png",
+             "choices": [
+                 {"value": "png", "label": "PNG"},
+                 {"value": "jpg", "label": "JPG"},
+                 {"value": "webp", "label": "WebP"},
+             ]},
+        ],
+        button_text="Merge Images")
 
 
 # ── Processing Routes ────────────────────────────
@@ -1074,6 +1307,54 @@ def svg_optimize():
     resp.headers["X-Optimized-Size"] = str(len(optimized_bytes))
     resp.headers["X-Saved-Percent"] = str(saved_pct)
     return resp
+
+
+@bp.route("/merge", methods=["POST"])
+def merge():
+    files = request.files.getlist("files")
+    if len(files) < 2:
+        return jsonify(error="Please upload at least 2 images."), 400
+
+    layout = request.form.get("layout", "grid")
+    if layout not in ("horizontal", "vertical", "grid"):
+        layout = "grid"
+
+    columns = safe_int(request.form.get("columns"), 3, min_val=1, max_val=10)
+    spacing = safe_int(request.form.get("spacing"), 0, min_val=0, max_val=200)
+    max_width = safe_int(request.form.get("max_width"), 3000, min_val=200, max_val=12000)
+    bg_rgba = _parse_hex_color(request.form.get("bg_color", "#ffffff"))
+
+    target = request.form.get("format", "png").lower()
+    fmt_info = FORMAT_MAP.get(target, FORMAT_MAP["png"])
+
+    images: list[Image.Image] = []
+    for f in files:
+        if not f.filename:
+            continue
+        try:
+            img = _safe_open_image(f).convert("RGBA")
+            images.append(img)
+        except ValueError:
+            return jsonify(error=f"Could not read '{f.filename}' (corrupted or not an image)."), 400
+        except Exception as e:
+            log_error(e, f"merge: {f.filename}")
+            return jsonify(error=f"Could not read '{f.filename}' (corrupted or not an image)."), 400
+
+    if len(images) < 2:
+        return jsonify(error="Please upload at least 2 images."), 400
+
+    combined = None
+    try:
+        combined = _combine_images(images, layout, columns, spacing, bg_rgba, max_width)
+        buf = image_to_bytes(combined, fmt_info[0])
+    finally:
+        for img in images:
+            img.close()
+        if combined is not None:
+            combined.close()
+
+    return send_file(buf, mimetype=fmt_info[1], as_attachment=True,
+                     download_name=f"merged.{fmt_info[2]}")
 
 
 # ── HEIC / HEIF Converter ──────────────────────────────────

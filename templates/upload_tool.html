@@ -61,6 +61,10 @@
                     min="{{ opt.min|default('') }}" max="{{ opt.max|default('') }}"
                     step="{{ opt.step|default('1') }}">
 
+                {% elif opt.type == 'color' %}
+                <input type="color" id="opt-{{ opt.name }}" name="{{ opt.name }}"
+                    value="{{ opt.default|default('#ffffff') }}">
+
                 {% elif opt.type == 'text' %}
                 <input type="text" id="opt-{{ opt.name }}" name="{{ opt.name }}"
                     value="{{ opt.default|default('') }}"

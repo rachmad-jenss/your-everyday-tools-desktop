@@ -76,6 +76,7 @@ TOOL_CATEGORIES = [
             {"id": "svg-to-png", "name": "SVG to PNG", "desc": "Rasterize SVG vector files to PNG", "icon": "bi-filetype-svg"},
             {"id": "svg-optimize", "name": "SVG Optimizer", "desc": "Strip metadata and shrink SVG files", "icon": "bi-file-minus-fill"},
             {"id": "heic-convert", "name": "HEIC Converter", "desc": "Convert iPhone .heic photos to JPG / PNG / WebP", "icon": "bi-phone-fill"},
+            {"id": "merge", "name": "Merge Images", "desc": "Combine multiple images into one", "icon": "bi-union"},
         ],
     },
     {
