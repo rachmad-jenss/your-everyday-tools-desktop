@@ -2,6 +2,12 @@
 
 All notable changes to **Your Everyday Tools** are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project loosely follows [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added — Image Tools
+
+- **Merge Images** — combine two or more images into one with a balanced grid by default, plus horizontal and vertical layouts. Images are scaled with aspect ratio preserved (justified rows) so they line up flush with no leftover background bands. The output size is bounded by a configurable max output width (plus hard safety caps) so merging large multi-megapixel photos stays fast instead of hanging on an oversized canvas. Configurable spacing, background/border color, and PNG/JPG/WebP output. Uses the universal upload template with a new reusable `color` form input type.
+
 ## [0.6.4] — 2026-06-07
 
 ### Added — UI navigation and theming
