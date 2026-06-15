@@ -1,6 +1,6 @@
 {
   "name": "your-everyday-tools-desktop",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "description": "Your Everyday Tools — 100+ offline utilities in a desktop app",
   "main": "main.js",
   "scripts": {
@@ -53,7 +53,7 @@
       }
     ],
     "releaseInfo": {
-      "releaseNotes": "Versi baru v1.3.0 — sync upstream Flask v0.6.3 + v0.6.4\n\nYang baru:\n• Merge Images — gabung beberapa gambar\n• Theme switcher — system / light / dark\n• Tool search + global search di top bar\n• Conversion fidelity layer — banner kualitas konversi\n• Bootstrap Icons vendored (UI offline)\n\nPerbaikan:\n• Konversi dokumen, gambar, media, dan CAD lebih akurat"
+      "releaseNotes": "v1.3.1 — perbaikan dark mode native\n\n• Title bar, menu bar, dan scrollbar ikut theme switcher\n• Auto-update download lebih andal + dialog error jika gagal\n• Release notes update tampil sebagai teks biasa"
     },
     "mac": {
       "target": "dmg",

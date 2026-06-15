@@ -2,6 +2,14 @@
 
 All notable changes to **Your Everyday Tools** are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project loosely follows [Semantic Versioning](https://semver.org/).
 
+## [Desktop 1.3.1] — 2026-06-15
+
+### Fixed
+
+- **Dark mode native chrome** — title bar, menu bar, and scrollbars now follow the in-app theme (via `nativeTheme` + Windows `titleBarOverlay` + `color-scheme` CSS).
+- **Auto-update download** — installer filename now matches `latest.yml`; download errors show a dialog instead of failing silently.
+- **Update dialog release notes** — plain-text notes from `latest.yml` (no raw HTML tags).
+
 ## [Desktop 1.3.0] — 2026-06-15
 
 Sync upstream Flask **v0.6.3 + v0.6.4** and unreleased **Merge Images** into the desktop build.
