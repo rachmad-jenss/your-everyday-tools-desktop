@@ -18,6 +18,32 @@ const PORT_FILE = path.join(
   "yet-desktop-port.txt"
 );
 
+/** GitHub release notes arrive as HTML; native dialogs only show plain text. */
+function releaseNotesToPlainText(notes) {
+  if (!notes) return "";
+  let text = notes;
+  if (Array.isArray(text)) {
+    text = text.map((entry) => entry.note || entry).join("\n\n");
+  }
+  if (typeof text !== "string") return "";
+  return text
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<\/li>/gi, "\n")
+    .replace(/<\/h[1-6]>/gi, "\n\n")
+    .replace(/<li[^>]*>/gi, "• ")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&#39;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
+    .slice(0, 1200);
+}
+
 function getBackendPath() {
   const isPackaged = !process.defaultApp;
   const exeName =
@@ -153,7 +179,7 @@ function setupAutoUpdater() {
   autoUpdater.on("update-available", (info) => {
     isManualUpdateCheck = false;
     const newVersion = info.version || "unknown";
-    const notes = info.releaseNotes || "";
+    const notes = releaseNotesToPlainText(info.releaseNotes);
     dialog
       .showMessageBox(mainWindow, {
         type: "info",
@@ -161,7 +187,7 @@ function setupAutoUpdater() {
         message: `Versi baru tersedia: v${newVersion}`,
         detail:
           `Versi kamu: v${app.getVersion()}\n\n` +
-          (notes ? `${typeof notes === "string" ? notes : ""}\n\n` : "") +
+          (notes ? `${notes}\n\n` : "") +
           "Mau download dan install sekarang?",
         buttons: ["Download Sekarang", "Nanti Saja"],
         defaultId: 0,
