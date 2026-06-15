@@ -9,6 +9,7 @@ const os = require("os");
 
 let mainWindow = null;
 let isManualUpdateCheck = false;
+let isUpdateDownloading = false;
 let flaskProcess = null;
 let chosenPort = 5000;
 let flaskLastLines = []; // Rolling buffer of last Flask output lines for diagnostics
@@ -172,6 +173,25 @@ function killFlask() {
 
 // ── Auto-update via GitHub Releases ──────────────────────
 
+function showUpdaterError(err) {
+  const message = err && err.message ? err.message : String(err);
+  console.error("[Updater] Error:", message);
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.setProgressBar(-1);
+    mainWindow.setTitle("Your Everyday Tools");
+  }
+  isUpdateDownloading = false;
+  dialog.showMessageBox(mainWindow, {
+    type: "error",
+    title: "Update Gagal",
+    message: "Download update tidak berhasil.",
+    detail:
+      `${message}\n\n` +
+      "Coba lagi nanti atau download manual di:\n" +
+      "https://github.com/rachmad-jenss/your-everyday-tools-desktop/releases",
+  });
+}
+
 function setupAutoUpdater() {
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
@@ -195,7 +215,12 @@ function setupAutoUpdater() {
       })
       .then(({ response }) => {
         if (response === 0) {
-          autoUpdater.downloadUpdate();
+          isUpdateDownloading = true;
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.setProgressBar(2, { mode: "indeterminate" });
+            mainWindow.setTitle("Your Everyday Tools — Downloading update…");
+          }
+          autoUpdater.downloadUpdate().catch(showUpdaterError);
         }
       });
   });
@@ -217,6 +242,7 @@ function setupAutoUpdater() {
 
   autoUpdater.on("download-progress", (progress) => {
     const pct = Math.round(progress.percent);
+    isUpdateDownloading = true;
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.setProgressBar(pct / 100);
       mainWindow.setTitle(`Your Everyday Tools — Downloading update ${pct}%`);
@@ -224,6 +250,7 @@ function setupAutoUpdater() {
   });
 
   autoUpdater.on("update-downloaded", () => {
+    isUpdateDownloading = false;
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.setProgressBar(-1);
       mainWindow.setTitle("Your Everyday Tools");
@@ -247,7 +274,11 @@ function setupAutoUpdater() {
   });
 
   autoUpdater.on("error", (err) => {
-    console.error("[Updater] Error:", err.message);
+    if (isUpdateDownloading) {
+      showUpdaterError(err);
+    } else {
+      console.error("[Updater] Error:", err.message);
+    }
   });
 
   // Auto-check 30 detik setelah app siap
