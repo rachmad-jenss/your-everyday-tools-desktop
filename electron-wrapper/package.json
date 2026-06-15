@@ -51,6 +51,9 @@
         "repo": "your-everyday-tools-desktop"
       }
     ],
+    "releaseInfo": {
+      "releaseNotes": "Versi baru v1.3.0 — sync upstream Flask v0.6.3 + v0.6.4\n\nYang baru:\n• Merge Images — gabung beberapa gambar\n• Theme switcher — system / light / dark\n• Tool search + global search di top bar\n• Conversion fidelity layer — banner kualitas konversi\n• Bootstrap Icons vendored (UI offline)\n\nPerbaikan:\n• Konversi dokumen, gambar, media, dan CAD lebih akurat"
+    },
     "mac": {
       "target": "dmg",
       "icon": "../images/icon.icns",
