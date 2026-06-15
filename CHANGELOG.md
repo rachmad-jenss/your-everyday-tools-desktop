@@ -2,6 +2,12 @@
 
 All notable changes to **Your Everyday Tools** are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project loosely follows [Semantic Versioning](https://semver.org/).
 
+## [Desktop 1.3.3] — 2026-06-15
+
+### Fixed
+
+- **Native title bar follows app theme (Windows)** — uses `DwmSetWindowAttribute` immersive dark mode on the standard window frame. Menu bar and theme toggle stay visible; no hidden title bar overlay.
+
 ## [Desktop 1.3.2] — 2026-06-15
 
 ### Fixed

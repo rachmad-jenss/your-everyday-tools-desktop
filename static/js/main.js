@@ -23,7 +23,7 @@ function applyTheme(mode, animate) {
     html.dataset.theme = resolved;
 
     if (window.electronAPI && typeof window.electronAPI.setTheme === "function") {
-        window.electronAPI.setTheme(resolved);
+        window.electronAPI.setTheme(mode, resolved);
     }
 
     document.querySelectorAll(".theme-btn").forEach(btn => {
@@ -58,7 +58,7 @@ function initTheme() {
                 const resolved = resolveTheme("system");
                 document.documentElement.dataset.theme = resolved;
                 if (window.electronAPI && typeof window.electronAPI.setTheme === "function") {
-                    window.electronAPI.setTheme(resolved);
+                    window.electronAPI.setTheme("system", resolved);
                 }
             }
         });

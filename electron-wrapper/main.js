@@ -6,6 +6,7 @@ const fs = require("fs");
 const http = require("http");
 const https = require("https");
 const os = require("os");
+const { setWindowDarkMode } = require("./win-dark-titlebar");
 
 let mainWindow = null;
 let isManualUpdateCheck = false;
@@ -28,15 +29,19 @@ function getThemeColors(resolved) {
   return THEME_COLORS[resolved === "dark" ? "dark" : "light"];
 }
 
-/** Sync OS chrome (menu bar, scrollbars) with in-app light/dark theme. */
-function applyNativeTheme(resolved) {
+/** Sync OS chrome (title bar, menu bar, scrollbars) with in-app light/dark theme. */
+function applyNativeTheme(mode, resolved) {
   if (resolved !== "dark" && resolved !== "light") return;
-  nativeTheme.themeSource = resolved;
+  nativeTheme.themeSource = mode === "system" ? "system" : resolved;
   const { bg } = getThemeColors(resolved);
+  const isDark = resolved === "dark";
 
   for (const win of BrowserWindow.getAllWindows()) {
     if (win.isDestroyed()) continue;
     win.setBackgroundColor(bg);
+    if (process.platform === "win32") {
+      setWindowDarkMode(win, isDark);
+    }
   }
 }
 
@@ -424,6 +429,7 @@ function createWindow(port) {
     width: 1280,
     height: 800,
     title: "Your Everyday Tools",
+    autoHideMenuBar: false,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -439,8 +445,18 @@ function createWindow(port) {
 
   mainWindow.webContents.on("did-finish-load", () => {
     readThemeFromPage(mainWindow.webContents)
-      .then(applyNativeTheme)
+      .then((resolved) => {
+        return mainWindow.webContents
+          .executeJavaScript(`localStorage.getItem("theme") || "system"`)
+          .then((mode) => applyNativeTheme(mode, resolved));
+      })
       .catch(() => {});
+  });
+
+  mainWindow.once("ready-to-show", () => {
+    if (process.platform === "win32") {
+      mainWindow.setMenuBarVisibility(true);
+    }
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -654,8 +670,14 @@ function showDownloaderWindow(forceShow = false) {
 
 // ── IPC handlers for downloader window ───────────────────
 
-ipcMain.handle("theme:set", (_event, resolved) => {
-  applyNativeTheme(resolved);
+ipcMain.handle("theme:set", (_event, payload) => {
+  if (typeof payload === "string") {
+    applyNativeTheme(payload, payload);
+    return;
+  }
+  const mode = payload && payload.mode ? payload.mode : "system";
+  const resolved = payload && payload.resolved ? payload.resolved : mode;
+  applyNativeTheme(mode, resolved);
 });
 
 ipcMain.on("download:start", async (event, components) => {
