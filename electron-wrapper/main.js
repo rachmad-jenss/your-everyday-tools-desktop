@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, shell, dialog, ipcMain } = require("electron");
+const { app, BrowserWindow, Menu, shell, dialog, ipcMain, nativeTheme } = require("electron");
 const { spawn, execFileSync } = require("child_process");
 const { autoUpdater } = require("electron-updater");
 const path = require("path");
@@ -18,6 +18,53 @@ const PORT_FILE = path.join(
   process.env.TEMP || process.env.TMPDIR || "/tmp",
   "yet-desktop-port.txt"
 );
+
+const THEME_COLORS = {
+  light: { bg: "#f5f6fa", symbol: "#2d3436" },
+  dark: { bg: "#1a1d23", symbol: "#e4e6eb" },
+};
+
+function getThemeColors(resolved) {
+  return THEME_COLORS[resolved === "dark" ? "dark" : "light"];
+}
+
+/** Sync OS chrome (title bar, menu, scrollbars) with in-app light/dark theme. */
+function applyNativeTheme(resolved) {
+  if (resolved !== "dark" && resolved !== "light") return;
+  nativeTheme.themeSource = resolved;
+  const { bg, symbol } = getThemeColors(resolved);
+
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (win.isDestroyed()) continue;
+    win.setBackgroundColor(bg);
+    if (process.platform === "win32") {
+      try {
+        win.setTitleBarOverlay({ color: bg, symbolColor: symbol });
+      } catch (_) {
+        // titleBarOverlay requires titleBarStyle: 'hidden'
+      }
+    }
+  }
+}
+
+function win32ChromeOptions(resolved) {
+  if (process.platform !== "win32") return {};
+  const { bg, symbol } = getThemeColors(resolved);
+  return {
+    backgroundColor: bg,
+    titleBarStyle: "hidden",
+    titleBarOverlay: { color: bg, symbolColor: symbol },
+  };
+}
+
+function readThemeFromPage(webContents) {
+  return webContents.executeJavaScript(`(() => {
+    const stored = localStorage.getItem("theme") || "system";
+    if (stored === "dark") return "dark";
+    if (stored === "light") return "light";
+    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  })()`);
+}
 
 /** GitHub release notes arrive as HTML; native dialogs only show plain text. */
 function releaseNotesToPlainText(notes) {
@@ -385,6 +432,7 @@ function buildMenu() {
 }
 
 function createWindow(port) {
+  const initialResolved = nativeTheme.shouldUseDarkColors ? "dark" : "light";
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -396,10 +444,17 @@ function createWindow(port) {
       sandbox: true,
     },
     show: false,
+    ...win32ChromeOptions(initialResolved),
   });
 
   mainWindow.loadURL(`http://127.0.0.1:${port}`);
   mainWindow.once("ready-to-show", () => mainWindow.show());
+
+  mainWindow.webContents.on("did-finish-load", () => {
+    readThemeFromPage(mainWindow.webContents)
+      .then(applyNativeTheme)
+      .catch(() => {});
+  });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (!url.startsWith(`http://127.0.0.1:${port}`)) {
@@ -572,6 +627,7 @@ function showDownloaderWindow(forceShow = false) {
   if (!forceShow && !shouldShowDownloader()) return Promise.resolve();
 
   return new Promise((resolve) => {
+    const initialResolved = nativeTheme.shouldUseDarkColors ? "dark" : "light";
     downloaderWindow = new BrowserWindow({
       width: 460,
       height: 490,
@@ -584,6 +640,7 @@ function showDownloaderWindow(forceShow = false) {
         nodeIntegration: false,
         sandbox: true,
       },
+      ...win32ChromeOptions(initialResolved),
     });
 
     downloaderWindow.setMenuBarVisibility(false);
@@ -609,6 +666,10 @@ function showDownloaderWindow(forceShow = false) {
 }
 
 // ── IPC handlers for downloader window ───────────────────
+
+ipcMain.handle("theme:set", (_event, resolved) => {
+  applyNativeTheme(resolved);
+});
 
 ipcMain.on("download:start", async (event, components) => {
   const win = downloaderWindow;

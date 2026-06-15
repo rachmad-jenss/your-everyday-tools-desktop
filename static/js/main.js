@@ -19,7 +19,12 @@ function applyTheme(mode, animate) {
         html.classList.add("theme-animate");
     }
 
-    html.dataset.theme = resolveTheme(mode);
+    const resolved = resolveTheme(mode);
+    html.dataset.theme = resolved;
+
+    if (window.electronAPI && typeof window.electronAPI.setTheme === "function") {
+        window.electronAPI.setTheme(resolved);
+    }
 
     document.querySelectorAll(".theme-btn").forEach(btn => {
         btn.classList.toggle("active", btn.dataset.themeMode === mode);
@@ -50,7 +55,11 @@ function initTheme() {
     if (window.matchMedia) {
         window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
             if (getStoredTheme() === "system") {
-                document.documentElement.dataset.theme = resolveTheme("system");
+                const resolved = resolveTheme("system");
+                document.documentElement.dataset.theme = resolved;
+                if (window.electronAPI && typeof window.electronAPI.setTheme === "function") {
+                    window.electronAPI.setTheme(resolved);
+                }
             }
         });
     }

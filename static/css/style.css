@@ -2,6 +2,7 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
+    color-scheme: light;
     --primary: #4361ee;
     --primary-dark: #3451d1;
     --success: #2ec4b6;
@@ -38,6 +39,7 @@
 }
 
 [data-theme="dark"] {
+    color-scheme: dark;
     --bg: #1a1d23;
     --surface: #22262e;
     --text: #e4e6eb;
