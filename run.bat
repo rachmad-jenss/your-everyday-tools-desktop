@@ -3,55 +3,44 @@ setlocal
 
 cd /d "%~dp0"
 
-where python >nul 2>nul
-if errorlevel 1 (
-    echo.
-    echo   Python 3.10 or newer is required, but was not found on PATH.
-    echo.
-    echo   Download and install it from:
-    echo       https://www.python.org/downloads/
-    echo.
-    echo   During install, make sure to check "Add Python to PATH".
-    echo.
-    pause
-    exit /b 1
+set "EVERYTOOLS_PY="
+
+where py >nul 2>nul
+if not errorlevel 1 (
+    py -3 -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)" >nul 2>nul
+    if not errorlevel 1 set "EVERYTOOLS_PY=py -3"
 )
 
-if not exist ".venv\Scripts\python.exe" (
-    echo.
-    echo   First-time setup: creating virtual environment...
-    echo   (this only happens once and takes about a minute)
-    echo.
-    python -m venv .venv
-    if errorlevel 1 (
-        echo.
-        echo   Failed to create the virtual environment.
-        pause
-        exit /b 1
+if not defined EVERYTOOLS_PY (
+    where python >nul 2>nul
+    if not errorlevel 1 (
+        python -c "import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)" >nul 2>nul
+        if not errorlevel 1 set "EVERYTOOLS_PY=python"
     )
 )
 
-call ".venv\Scripts\activate.bat"
-
-echo.
-echo   Checking dependencies...
-pip install --quiet --disable-pip-version-check -r requirements.txt
-if errorlevel 1 (
+if not defined EVERYTOOLS_PY (
     echo.
-    echo   Dependency install failed. Check your internet connection and try again.
+    echo   Python 3.10 or newer is required, but was not found.
+    echo.
+    echo   Download and install Python from:
+    echo       https://www.python.org/downloads/
+    echo.
+    echo   During install, make sure to check "Add python.exe to PATH".
+    echo.
     pause
     exit /b 1
 )
 
-echo.
-echo   ============================================================
-echo     EveryTools is starting at http://localhost:5000
-echo     Your browser will open automatically in a moment.
-echo     Close this window to stop the server.
-echo   ============================================================
-echo.
+%EVERYTOOLS_PY% "scripts\launcher.py" %*
+set "EXITCODE=%ERRORLEVEL%"
 
-start "" cmd /c "timeout /t 2 /nobreak >nul && start http://localhost:5000"
-python app.py
-
+echo.
+if not "%EXITCODE%"=="0" (
+    echo   EveryTools stopped with an error. See the messages above.
+) else (
+    echo   EveryTools stopped.
+)
+echo.
 pause
+exit /b %EXITCODE%

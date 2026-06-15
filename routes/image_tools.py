@@ -1,17 +1,20 @@
 import io
 import os
 import sys as _sys
+import importlib.util
+import math
 from flask import Blueprint, render_template, request, send_file, jsonify
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 from PIL.ExifTags import TAGS
 
 from routes._helpers import safe_int, safe_float, log_error, NO_FILE_SINGLE
+from utils.capabilities import QUALITY_BASIC, QUALITY_HIGH, set_conversion_metadata
 
-try:
-    from rembg import remove as rembg_remove
-    HAS_REMBG = True
-except (ImportError, SystemExit):
-    HAS_REMBG = False
+HAS_REMBG = (
+    importlib.util.find_spec("rembg") is not None
+    and importlib.util.find_spec("onnxruntime") is not None
+)
+REMBG_IMPORT_ERROR = "" if HAS_REMBG else "Install rembg with CPU support: pip install \"rembg[cpu]\""
 
 try:
     import pytesseract
@@ -48,7 +51,7 @@ def get_pil_image(file):
     Used by routes that need a single in-memory PIL.Image. Routes that should
     properly close the image on error paths use _safe_open_image() instead.
     """
-    return Image.open(io.BytesIO(file.read()))
+    return ImageOps.exif_transpose(Image.open(io.BytesIO(file.read())))
 
 
 def _safe_open_image(file):
@@ -57,7 +60,7 @@ def _safe_open_image(file):
     Returns the opened image (caller should close or use as a context manager).
     """
     try:
-        return Image.open(io.BytesIO(file.read()))
+        return ImageOps.exif_transpose(Image.open(io.BytesIO(file.read())))
     except Exception as e:
         log_error(e, "Image.open")
         raise ValueError("Could not read image (file may be corrupted or not an image).")
@@ -66,6 +69,7 @@ def _safe_open_image(file):
 def image_to_bytes(img, fmt, quality=85):
     buf = io.BytesIO()
     save_kwargs = {"format": fmt}
+    icc_profile = img.info.get("icc_profile")
 
     if fmt.upper() == "JPEG":
         if img.mode in ("RGBA", "P", "LA"):
@@ -76,6 +80,8 @@ def image_to_bytes(img, fmt, quality=85):
         save_kwargs["optimize"] = True
     elif fmt.upper() == "WEBP":
         save_kwargs["quality"] = quality
+    if icc_profile and fmt.upper() in ("JPEG", "PNG", "WEBP"):
+        save_kwargs["icc_profile"] = icc_profile
 
     img.save(buf, **save_kwargs)
     buf.seek(0)
@@ -90,6 +96,196 @@ FORMAT_MAP = {
     "bmp": ("BMP", "image/bmp", "bmp"),
     "tiff": ("TIFF", "image/tiff", "tiff"),
 }
+
+
+def _parse_hex_color(value: str, default: str = "#ffffff") -> tuple[int, int, int, int]:
+    """Parse a #RRGGBB or #RRGGBBAA hex color to an RGBA tuple."""
+    raw = (value or default).strip().lstrip("#")
+    if len(raw) == 3:
+        raw = "".join(c * 2 for c in raw)
+    if len(raw) == 6:
+        raw += "ff"
+    if len(raw) != 8:
+        raw = default.lstrip("#")
+        if len(raw) == 6:
+            raw += "ff"
+    try:
+        r = int(raw[0:2], 16)
+        g = int(raw[2:4], 16)
+        b = int(raw[4:6], 16)
+        a = int(raw[6:8], 16)
+        return (r, g, b, a)
+    except ValueError:
+        return (255, 255, 255, 255)
+
+
+def _scale_to_height(img: Image.Image, height: int) -> Image.Image:
+    """Resize *img* to an exact height, preserving aspect ratio."""
+    height = max(1, height)
+    if img.height == height:
+        return img
+    width = max(1, math.floor(img.width * height / img.height))
+    return img.resize((width, height), Image.LANCZOS)
+
+
+def _scale_to_width(img: Image.Image, width: int) -> Image.Image:
+    """Resize *img* to an exact width, preserving aspect ratio."""
+    width = max(1, width)
+    if img.width == width:
+        return img
+    height = max(1, math.floor(img.height * width / img.width))
+    return img.resize((width, height), Image.LANCZOS)
+
+
+def _split_balanced_rows(images: list[Image.Image], columns: int) -> list[list[Image.Image]]:
+    """Split images into rows of at most *columns*, balancing counts per row.
+
+    Example: 5 images with columns=3 -> rows of [2, 3] rather than [3, 2],
+    so the collage reads as a tidy block instead of one very wide strip.
+    """
+    n = len(images)
+    cols = max(1, columns)
+    rows = math.ceil(n / cols)
+    base = n // rows
+    fuller = n % rows
+    row_sizes = [base] * (rows - fuller) + [base + 1] * fuller
+    row_sizes = [s for s in row_sizes if s > 0]
+
+    result = []
+    start = 0
+    for size in row_sizes:
+        result.append(images[start:start + size])
+        start += size
+    return result
+
+
+# Hard safety caps so huge source photos can't create a multi-hundred-megapixel
+# canvas that hangs the resize/encode step. Applied on top of the user max_width.
+MERGE_MAX_SIDE = 12000
+MERGE_MAX_PIXELS = 60_000_000
+
+
+def _fit_factor(width: float, height: float, width_cap: int) -> float:
+    """Largest scale factor (<= 1) keeping a canvas within all size caps."""
+    if width <= 0 or height <= 0:
+        return 1.0
+    factor = min(
+        1.0,
+        width_cap / width,
+        MERGE_MAX_SIDE / width,
+        MERGE_MAX_SIDE / height,
+        math.sqrt(MERGE_MAX_PIXELS / (width * height)),
+    )
+    return max(factor, 1e-6)
+
+
+def _combine_images(
+    images: list[Image.Image],
+    layout: str,
+    columns: int,
+    spacing: int,
+    bg_rgba: tuple[int, int, int, int],
+    max_width: int = 3000,
+) -> Image.Image:
+    """Stitch *images* into one canvas with a justified, size-bounded layout.
+
+    Images are scaled (aspect ratio preserved) so rows/columns line up flush
+    with no leftover background bands, matching the look of online collage
+    tools. The final canvas is bounded by *max_width* and hard safety caps so
+    that very large source photos can't blow up into a canvas that takes
+    minutes to build/encode.
+
+    Dimensions are computed analytically first, then images are resized once at
+    the final (bounded) size — we never build an oversized canvas.
+    """
+    n = len(images)
+    if n == 0:
+        raise ValueError("No images to combine.")
+
+    width_cap = max(1, min(max_width, MERGE_MAX_SIDE))
+
+    if n == 1:
+        target_w = min(images[0].width, width_cap)
+        scaled = _scale_to_width(images[0], target_w)
+        canvas = Image.new("RGBA", scaled.size, bg_rgba)
+        canvas.paste(scaled, (0, 0), scaled)
+        return canvas
+
+    if layout == "horizontal":
+        # Common height; total width = sum of per-image widths at that height.
+        aspect_sum = sum(img.width / img.height for img in images)
+        spacing_total = spacing * (n - 1)
+        max_content_w = max(1, width_cap - spacing_total)
+        target_h = min(
+            max(img.height for img in images),
+            math.floor(max_content_w / aspect_sum) if aspect_sum else 1,
+            MERGE_MAX_SIDE,
+            math.floor(MERGE_MAX_PIXELS / width_cap),
+        )
+        target_h = max(1, target_h)
+
+        scaled = [_scale_to_height(img, target_h) for img in images]
+        total_w = sum(img.width for img in scaled) + spacing * (n - 1)
+        canvas = Image.new("RGBA", (max(1, total_w), target_h), bg_rgba)
+        x = 0
+        for img in scaled:
+            canvas.paste(img, (x, 0), img)
+            x += img.width + spacing
+        return canvas
+
+    if layout == "vertical":
+        # Common width; total height = sum of per-image heights at that width.
+        target_w = max(img.width for img in images)
+        inv_aspect_sum = sum(img.height / img.width for img in images)
+        natural_h = inv_aspect_sum * target_w + spacing * (n - 1)
+        factor = _fit_factor(target_w, natural_h, width_cap)
+        target_w = max(1, round(target_w * factor))
+
+        scaled = [_scale_to_width(img, target_w) for img in images]
+        total_h = sum(img.height for img in scaled) + spacing * (n - 1)
+        canvas = Image.new("RGBA", (target_w, max(1, total_h)), bg_rgba)
+        y = 0
+        for img in scaled:
+            canvas.paste(img, (0, y), img)
+            y += img.height + spacing
+        return canvas
+
+    # Grid — balanced, justified rows (each row scaled to the same width).
+    image_rows = _split_balanced_rows(images, columns)
+    row_aspect_sums = [sum(img.width / img.height for img in row) for row in image_rows]
+
+    # Natural width = widest row at native size; sparser rows scale up to match.
+    natural_widths = [
+        sum(img.width for img in row) + spacing * (len(row) - 1)
+        for row in image_rows
+    ]
+    target_w = max(natural_widths)
+
+    def _row_heights(width: int) -> list[int]:
+        heights = []
+        for row, aspect_sum in zip(image_rows, row_aspect_sums):
+            avail = width - spacing * (len(row) - 1)
+            heights.append(max(1, round(avail / aspect_sum)) if aspect_sum else 1)
+        return heights
+
+    natural_h = sum(_row_heights(target_w)) + spacing * (len(image_rows) - 1)
+    factor = _fit_factor(target_w, natural_h, width_cap)
+    target_w = max(1, round(target_w * factor))
+
+    row_heights = _row_heights(target_w)
+    canvas_h = sum(row_heights) + spacing * (len(image_rows) - 1)
+    canvas = Image.new("RGBA", (target_w, max(1, canvas_h)), bg_rgba)
+
+    y = 0
+    for row, row_h in zip(image_rows, row_heights):
+        x = 0
+        for img in row:
+            scaled = _scale_to_height(img, row_h)
+            canvas.paste(scaled, (x, y), scaled)
+            x += scaled.width + spacing
+        y += row_h + spacing
+
+    return canvas
 
 
 # ── Page Routes ──────────────────────────────────
@@ -126,10 +322,9 @@ def compress_page():
         title="Compress Image",
         description="Reduce image file size while controlling quality",
         notes=(
-            '<p><strong>Output is always JPG</strong> regardless of the input format — '
-            'JPG is the most compressible format and best for photos. If you need to keep '
-            'transparency or sharp text/diagrams, use <a href="/image/convert">Convert Format</a> '
-            'with PNG or WebP instead.</p>'
+            '<p><strong>Auto mode</strong> keeps transparency lossless and uses photo compression '
+            'for opaque images. Choose Photo/JPEG for smaller photos, Lossless PNG for diagrams '
+            'or transparent artwork, or WebP for modern lossy compression.</p>'
             '<p><strong>Quality guide:</strong> 70–80% is the sweet spot for photos (large '
             'savings, no visible loss). Below 50% you\'ll start seeing JPEG artefacts. '
             'Above 90% gives diminishing returns.</p>'
@@ -138,6 +333,13 @@ def compress_page():
         accept=IMAGE_ACCEPT,
         multiple=False,
         options=[
+            {"type": "select", "name": "compression_mode", "label": "Mode", "default": "auto",
+             "choices": [
+                 {"value": "auto", "label": "Auto"},
+                 {"value": "photo", "label": "Photo/JPEG"},
+                 {"value": "lossless", "label": "Lossless PNG"},
+                 {"value": "webp", "label": "WebP"},
+             ]},
             {"type": "range", "name": "quality", "label": "Quality",
              "default": 70, "min": 10, "max": 100, "step": 5, "suffix": "%"},
         ])
@@ -176,7 +378,7 @@ def remove_bg_page():
         status = (
             '<p><i class="bi bi-exclamation-triangle-fill" style="color:#ffb703"></i> '
             '<strong>Background removal is unavailable.</strong> Install with '
-            '<code>pip install rembg</code> and restart the server. First use will '
+            '<code>pip install "rembg[cpu]"</code> and restart the server. First use will '
             'download the AI model (~170 MB) automatically.</p>'
         )
     return render_template("upload_tool.html",
@@ -365,28 +567,7 @@ def palette_page():
 
 @bp.route("/svg-to-png")
 def svg_to_png_page():
-    return render_template("upload_tool.html",
-        title="SVG to PNG",
-        description="Rasterise an SVG file to a PNG image",
-        notes=(
-            '<p><strong>Renders via <code>svglib</code> + reportlab.</strong> Supports the '
-            'common SVG features: paths, shapes, basic styling, embedded raster images. '
-            '<strong>Limitations:</strong> some advanced SVG 2 features (filters, masks, '
-            'animations, web fonts loaded via <code>@font-face</code>) may render incorrectly '
-            'or not at all. For pixel-perfect rendering of complex SVGs, open the SVG in a '
-            'browser and use Print → Save as PDF, then convert that PDF to PNG.</p>'
-            '<p style="font-size:.9em;color:var(--muted)"><strong>No external dependencies '
-            'beyond <code>svglib</code></strong> (already installed).</p>'
-        ),
-        endpoint="/image/svg-to-png",
-        accept=".svg",
-        multiple=False,
-        options=[
-            {"type": "number", "name": "width", "label": "Output width (pixels, 0 = native size)",
-             "default": 0, "min": 0, "max": 8192},
-            {"type": "checkbox", "name": "transparent", "label": "Background",
-             "default": True, "check_label": "Transparent (otherwise white)"},
-        ])
+    return render_template("tools/svg_to_png.html")
 
 
 @bp.route("/svg-optimize")
@@ -432,6 +613,53 @@ def watermark_page():
              "default": 40, "min": 10, "max": 100, "step": 5, "suffix": "%"},
             {"type": "number", "name": "fontsize", "label": "Font Size", "default": 36, "min": 10, "max": 200},
         ])
+
+
+@bp.route("/merge")
+def merge_page():
+    return render_template("upload_tool.html",
+        title="Merge Images",
+        description="Combine multiple images into one — grid, horizontal, or vertical layout",
+        notes=(
+            '<p>Images are combined in the order they appear in the file list. '
+            'To change order, remove a file and add it again in the desired position '
+            '(same as <a href="/pdf/merge">Merge PDFs</a>).</p>'
+            '<p>Images are scaled (keeping their aspect ratio) so rows line up flush '
+            'with no leftover background bands. <strong>Grid</strong> balances the rows '
+            'automatically — 5 images at 3 per row become a tidy 2-over-3 collage '
+            'instead of one very wide strip.</p>'
+            '<p><strong>Spacing</strong> adds gaps between images; the background color '
+            'fills those gaps. <strong>Max output width</strong> caps the final image '
+            'size so merging large photos stays fast — lower it if processing is slow, '
+            'raise it for more detail.</p>'
+        ),
+        endpoint="/image/merge",
+        accept=IMAGE_ACCEPT,
+        multiple=True,
+        options=[
+            {"type": "select", "name": "layout", "label": "Layout", "default": "grid",
+             "choices": [
+                 {"value": "grid", "label": "Grid (best for screenshots)"},
+                 {"value": "horizontal", "label": "Horizontal (side by side)"},
+                 {"value": "vertical", "label": "Vertical (stacked)"},
+             ]},
+            {"type": "number", "name": "columns", "label": "Max images per row",
+             "default": 3, "min": 1, "max": 10,
+             "depends_on": {"layout": "grid"}},
+            {"type": "number", "name": "spacing", "label": "Spacing (px)",
+             "default": 0, "min": 0, "max": 200},
+            {"type": "number", "name": "max_width", "label": "Max output width (px)",
+             "default": 3000, "min": 200, "max": 12000},
+            {"type": "color", "name": "bg_color", "label": "Background / border color",
+             "default": "#ffffff"},
+            {"type": "select", "name": "format", "label": "Output format", "default": "png",
+             "choices": [
+                 {"value": "png", "label": "PNG"},
+                 {"value": "jpg", "label": "JPG"},
+                 {"value": "webp", "label": "WebP"},
+             ]},
+        ],
+        button_text="Merge Images")
 
 
 # ── Processing Routes ────────────────────────────
@@ -496,16 +724,35 @@ def compress():
         return jsonify(error=NO_FILE_SINGLE), 400
 
     quality = safe_int(request.form.get("quality"), 70, min_val=1, max_val=100)
+    mode = request.form.get("compression_mode", "auto")
+    if mode not in ("auto", "photo", "lossless", "webp"):
+        mode = "auto"
     try:
         img = _safe_open_image(files[0])
     except ValueError as e:
         return jsonify(error=str(e)), 400
 
-    # Always output as JPEG for best compression
-    buf = image_to_bytes(img, "JPEG", quality=quality)
+    has_alpha = img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info)
+    if mode == "auto":
+        mode = "lossless" if has_alpha else "photo"
 
-    name = files[0].filename.rsplit(".", 1)[0] + "_compressed.jpg"
-    return send_file(buf, mimetype="image/jpeg", as_attachment=True, download_name=name)
+    if mode == "lossless":
+        png_img = img.convert("RGBA") if has_alpha else img.convert("RGB")
+        buf = image_to_bytes(png_img, "PNG", quality=quality)
+        mime, ext, quality_label = "image/png", "png", QUALITY_HIGH
+    elif mode == "webp":
+        buf = image_to_bytes(img, "WEBP", quality=quality)
+        mime, ext, quality_label = "image/webp", "webp", "medium"
+    else:
+        buf = image_to_bytes(img, "JPEG", quality=quality)
+        mime, ext, quality_label = "image/jpeg", "jpg", QUALITY_BASIC
+
+    name = files[0].filename.rsplit(".", 1)[0] + f"_compressed.{ext}"
+    resp = send_file(buf, mimetype=mime, as_attachment=True, download_name=name)
+    warnings = []
+    if mode == "photo" and has_alpha:
+        warnings.append("Photo/JPEG mode flattens transparency.")
+    return set_conversion_metadata(resp, "pillow", quality_label, warnings)
 
 
 @bp.route("/convert", methods=["POST"])
@@ -531,7 +778,8 @@ def convert():
 @bp.route("/remove-bg", methods=["POST"])
 def remove_bg():
     if not HAS_REMBG:
-        return jsonify(error="Background removal requires the 'rembg' package. Install with: pip install rembg"), 400
+        detail = f" Details: {REMBG_IMPORT_ERROR[:180]}" if REMBG_IMPORT_ERROR else ""
+        return jsonify(error="Background removal requires rembg with an ONNX Runtime backend. Install with: pip install \"rembg[cpu]\"." + detail), 400
 
     files = request.files.getlist("files")
     if not files or not files[0].filename:
@@ -539,10 +787,11 @@ def remove_bg():
 
     input_data = files[0].read()
     try:
+        from rembg import remove as rembg_remove
         output_data = rembg_remove(input_data)
     except Exception as e:
         log_error(e, "remove_bg")
-        return jsonify(error="Background removal failed (the file may not be a valid image)."), 400
+        return jsonify(error="Background removal failed. If this is a setup issue, install with: pip install \"rembg[cpu]\""), 400
 
     name = files[0].filename.rsplit(".", 1)[0] + "_nobg.png"
     return send_file(io.BytesIO(output_data), mimetype="image/png",
@@ -1007,8 +1256,14 @@ def svg_to_png():
         out_bytes = png_bytes
 
     name = files[0].filename.rsplit(".", 1)[0] + ".png"
-    return send_file(io.BytesIO(out_bytes), mimetype="image/png",
+    resp = send_file(io.BytesIO(out_bytes), mimetype="image/png",
                      as_attachment=True, download_name=name)
+    return set_conversion_metadata(
+        resp,
+        "svglib/reportlab",
+        QUALITY_BASIC,
+        "Server fallback may miss advanced SVG filters, masks, animations, and web fonts.",
+    )
 
 
 @bp.route("/svg-optimize", methods=["POST"])
@@ -1067,6 +1322,60 @@ def svg_optimize():
     resp.headers["X-Optimized-Size"] = str(len(optimized_bytes))
     resp.headers["X-Saved-Percent"] = str(saved_pct)
     return resp
+
+
+@bp.route("/merge", methods=["POST"])
+def merge():
+    files = request.files.getlist("files")
+    if len(files) < 2:
+        return jsonify(error="Please upload at least 2 images."), 400
+
+    layout = request.form.get("layout", "grid")
+    if layout not in ("horizontal", "vertical", "grid"):
+        layout = "grid"
+
+    columns = safe_int(request.form.get("columns"), 3, min_val=1, max_val=10)
+    spacing = safe_int(request.form.get("spacing"), 0, min_val=0, max_val=200)
+    max_width = safe_int(request.form.get("max_width"), 3000, min_val=200, max_val=12000)
+    bg_rgba = _parse_hex_color(request.form.get("bg_color", "#ffffff"))
+
+    target = request.form.get("format", "png").lower()
+    fmt_info = FORMAT_MAP.get(target, FORMAT_MAP["png"])
+
+    images: list[Image.Image] = []
+    for f in files:
+        if not f.filename:
+            continue
+        try:
+            img = _safe_open_image(f).convert("RGBA")
+            images.append(img)
+        except ValueError:
+            for img in images:
+                img.close()
+            return jsonify(error=f"Could not read '{f.filename}' (corrupted or not an image)."), 400
+        except Exception as e:
+            log_error(e, f"merge: {f.filename}")
+            for img in images:
+                img.close()
+            return jsonify(error=f"Could not read '{f.filename}' (corrupted or not an image)."), 400
+
+    if len(images) < 2:
+        for img in images:
+            img.close()
+        return jsonify(error="Please upload at least 2 images."), 400
+
+    combined = None
+    try:
+        combined = _combine_images(images, layout, columns, spacing, bg_rgba, max_width)
+        buf = image_to_bytes(combined, fmt_info[0])
+    finally:
+        for img in images:
+            img.close()
+        if combined is not None:
+            combined.close()
+
+    return send_file(buf, mimetype=fmt_info[1], as_attachment=True,
+                     download_name=f"merged.{fmt_info[2]}")
 
 
 # ── HEIC / HEIF Converter ──────────────────────────────────

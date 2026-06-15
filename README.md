@@ -119,16 +119,16 @@ Installer akan ada di `electron-wrapper/dist/`.
 
 | Tool                 | Description                                                                                                                                                                                                                      |
 | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Files to PDF**     | Convert images (JPG, PNG, BMP, TIFF, WebP), Word documents (.docx, .doc, .odt), and text files to PDF. Word files use LibreOffice for full-fidelity layout when available, with a built-in fallback for `.docx`.                 |
-| **PDF to Word**      | Convert PDF documents to `.docx`. Four modes: **Layout** (preserves tables, columns, figures), **Smart structure** (detects headings & lists for clean Word outline), **Flowing text** (always-clean paragraphs), **Marker** (optional ML engine, best fidelity). Page range supported on all modes. |
+| **Files to PDF**     | Convert images (JPG, PNG, BMP, TIFF, WebP), Word documents (.docx, .doc, .odt), and text files to PDF. Word files prefer LibreOffice for full-fidelity layout; lower-fidelity `.docx` fallback must be explicitly allowed.                 |
+| **PDF to Word**      | Convert PDF documents to `.docx`. Five modes: **Exact visual copy** (non-editable page images, best appearance), **Layout** (editable, lossy), **Smart structure**, **Flowing text**, and **Marker** (optional ML structure engine). Page range supported on all modes. |
 | **PDF to Images**    | Export each PDF page as PNG or JPG (configurable DPI)                                                                                                                                                                            |
 | **PDF to Text**      | Extract all text content from a PDF                                                                                                                                                                                              |
-| **PDF to Excel**     | Extract tables from a PDF into an `.xlsx` workbook — one sheet per table, per page, or all combined. Falls back to line-by-line text when no tables are detected. Uses PyMuPDF's native `find_tables()` (no extra dependencies). |
-| **HTML to PDF**      | Convert HTML content to a PDF document. Uses LibreOffice for full CSS / table / image support when available; falls back to a minimal renderer otherwise.                                                                       |
+| **PDF to Excel**     | Extract tables from a PDF into an `.xlsx` workbook — one sheet per table, per page, or all combined. Uses optional `pdfplumber` first when available, with PyMuPDF as the built-in local fallback. |
+| **HTML to PDF**      | Convert HTML content to a PDF document. Uses LibreOffice for full CSS / table / image support when available; lower-fidelity PyMuPDF fallback must be explicitly allowed.                                                                       |
 | **Markdown to PDF**  | Paste or upload Markdown (.md) and download a formatted PDF. Choose page size and base font size. Uses PyMuPDF's `Story` API for proper multi-page pagination.                                                                   |
 | **Markdown to Word** | Convert Markdown to a `.docx` document with correct heading, list, quote, and code styles                                                                                                                                        |
-| **PDF to PowerPoint** | Render each PDF page as an image and place it on its own slide in a `.pptx`. Choose 16:9 / 4:3 / A4 slide size, page range, and DPI.                                                                                            |
-| **PowerPoint to PDF** | Convert `.pptx` / `.ppt` / `.odp` presentations to PDF (requires LibreOffice on PATH)                                                                                                                                            |
+| **PDF to PowerPoint** | Convert PDFs to `.pptx` using editable LibreOffice mode when available, or image-per-slide mode for non-editable visual preservation. Choose slide size, page range, and DPI in image mode.                                                                                            |
+| **PowerPoint to PDF** | Convert `.pptx` / `.ppt` / `.odp` presentations to PDF through the hardened LibreOffice wrapper (isolated profile, safer timeout, robust output detection).                                                                                                                                            |
 | **OCR PDF**          | Make scanned PDFs searchable (image + hidden text layer) or extract text — 14 languages supported                                                                                                                                |
 | **CAD to PDF/Image** | Convert DXF drawings to PDF or PNG (DWG via optional ODA File Converter)                                                                                                                                                         |
 
@@ -138,7 +138,7 @@ Installer akan ada di `electron-wrapper/dist/`.
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Excel to CSV / JSON**  | Export sheets from `.xlsx` / `.xls` to CSV or JSON (array-of-objects or array-of-arrays). Single sheet or all sheets as ZIP.                                                                                 |
 | **CSV / JSON to Excel**  | Build an `.xlsx` workbook from one or more CSV or JSON files — one sheet per file, optional bold/shaded header row                                                                                           |
-| **Excel to PDF**         | Convert a workbook to PDF with one section per sheet. Configurable page size, orientation, and font size. Basic table rendering, not pixel-perfect.                                                          |
+| **Excel to PDF**         | Convert workbooks to PDF with LibreOffice for high-fidelity print/layout preservation. The older ReportLab table renderer remains as an explicit basic fallback.                                                          |
 | **Merge Workbooks**      | Combine multiple Excel files into a single workbook, optionally prefixing each sheet with its source filename                                                                                                |
 | **Split Sheets**         | Export each sheet of a workbook as its own `.xlsx` (bundled as a ZIP if more than one)                                                                                                                       |
 | **Excel Info & Preview** | List sheet names, row/column counts, and preview the first N rows of every sheet                                                                                                                             |
@@ -166,7 +166,7 @@ Installer akan ada di `electron-wrapper/dist/`.
 | Tool                    | Description                                                                                                                             |
 | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | **Resize Image**        | Resize by percentage or exact pixel dimensions (with aspect ratio lock)                                                                 |
-| **Compress Image**      | Reduce file size with adjustable quality slider (10–100%)                                                                               |
+| **Compress Image**      | Reduce file size with Auto, Photo/JPEG, Lossless PNG, and WebP modes. Applies EXIF orientation and preserves transparency/profile data where possible.                                                                               |
 | **Convert Format**      | Convert between PNG, JPG, WebP, BMP, and TIFF                                                                                           |
 | **Remove Background**   | Automatically remove image backgrounds using AI                                                                                         |
 | **Crop Image**          | Crop by aspect ratio (1:1, 4:3, 16:9, etc.) or custom coordinates                                                                       |
@@ -177,9 +177,10 @@ Installer akan ada di `electron-wrapper/dist/`.
 | **Image to Text (OCR)** | Extract text from images using optical character recognition                                                                            |
 | **Animated WebP/GIF**   | Convert between animated GIF and animated WebP (preserves per-frame timing)                                                             |
 | **Color Palette**       | Extract a dominant color palette (2–16 colors) from an image via quantization or grid sampling. Includes swatch preview with hex codes. |
-| **SVG to PNG**          | Rasterize SVG vectors to PNG at a chosen width, with optional transparent background                                                    |
+| **SVG to PNG**          | Rasterize SVG vectors to PNG in the browser first for better SVG fidelity, with the existing local server renderer as fallback.                                                    |
 | **SVG Optimizer**       | Strip comments, editor metadata (Inkscape/Sketch/Adobe namespaces), and round decimals to shrink SVG files                              |
 | **HEIC Converter**      | Convert iPhone `.heic` / `.heif` photos to JPG, PNG, or WebP (single or bulk → ZIP). Once installed, all other image tools also accept HEIC inputs.                                          |
+| **Merge Images**        | Combine multiple images into one — balanced grid by default, plus horizontal or vertical layouts. Images are scaled (aspect ratio preserved) so rows line up flush with no gaps. Output size is bounded by a configurable max width so merging large photos stays fast. Supports spacing, background color, and PNG/JPG/WebP output. Images merge in upload order. |
 
 ### Text & Data (client-side, no upload needed)
 
@@ -260,7 +261,7 @@ Installer akan ada di `electron-wrapper/dist/`.
 | Tool                  | Description                                                                                  |
 | --------------------- | -------------------------------------------------------------------------------------------- |
 | **Convert Audio**     | Convert between MP3, WAV, OGG, FLAC, AAC, M4A, and Opus with adjustable bitrate              |
-| **Convert Video**     | Convert between MP4, WebM, MKV, MOV, and AVI (uses sensible codec defaults per target)       |
+| **Convert Video**     | Convert between MP4, WebM, MKV, MOV, and AVI. Uses ffprobe metadata to preserve compatible streams, otherwise re-encodes with clear quality presets.       |
 | **Extract Audio**     | Pull the audio track out of a video file to MP3 / WAV / OGG / M4A                            |
 | **Trim Media**        | Trim audio or video by start/end time (stream-copy first, re-encodes on keyframe mismatch)   |
 | **Compress Video**    | Re-encode video with H.264 at a chosen CRF and preset to shrink file size                    |
@@ -284,7 +285,11 @@ Install [Python 3.10+](https://www.python.org/downloads/) once (on Windows, tick
 | **macOS**   | Double-click `run.command`. First time only, open Terminal in this folder and run `chmod +x run.command` (macOS strips the executable bit on downloads). |
 | **Linux**   | `chmod +x run.sh && ./run.sh`                                                                                                                            |
 
-The launcher creates a virtual environment, installs dependencies, starts the server, and opens your browser automatically. Close the window to stop. Subsequent runs skip the setup step.
+The launcher creates a private `.venv`, installs required Python packages, best-effort installs optional Python packages, starts the server, and opens your browser automatically. Close the window to stop. Subsequent runs skip completed setup steps unless the dependency files change.
+
+The launchers are intentionally isolated from your global Python packages, so a broken system/user install (for example the unrelated `fitz` package that conflicts with PyMuPDF) will not break the app.
+
+Optional native desktop engines such as LibreOffice, FFmpeg, Tesseract, and ODA File Converter are detected locally and used automatically when present. They are not bundled into the repository because they are large system apps with OS-specific installers, but the app shows clear install hints through the tool pages and `/capabilities`.
 
 ### Simple Use (Dockerfile + docker-compose)
 
@@ -309,7 +314,7 @@ python -m venv venv
 source venv/bin/activate        # Linux/macOS
 venv\Scripts\activate           # Windows
 
-# Install dependencies
+# Install the full dependency set for manual/developer use
 pip install -r requirements.txt
 
 # Run
@@ -320,24 +325,69 @@ Open **http://localhost:5000** in your browser.
 
 ---
 
+## Troubleshooting
+
+### `fitz` / PyMuPDF import error
+
+PyMuPDF is installed with the package name `PyMuPDF`, but imported in Python as `fitz`. Do **not** install the unrelated package named `fitz`; it can cause startup errors involving `frontend` or Starlette.
+
+Recommended fix:
+
+```bash
+python -m pip uninstall -y fitz frontend
+python -m pip install --upgrade PyMuPDF
+```
+
+On Windows, the easiest path is to run `run.bat`, which creates a clean `.venv` and installs the correct dependencies there. If running manually, prefer:
+
+```bash
+.\.venv\Scripts\python.exe app.py
+```
+
+---
+
+## Local Conversion Fidelity
+
+The app stays local/offline: no uploaded files are sent to cloud conversion APIs. Tools that need better layout fidelity use locally installed engines when available.
+
+- `GET /capabilities` reports detected engines, paths/versions when known, quality tier, missing engines, and install hints.
+- The shared upload UI shows **High fidelity**, **Basic fallback**, or **Unavailable** before conversion.
+- File responses include `X-Conversion-Engine`, `X-Conversion-Quality`, and, when relevant, `X-Fidelity-Warnings`.
+- Layout-sensitive fallbacks are no longer silent. Word/HTML/Excel to PDF require an explicit fallback checkbox when LibreOffice is unavailable or fails.
+- LibreOffice conversions run with an isolated temporary user profile and headless-safe flags.
+
+---
+
 ## Optional Dependencies
 
 The core app works out of the box with the main dependencies. Some features require additional packages that may need system-level libraries:
 
 | Package                               | Feature                                     | Notes                                                                                                                                                                                                                 |
 | ------------------------------------- | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `rembg`                               | Remove Background                           | Installs ONNX Runtime (~500 MB). The app works without it and shows a helpful message if missing.                                                                                                                     |
+| `rembg[cpu]`                          | Remove Background                           | Installs rembg with the CPU ONNX Runtime backend. The app works without it and shows a helpful message if missing or incomplete.                                                                                       |
 | `pyzbar`                              | Read QR Code                                | Requires the [ZBar](https://github.com/NaturalHistoryMuseum/pyzbar#installation) shared library on your system.                                                                                                       |
-| `pdf2docx`                            | PDF to Word                                 | Pure Python, but conversion quality depends on PDF complexity.                                                                                                                                                        |
+| `LibreOffice` (external)              | Word/HTML/Excel/PowerPoint to PDF, editable PDF to PowerPoint | Recommended for high-fidelity document/layout conversion. The app detects common install paths and uses an isolated temporary profile per conversion.                                                                  |
+| `pdf2docx`                            | PDF to Word Layout mode                     | Pure Python, but conversion quality depends on PDF complexity.                                                                                                                                                        |
+| `pdfplumber`                          | PDF to Excel                                | Optional table extractor used before the built-in PyMuPDF fallback when available.                                                                                                                                     |
 | `pytesseract`                         | Image to Text (OCR), OCR PDF                | Requires the [Tesseract](https://github.com/tesseract-ocr/tesseract) binary installed on your system. For non-English OCR, download the matching `*.traineddata` language pack into your Tesseract `tessdata` folder. |
 | `ezdxf` + `matplotlib`                | CAD to PDF/Image                            | Renders DXF drawings. For DWG support, also install the free [ODA File Converter](https://www.opendesign.com/guestfiles/oda_file_converter) and make sure it's on your `PATH`.                                        |
 | `ffmpeg` (external)                   | All Audio & Video tools                     | Requires the [FFmpeg](https://ffmpeg.org/download.html) binary on your `PATH`. Each media tool page shows a green banner if FFmpeg is detected, with install instructions if not.                                     |
+| `pillow-heif`                         | HEIC/HEIF image support                     | Enables iPhone `.heic` / `.heif` inputs across image tools.                                                                                                                                                           |
+| `openai-whisper`                      | Speech to Text                              | Local Whisper transcription. First use of a model may download model weights unless already cached locally.                                                                                                           |
+| `pytest`                              | Test suite                                  | Used for route and fidelity tests; optional for normal app use.                                                                                                                                                       |
 | `sqlparse`, `croniter`, `jsonpath-ng` | SQL Formatter, Cron Parser, JSONPath Tester | Small pure-Python packages included in `requirements.txt`. Everything else under _Developer Utilities_ runs entirely in the browser.                                                                                  |
 
-If you only need the core tools, install the minimal set:
+Dependency files are split for easier setup:
+
+- `requirements-core.txt` starts the app and enables the primary built-in tools.
+- `requirements-optional.txt` adds optional local packages for heavier/specialized tools.
+- `requirements-dev.txt` adds test tooling.
+- `requirements.txt` includes all of the above for full manual/developer installs.
+
+If you only need the core tools, install:
 
 ```bash
-pip install Flask Pillow PyMuPDF "qrcode[pil]" markdown reportlab img2pdf python-docx openpyxl xlrd
+pip install -r requirements-core.txt
 ```
 
 ### Enabling DWG support (ODA File Converter)
@@ -381,8 +431,14 @@ DXF files work out of the box once you install `ezdxf` and `matplotlib`. For **D
 your-everyday-tools/
 ├── app.py                          # Flask app, tool registry, blueprint registration
 ├── requirements.txt
+├── requirements-core.txt
+├── requirements-optional.txt
+├── requirements-dev.txt
 ├── utils/
-│   └── file_utils.py               # Shared helpers (ZIP creation, file validation)
+│   ├── file_utils.py               # Shared helpers (ZIP creation, file validation)
+│   └── capabilities.py             # Local engine detection + conversion metadata helpers
+├── scripts/
+│   └── launcher.py                 # Cross-platform one-click setup/start helper
 ├── routes/
 │   ├── convert_tools.py            # Document conversion endpoints
 │   ├── pdf_tools.py                # PDF manipulation endpoints
@@ -394,10 +450,11 @@ your-everyday-tools/
 │   ├── spreadsheet_tools.py        # Excel / CSV / JSON workbook tools
 │   ├── dev_tools.py                # Developer utilities (UUID/JWT/UA/formatters/cron/jsonpath)
 │   ├── archive_tools.py            # ZIP create / extract / info
-│   └── media_tools.py              # FFmpeg-powered audio & video tools
+│   ├── media_tools.py              # FFmpeg-powered audio & video tools
+│   └── capabilities.py             # /capabilities endpoint
 ├── templates/
-│   ├── base.html                   # Main layout (sidebar + content area)
-│   ├── index.html                  # Home page with tool cards
+│   ├── base.html                   # Main layout (sidebar, global search, theme switcher)
+│   ├── index.html                  # Home page with tool cards and search
 │   ├── upload_tool.html            # Universal template for all file-based tools
 │   └── tools/                      # Individual client-side tool templates
 │       ├── calculator.html
@@ -423,17 +480,19 @@ your-everyday-tools/
 │       ├── password_generator.html
 │       └── hash_generator.html
 └── static/
-    ├── css/style.css               # All styles (~400 lines, no framework)
-    └── js/main.js                  # File upload, AJAX, sidebar, shared logic
+    ├── css/style.css               # All styles, no framework
+    ├── css/icons.css               # Vendored Bootstrap Icons; no CDN required
+    ├── fonts/bootstrap-icons.woff2 # Bootstrap Icons font files
+    └── js/main.js                  # Sidebar, theme, search, file upload, shared logic
 ```
 
 ### Architecture Notes
 
 - **One universal template** — `upload_tool.html` powers all 25+ server-side tools. Each route passes title, description, accepted file types, and form options as template variables. No per-tool template duplication.
 - **Client-side tools** (text utilities, calculators, security tools) run entirely in the browser with vanilla JavaScript — zero server round-trips.
-- **In-memory processing** — all file operations use `BytesIO`. No temporary files are written to disk.
-- **No CSS framework** — custom CSS with CSS Grid, Flexbox, and CSS custom properties. The only external resource is Bootstrap Icons via CDN (~100 KB) for the icon set.
-- **Graceful degradation** — heavy optional packages (`rembg`, `pyzbar`, `pdf2docx`, `pytesseract`) and external binaries (ODA File Converter, FFmpeg) are probed at import time via `importlib` / `shutil.which`. If missing, the affected tool shows a clear install instruction instead of crashing.
+- **Local-first processing** — pure browser tools never leave the page; server routes process files locally. Some engines such as LibreOffice, FFmpeg, ODA, and pdf2docx use isolated temporary directories when their CLI/library workflow requires files.
+- **No CSS framework or CDN dependency** — custom CSS with CSS Grid, Flexbox, CSS custom properties, and vendored Bootstrap Icons.
+- **Graceful degradation** — optional packages and external binaries (`LibreOffice`, `FFmpeg`, `ffprobe`, `Tesseract`, ODA File Converter, `rembg`, `pyzbar`, `pdf2docx`, `pdfplumber`, `pytesseract`, `pillow-heif`, Whisper, etc.) are reported through `/capabilities` and tool-page status banners. Missing high-fidelity engines either show a clear unavailable state or require explicit basic fallback consent.
 
 ---
 
@@ -466,4 +525,3 @@ waitress-serve --port=8000 app:app
 ```
 
 ---
-

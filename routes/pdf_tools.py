@@ -1,8 +1,10 @@
 import io
-import fitz  # PyMuPDF
 from flask import Blueprint, render_template, request, send_file, jsonify
 from utils.file_utils import make_zip
+from utils.pymupdf import import_pymupdf
 from routes._helpers import safe_int, safe_float, log_error, NO_FILE_SINGLE, NO_FILE_MULTIPLE
+
+fitz = import_pymupdf()
 
 bp = Blueprint("pdf", __name__)
 

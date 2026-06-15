@@ -39,6 +39,9 @@
 .diff-stats { font-size: .85rem; margin-bottom: .5rem; }
 .diff-stats .add { color: #28a745; font-weight: 600; }
 .diff-stats .del { color: var(--danger); font-weight: 600; }
+[data-theme="dark"] .diff-add { background: #0d2e14; }
+[data-theme="dark"] .diff-del { background: #2e0d0d; }
+[data-theme="dark"] .diff-stats .add { color: #4ecdc4; }
 </style>
 <script>
 function computeDiff() {

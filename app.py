@@ -106,6 +106,7 @@ TOOL_CATEGORIES = [
             {"id": "svg-to-png", "name": "SVG to PNG", "desc": "Rasterize SVG vector files to PNG", "icon": "bi-filetype-svg"},
             {"id": "svg-optimize", "name": "SVG Optimizer", "desc": "Strip metadata and shrink SVG files", "icon": "bi-file-minus-fill"},
             {"id": "heic-convert", "name": "HEIC Converter", "desc": "Convert iPhone .heic photos to JPG / PNG / WebP", "icon": "bi-phone-fill"},
+            {"id": "merge", "name": "Merge Images", "desc": "Combine multiple images into one", "icon": "bi-union"},
         ],
     },
     {
@@ -291,6 +292,7 @@ from routes.spreadsheet_tools import bp as spreadsheet_bp
 from routes.dev_tools import bp as dev_bp
 from routes.archive_tools import bp as archive_bp
 from routes.media_tools import bp as media_bp
+from routes.capabilities import bp as capabilities_bp
 
 app.register_blueprint(convert_bp, url_prefix="/convert")
 app.register_blueprint(pdf_bp, url_prefix="/pdf")
@@ -303,6 +305,7 @@ app.register_blueprint(spreadsheet_bp, url_prefix="/spreadsheet")
 app.register_blueprint(dev_bp, url_prefix="/dev")
 app.register_blueprint(archive_bp, url_prefix="/archive")
 app.register_blueprint(media_bp, url_prefix="/media")
+app.register_blueprint(capabilities_bp)
 
 def _shutdown_handler(signum, frame):
     raise SystemExit(0)

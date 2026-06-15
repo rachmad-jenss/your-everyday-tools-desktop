@@ -1,0 +1,18 @@
+# Required for the app to start and for the primary built-in tools.
+Flask
+Pillow
+PyMuPDF
+qrcode[pil]
+python-barcode
+markdown
+reportlab
+svglib
+img2pdf
+python-docx
+python-pptx
+openpyxl
+xlrd
+sqlparse
+croniter
+jsonpath-ng
+cryptography

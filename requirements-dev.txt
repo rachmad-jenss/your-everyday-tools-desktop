@@ -1,0 +1,2 @@
+# Developer/test tools. Not required for normal one-click app startup.
+pytest

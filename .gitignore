@@ -9,6 +9,10 @@ dist/
 
 # Python venv
 venv/
+.venv/
+*.pyc
+*.pyo
+.pytest_cache/
 
 # Electron
 electron-wrapper/node_modules/
@@ -18,6 +22,5 @@ electron-wrapper/resources/backend/
 # Vendor binaries (FFmpeg, Tesseract — too large for git)
 vendor/
 
-# Temp files
-*.pyc
-*.pyoRELEASE_WORKFLOW.md
+# Local docs
+RELEASE_WORKFLOW.md

@@ -19,12 +19,20 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, PageBreak, Table, T
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
 from utils.file_utils import make_zip
+from utils.capabilities import (
+    QUALITY_BASIC,
+    QUALITY_HIGH,
+    find_soffice,
+    set_conversion_metadata,
+    soffice_convert,
+)
 
 bp = Blueprint("spreadsheet", __name__)
 
 EXCEL_ACCEPT = ".xlsx,.xlsm,.xls"
 EXCEL_EXTS = {"xlsx", "xlsm", "xls"}
 MAX_PDF_ROWS_PER_SHEET = 5000
+SOFFICE = find_soffice()
 
 
 # ── Reader helpers ─────────────────────────────
@@ -145,6 +153,8 @@ def excel_to_pdf_page():
         title="Excel to PDF",
         description="Convert an Excel workbook to PDF (one section per sheet)",
         notes=(
+            '<p><strong>High fidelity path:</strong> LibreOffice is used when installed. '
+            'The basic Python table renderer is only used when you explicitly allow fallback.</p>'
             '<p><strong>This is a basic renderer, not a pixel-perfect Excel print.</strong> '
             'It reads cell values and renders each sheet as a simple table. <strong>Not preserved:</strong></p>'
             '<ul style="margin:.4rem 0 .6rem 1.2rem">'
@@ -153,10 +163,8 @@ def excel_to_pdf_page():
             '<li>Merged cells, frozen panes, charts, images, embedded objects</li>'
             '<li>Print areas, page setup, headers/footers</li>'
             '</ul>'
-            '<p><strong>For full-fidelity Excel→PDF</strong> (matching what Excel itself prints), '
-            'install LibreOffice and we\'ll route through it automatically — the same approach '
-            'used by <a href="/convert/pptx-to-pdf">PowerPoint to PDF</a>. '
-            '<em>(Coming soon — track progress in the CHANGELOG.)</em></p>'
+            '<p><strong>For full-fidelity Excel to PDF</strong> (matching print output), '
+            'install LibreOffice and this route will use it automatically.</p>'
             '<p style="font-size:.9em;color:var(--muted)">Output uses one PDF page per sheet '
             '(or splits across pages if the table is too wide/tall). Auto-fits column widths '
             'to content.</p>'
@@ -176,9 +184,11 @@ def excel_to_pdf_page():
              "choices": [
                  {"value": "landscape", "label": "Landscape"},
                  {"value": "portrait", "label": "Portrait"},
-             ]},
+            ]},
             {"type": "number", "name": "fontsize", "label": "Font Size",
              "default": 8, "min": 5, "max": 14},
+            {"type": "checkbox", "name": "use_basic_fallback", "label": "Fallback",
+             "check_label": "Allow basic table fallback if LibreOffice is unavailable or fails"},
         ])
 
 
@@ -449,6 +459,32 @@ def excel_to_pdf():
     if not files or not files[0].filename:
         return jsonify(error=NO_FILE_SINGLE), 400
 
+    file_data = files[0].read()
+    filename = files[0].filename
+    ext = _ext(filename)
+    allow_basic_fallback = request.form.get("use_basic_fallback") == "on"
+
+    if ext not in EXCEL_EXTS:
+        return jsonify(error="Unsupported file type. Upload .xlsx, .xlsm, or .xls."), 400
+
+    try:
+        pdf_bytes = soffice_convert(file_data, ext, "pdf", timeout=300)
+    except Exception as e:
+        log_error(e, "excel-to-pdf libreoffice")
+        pdf_bytes = None
+
+    if pdf_bytes is not None:
+        base = filename.rsplit(".", 1)[0]
+        resp = send_file(io.BytesIO(pdf_bytes), mimetype="application/pdf",
+                         as_attachment=True, download_name=f"{base}.pdf")
+        return set_conversion_metadata(resp, "libreoffice", QUALITY_HIGH)
+
+    if not allow_basic_fallback:
+        return jsonify(error=(
+            "High-fidelity Excel to PDF requires LibreOffice. "
+            "Tick 'Allow basic table fallback' to continue with lower layout fidelity."
+        )), 400
+
     size_name = request.form.get("size", "A4")
     orientation = request.form.get("orientation", "landscape")
     fontsize = safe_int(request.form.get("fontsize"), 8, min_val=4, max_val=24)
@@ -459,7 +495,7 @@ def excel_to_pdf():
         page_size = landscape(page_size)
 
     try:
-        sheets = read_workbook(files[0].read(), files[0].filename)
+        sheets = read_workbook(file_data, filename)
     except Exception as e:
         log_error(e, "excel-to-pdf read")
         return jsonify(error="Could not read workbook (file may be corrupted or unsupported format)."), 400
@@ -523,9 +559,15 @@ def excel_to_pdf():
         return jsonify(error=f"PDF layout failed (table too wide?). Try a larger page size or smaller font. Details: {str(e)[:150]}"), 400
 
     buf.seek(0)
-    base = files[0].filename.rsplit(".", 1)[0]
-    return send_file(buf, mimetype="application/pdf",
+    base = filename.rsplit(".", 1)[0]
+    resp = send_file(buf, mimetype="application/pdf",
                      as_attachment=True, download_name=f"{base}.pdf")
+    return set_conversion_metadata(
+        resp,
+        "openpyxl/reportlab" if ext != "xls" else "xlrd/reportlab",
+        QUALITY_BASIC,
+        "Basic fallback used; formatting, charts, print areas, and page setup are not preserved.",
+    )
 
 
 def _pdf_cell(v):

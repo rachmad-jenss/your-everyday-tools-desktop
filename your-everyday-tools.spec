@@ -65,9 +65,12 @@ a = Analysis(
         'routes.dev_tools',
         'routes.archive_tools',
         'routes.media_tools',
+        'routes.capabilities',
         'routes._helpers',
         # Utils
         'utils.file_utils',
+        'utils.capabilities',
+        'utils.pymupdf',
         # Core deps that PyInstaller often misses
         'PIL',
         'PIL._tkinter_finder',
@@ -97,6 +100,8 @@ a = Analysis(
         'pptx.util',
         # Optional deps (re-included after img2pdf fix)
         'pdf2docx',
+        'pdfplumber',
+        'img2pdf',
         'pytesseract',
         'ezdxf',
         'ezdxf.addons',
@@ -151,7 +156,6 @@ a = Analysis(
         'torchvision',
         'torchaudio',
         'numpy.distutils',
-        'img2pdf',
         'tkinter',
         '_tkinter',
         'unittest',

@@ -1,3 +1,61 @@
+/* ── Theme ────────────────────────────────────── */
+const THEME_KEY = "theme";
+
+function getStoredTheme() {
+    return localStorage.getItem(THEME_KEY) || "system";
+}
+
+function resolveTheme(mode) {
+    if (mode === "dark") return "dark";
+    if (mode === "light") return "light";
+    return (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light";
+}
+
+function applyTheme(mode, animate) {
+    localStorage.setItem(THEME_KEY, mode);
+    const html = document.documentElement;
+
+    if (animate) {
+        html.classList.add("theme-animate");
+    }
+
+    html.dataset.theme = resolveTheme(mode);
+
+    document.querySelectorAll(".theme-btn").forEach(btn => {
+        btn.classList.toggle("active", btn.dataset.themeMode === mode);
+    });
+
+    if (animate) {
+        clearTimeout(applyTheme._timer);
+        applyTheme._timer = setTimeout(() => html.classList.remove("theme-animate"), 400);
+    }
+}
+
+function initTheme() {
+    const mode = getStoredTheme();
+    applyTheme(mode, false);
+    document.querySelectorAll(".theme-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            // Spin the icon
+            const icon = btn.querySelector("i");
+            if (icon) {
+                btn.classList.remove("spinning");
+                void btn.offsetWidth; // force reflow to restart animation
+                btn.classList.add("spinning");
+                setTimeout(() => btn.classList.remove("spinning"), 380);
+            }
+            applyTheme(btn.dataset.themeMode, true);
+        });
+    });
+    if (window.matchMedia) {
+        window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+            if (getStoredTheme() === "system") {
+                document.documentElement.dataset.theme = resolveTheme("system");
+            }
+        });
+    }
+}
+
 /* ── Sidebar ──────────────────────────────────── */
 function toggleCategory(btn) {
     btn.classList.toggle("open");
@@ -30,10 +88,185 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
+    initTheme();
+    initToolSearch();
+    initGlobalSearch();
     initUploadZone();
     initToolForm();
     initDependentOptions();
+    initCapabilityStatus();
 });
+
+/* ── Global Toolbar Search ────────────────────── */
+function initGlobalSearch() {
+    const wrapper = document.getElementById("global-search");
+    const input = document.getElementById("global-search-input");
+    const dropdown = document.getElementById("global-search-dropdown");
+    if (!wrapper || !input || !dropdown) return;
+
+    // Hide on home page; show everywhere else
+    if (window.location.pathname === "/") {
+        wrapper.style.display = "none";
+        return;
+    }
+    wrapper.style.display = "";
+
+    // Build tool list from sidebar nav items (already in DOM)
+    const tools = [];
+    document.querySelectorAll(".nav-category").forEach(cat => {
+        const catBtn = cat.querySelector(".nav-category-btn");
+        const catName = catBtn ? catBtn.textContent.trim() : "";
+        cat.querySelectorAll(".nav-item").forEach(a => {
+            tools.push({
+                name: a.textContent.trim(),
+                href: a.getAttribute("href"),
+                cat: catName,
+                desc: a.dataset.desc || "",
+            });
+        });
+    });
+
+    let activeIdx = -1;
+
+    function openDropdown() {
+        dropdown.classList.add("open");
+        input.setAttribute("aria-expanded", "true");
+    }
+
+    function closeDropdown() {
+        dropdown.classList.remove("open");
+        input.setAttribute("aria-expanded", "false");
+        activeIdx = -1;
+    }
+
+    function renderResults(query) {
+        if (!query) { closeDropdown(); return; }
+
+        const matches = tools.filter(t =>
+            t.name.toLowerCase().includes(query) ||
+            t.cat.toLowerCase().includes(query) ||
+            t.desc.includes(query)
+        ).slice(0, 8);
+
+        if (matches.length === 0) {
+            dropdown.innerHTML = `<div class="global-search-empty">No tools found.</div>`;
+            openDropdown();
+            return;
+        }
+
+        dropdown.innerHTML = matches.map((t, i) => `
+            <a href="${t.href}" class="global-search-result" role="option" data-idx="${i}">
+                <span class="result-info">
+                    <span class="result-name">${escapeHtml(t.name)}</span>
+                    <span class="result-desc">${escapeHtml(t.desc)}</span>
+                </span>
+                <span class="result-cat">${escapeHtml(t.cat)}</span>
+            </a>
+        `).join("");
+        activeIdx = -1;
+        openDropdown();
+    }
+
+    function setActive(idx) {
+        const items = dropdown.querySelectorAll(".global-search-result");
+        items.forEach(el => el.classList.remove("active"));
+        if (idx >= 0 && idx < items.length) {
+            items[idx].classList.add("active");
+            items[idx].scrollIntoView({ block: "nearest" });
+        }
+        activeIdx = idx;
+    }
+
+    input.addEventListener("input", () => {
+        renderResults(input.value.trim().toLowerCase());
+    });
+
+    input.addEventListener("keydown", e => {
+        const items = dropdown.querySelectorAll(".global-search-result");
+        if (e.key === "ArrowDown") {
+            e.preventDefault();
+            setActive(Math.min(activeIdx + 1, items.length - 1));
+        } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            setActive(Math.max(activeIdx - 1, 0));
+        } else if (e.key === "Enter") {
+            if (activeIdx >= 0 && items[activeIdx]) {
+                window.location.href = items[activeIdx].getAttribute("href");
+            }
+        } else if (e.key === "Escape") {
+            input.blur();
+            closeDropdown();
+        }
+    });
+
+    document.addEventListener("click", e => {
+        if (!wrapper.contains(e.target)) closeDropdown();
+    });
+}
+
+/* ── Home Page Tool Search ────────────────────── */
+function initToolSearch() {
+    const input = document.getElementById("tool-search");
+    if (!input) return;
+
+    const cards = Array.from(document.querySelectorAll(".tool-card"));
+    const sections = Array.from(document.querySelectorAll(".category-section"));
+    const empty = document.getElementById("search-empty");
+
+    input.addEventListener("input", () => {
+        const query = input.value.trim().toLowerCase();
+
+        cards.forEach(card => {
+            const match = !query || card.dataset.search.includes(query);
+            card.style.display = match ? "" : "none";
+        });
+
+        sections.forEach(section => {
+            const hasVisible = Array.from(section.querySelectorAll(".tool-card"))
+                .some(c => c.style.display !== "none");
+            section.style.display = hasVisible ? "" : "none";
+        });
+
+        if (empty) {
+            const anyVisible = cards.some(c => c.style.display !== "none");
+            empty.style.display = anyVisible ? "none" : "";
+        }
+    });
+}
+
+async function initCapabilityStatus() {
+    const box = document.getElementById("capability-status");
+    if (!box) return;
+    const endpoint = box.dataset.endpoint;
+    if (!endpoint) return;
+    try {
+        const resp = await fetch("/capabilities");
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const status = data.routes && data.routes[endpoint];
+        if (!status) return;
+        box.className = "capability-status " + status.quality;
+        box.style.display = "block";
+
+        const missing = (status.missing_engines || [])
+            .map(id => data.engines[id]?.label || id)
+            .join(", ");
+        const engines = (status.required_engines || [])
+            .map(id => data.engines[id]?.label || id)
+            .join(", ");
+        const detail = status.quality === "high"
+            ? `Using local high-fidelity engine${engines ? ": " + engines : ""}.`
+            : status.quality === "basic"
+                ? `High-fidelity engine missing${missing ? ": " + missing : ""}. ${status.fallback || ""}`
+                : `Required local engine missing${missing ? ": " + missing : ""}.`;
+
+        box.innerHTML = `
+            <strong><i class="bi ${status.quality === "high" ? "bi-check-circle-fill" : "bi-exclamation-triangle-fill"}"></i> ${status.status}</strong>
+            <span>${status.label}</span>
+            <small>${detail}</small>
+        `;
+    } catch (_) {}
+}
 
 
 /* ── Upload Zone ──────────────────────────────── */
@@ -176,10 +409,16 @@ function initToolForm() {
                 const url = URL.createObjectURL(blob);
 
                 // If image, show preview
+                const meta = {
+                    engine: resp.headers.get("X-Conversion-Engine") || "",
+                    quality: resp.headers.get("X-Conversion-Quality") || "",
+                    warnings: resp.headers.get("X-Fidelity-Warnings") || ""
+                };
+
                 if (ct.startsWith("image/")) {
-                    showFileResult(url, filename, true);
+                    showFileResult(url, filename, true, meta);
                 } else {
-                    showFileResult(url, filename, false);
+                    showFileResult(url, filename, false, meta);
                 }
             }
         } catch (err) {
@@ -202,7 +441,7 @@ function showError(msg) {
     document.getElementById("error-message").textContent = msg;
 }
 
-function showFileResult(url, filename, isImage) {
+function showFileResult(url, filename, isImage, meta = {}) {
     const area = document.getElementById("result-area");
     area.style.display = "block";
     document.getElementById("result-error").style.display = "none";
@@ -225,6 +464,19 @@ function showFileResult(url, filename, isImage) {
     } else {
         preview.style.display = "none";
     }
+
+    const oldMeta = success.querySelector(".result-meta");
+    if (oldMeta) oldMeta.remove();
+    if (meta.engine || meta.quality || meta.warnings) {
+        const div = document.createElement("div");
+        div.className = "result-meta";
+        const parts = [];
+        if (meta.engine) parts.push(`<span>Engine: ${escapeHtml(meta.engine)}</span>`);
+        if (meta.quality) parts.push(`<span>Quality: ${escapeHtml(meta.quality)}</span>`);
+        if (meta.warnings) parts.push(`<span>Warnings: ${escapeHtml(meta.warnings)}</span>`);
+        div.innerHTML = parts.join("");
+        success.appendChild(div);
+    }
 }
 
 function showTextResult(text) {
@@ -243,6 +495,16 @@ function showTextResult(text) {
 function copyResult() {
     const text = document.getElementById("result-text-content")?.textContent;
     if (text) navigator.clipboard.writeText(text);
+}
+
+function escapeHtml(text) {
+    return String(text).replace(/[&<>"']/g, c => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+    }[c]));
 }
 
 

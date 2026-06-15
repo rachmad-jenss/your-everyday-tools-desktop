@@ -15,6 +15,8 @@
     </div>
     {% endif %}
 
+    <div id="capability-status" class="capability-status" data-endpoint="{{ endpoint }}" style="display:none"></div>
+
     <form id="tool-form" data-endpoint="{{ endpoint }}">
         {% if text_input %}
         <div class="form-group">
@@ -58,6 +60,10 @@
                     value="{{ opt.default|default('') }}"
                     min="{{ opt.min|default('') }}" max="{{ opt.max|default('') }}"
                     step="{{ opt.step|default('1') }}">
+
+                {% elif opt.type == 'color' %}
+                <input type="color" id="opt-{{ opt.name }}" name="{{ opt.name }}"
+                    value="{{ opt.default|default('#ffffff') }}">
 
                 {% elif opt.type == 'text' %}
                 <input type="text" id="opt-{{ opt.name }}" name="{{ opt.name }}"
