@@ -3,10 +3,6 @@ const { spawn, execFileSync } = require("child_process");
 const { autoUpdater } = require("electron-updater");
 const path = require("path");
 const fs = require("fs");
-const http = require("http");
-const https = require("https");
-const os = require("os");
-const { setWindowDarkMode } = require("./win-dark-titlebar");
 
 let mainWindow = null;
 let isManualUpdateCheck = false;
@@ -15,10 +11,35 @@ let flaskProcess = null;
 let chosenPort = 5000;
 let flaskLastLines = []; // Rolling buffer of last Flask output lines for diagnostics
 
+const http = require("http");
+const https = require("https");
+const os = require("os");
+
 const PORT_FILE = path.join(
   process.env.TEMP || process.env.TMPDIR || "/tmp",
   "yet-desktop-port.txt"
 );
+
+function themeCachePath() {
+  return path.join(app.getPath("userData"), "desktop-theme.json");
+}
+
+function readStartupTheme() {
+  try {
+    const data = JSON.parse(fs.readFileSync(themeCachePath(), "utf8"));
+    if (data.resolved === "dark" || data.resolved === "light") {
+      return { mode: data.mode || data.resolved, resolved: data.resolved };
+    }
+  } catch (_) {}
+  const resolved = nativeTheme.shouldUseDarkColors ? "dark" : "light";
+  return { mode: "system", resolved };
+}
+
+function cacheTheme(mode, resolved) {
+  try {
+    fs.writeFileSync(themeCachePath(), JSON.stringify({ mode, resolved }));
+  } catch (_) {}
+}
 
 const THEME_COLORS = {
   light: { bg: "#f5f6fa", symbol: "#2d3436" },
@@ -29,18 +50,32 @@ function getThemeColors(resolved) {
   return THEME_COLORS[resolved === "dark" ? "dark" : "light"];
 }
 
-/** Sync OS chrome (title bar, menu bar, scrollbars) with in-app light/dark theme. */
+/** Sync OS chrome (title bar overlay, menu, scrollbars) with in-app theme. */
 function syncWindowTheme(win, mode, resolved) {
   if (!win || win.isDestroyed()) return;
   if (resolved !== "dark" && resolved !== "light") return;
 
   nativeTheme.themeSource = mode === "system" ? "system" : resolved;
-  const { bg } = getThemeColors(resolved);
+  const { bg, symbol } = getThemeColors(resolved);
   win.setBackgroundColor(bg);
 
   if (process.platform === "win32") {
-    setWindowDarkMode(win, resolved === "dark");
+    try {
+      win.setTitleBarOverlay({ color: bg, symbolColor: symbol, height: 30 });
+    } catch (_) {
+      // titleBarOverlay requires titleBarStyle other than default
+    }
   }
+}
+
+function win32ChromeOptions(resolved) {
+  if (process.platform !== "win32") return {};
+  const { bg, symbol } = getThemeColors(resolved);
+  return {
+    backgroundColor: bg,
+    titleBarStyle: "hidden",
+    titleBarOverlay: { color: bg, symbolColor: symbol, height: 30 },
+  };
 }
 
 function applyNativeTheme(mode, resolved) {
@@ -73,7 +108,10 @@ function applyNativeThemeWhenVisible(win, mode, resolved) {
 }
 
 function windowBackgroundOptions(resolved) {
-  return { backgroundColor: getThemeColors(resolved).bg };
+  return {
+    backgroundColor: getThemeColors(resolved).bg,
+    ...win32ChromeOptions(resolved),
+  };
 }
 
 function readThemeFromPage(webContents) {
@@ -451,12 +489,16 @@ function buildMenu() {
 }
 
 function createWindow(port) {
-  const initialResolved = nativeTheme.shouldUseDarkColors ? "dark" : "light";
+  const startup = readStartupTheme();
+  nativeTheme.themeSource =
+    startup.mode === "system" ? "system" : startup.resolved;
+  const initialResolved = startup.resolved;
+
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
     title: "Your Everyday Tools",
-    autoHideMenuBar: false,
+    autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -471,10 +513,10 @@ function createWindow(port) {
 
   mainWindow.once("ready-to-show", () => {
     if (process.platform === "win32") {
-      mainWindow.setMenuBarVisibility(true);
+      mainWindow.setMenuBarVisibility(false);
     }
     mainWindow.show();
-    applyNativeThemeWhenVisible(mainWindow, "system", initialResolved);
+    applyNativeThemeWhenVisible(mainWindow, startup.mode, initialResolved);
   });
 
   mainWindow.webContents.on("did-finish-load", () => {
@@ -700,12 +742,24 @@ function showDownloaderWindow(forceShow = false) {
 
 ipcMain.handle("theme:set", (_event, payload) => {
   if (typeof payload === "string") {
+    cacheTheme(payload, payload);
     applyNativeTheme(payload, payload);
     return;
   }
   const mode = payload && payload.mode ? payload.mode : "system";
   const resolved = payload && payload.resolved ? payload.resolved : mode;
+  cacheTheme(mode, resolved);
   applyNativeTheme(mode, resolved);
+});
+
+ipcMain.on("menu:popup", (event, label) => {
+  const menu = Menu.getApplicationMenu();
+  if (!menu) return;
+  const item = menu.items.find((entry) => entry.label === label);
+  if (!item || !item.submenu) return;
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win || win.isDestroyed()) return;
+  item.submenu.popup({ window: win });
 });
 
 ipcMain.on("download:start", async (event, components) => {

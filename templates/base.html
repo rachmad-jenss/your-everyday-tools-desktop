@@ -49,6 +49,12 @@
     <div class="overlay" id="overlay" onclick="closeSidebar()"></div>
 
     <main class="main-content">
+        <nav class="electron-menu-bar" id="electron-menu-bar" hidden aria-label="Application menu">
+            <button type="button" class="electron-menu-item" data-menu-label="File">File</button>
+            <button type="button" class="electron-menu-item" data-menu-label="Edit">Edit</button>
+            <button type="button" class="electron-menu-item" data-menu-label="View">View</button>
+            <button type="button" class="electron-menu-item" data-menu-label="Help">Help</button>
+        </nav>
         <header class="top-bar">
             <button class="menu-btn" onclick="openSidebar()"><i class="bi bi-list"></i></button>
             <span class="top-title">{% block top_title %}Your Everyday Tools{% endblock %}</span>

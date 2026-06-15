@@ -2,6 +2,12 @@
 
 All notable changes to **Your Everyday Tools** are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project loosely follows [Semantic Versioning](https://semver.org/).
 
+## [Desktop 1.3.5] — 2026-06-15
+
+### Fixed
+
+- **Windows title bar still light in dark mode** — use Electron `titleBarOverlay` (Window Controls Overlay) so the caption strip is painted with the app theme color. In-app menu bar (File/Edit/View/Help) replaces the hidden native menu; theme toggle gets right padding so it is not covered.
+
 ## [Desktop 1.3.4] — 2026-06-15
 
 ### Fixed

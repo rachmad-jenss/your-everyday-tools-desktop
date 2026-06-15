@@ -65,6 +65,20 @@ function initTheme() {
     }
 }
 
+function initElectronDesktop() {
+    if (!window.electronAPI || !window.electronAPI.isDesktop) return;
+    document.body.classList.add("electron-desktop");
+    const menuBar = document.getElementById("electron-menu-bar");
+    if (menuBar) menuBar.hidden = false;
+    document.querySelectorAll(".electron-menu-item").forEach((btn) => {
+        btn.addEventListener("click", () => {
+            if (typeof window.electronAPI.openAppMenu === "function") {
+                window.electronAPI.openAppMenu(btn.dataset.menuLabel);
+            }
+        });
+    });
+}
+
 /* ── Sidebar ──────────────────────────────────── */
 function toggleCategory(btn) {
     btn.classList.toggle("open");
@@ -98,6 +112,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     initTheme();
+    initElectronDesktop();
     initToolSearch();
     initGlobalSearch();
     initUploadZone();

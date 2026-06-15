@@ -255,6 +255,49 @@ a { color: var(--primary); text-decoration: none; }
     color: var(--text);
 }
 
+/* ── Electron desktop (Windows title bar overlay) ─ */
+body.electron-desktop .main-content {
+    padding-top: env(titlebar-area-height, 30px);
+}
+
+body.electron-desktop .electron-menu-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.15rem;
+    padding: 0 0.75rem;
+    min-height: 28px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding-right: max(1rem, 140px);
+}
+
+body.electron-desktop .electron-menu-item {
+    border: none;
+    background: none;
+    color: var(--text);
+    font: inherit;
+    font-size: 0.85rem;
+    padding: 0.35rem 0.65rem;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+body.electron-desktop .electron-menu-item:hover {
+    background: var(--accent-soft);
+}
+
+body.electron-desktop .top-bar {
+    padding-right: max(1.5rem, 140px);
+}
+
+body.electron-desktop .theme-switcher,
+body.electron-desktop .theme-btn,
+body.electron-desktop .global-search input,
+body.electron-desktop .menu-btn {
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+}
+
 /* ── Theme Switcher ───────────────────────────── */
 .theme-switcher {
     display: flex;

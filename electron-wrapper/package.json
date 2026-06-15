@@ -1,6 +1,6 @@
 {
   "name": "your-everyday-tools-desktop",
-  "version": "1.3.4",
+  "version": "1.3.5",
   "description": "Your Everyday Tools — 100+ offline utilities in a desktop app",
   "main": "main.js",
   "scripts": {
@@ -19,9 +19,6 @@
     "productName": "Your Everyday Tools",
     "artifactName": "Your-Everyday-Tools-Setup-${version}.${ext}",
     "asar": true,
-    "asarUnpack": [
-      "node_modules/koffi/**"
-    ],
     "directories": {
       "output": "dist"
     },
@@ -56,7 +53,7 @@
       }
     ],
     "releaseInfo": {
-      "releaseNotes": "v1.3.4 — perbaikan title bar dark mode Windows\n\n• DWM dipanggil setelah window tampil (timing fix)\n• HWND diperbaiki + fallback PowerShell jika koffi gagal\n• Title bar harus ikut theme switcher tanpa rusak menu bar"
+      "releaseNotes": "v1.3.5 — title bar ikut tema (overlay)\n\n• Title bar Windows pakai Window Controls Overlay (warna langsung)\n• Menu File/Edit/View/Help tetap ada di bar in-app\n• Theme toggle tidak ketutupan window controls"
     },
     "mac": {
       "target": "dmg",
@@ -80,7 +77,6 @@
     }
   },
   "dependencies": {
-    "electron-updater": "^6.8.3",
-    "koffi": "^2.12.2"
+    "electron-updater": "^6.8.3"
   }
 }
