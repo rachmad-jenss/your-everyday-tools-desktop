@@ -30,19 +30,46 @@ function getThemeColors(resolved) {
 }
 
 /** Sync OS chrome (title bar, menu bar, scrollbars) with in-app light/dark theme. */
-function applyNativeTheme(mode, resolved) {
+function syncWindowTheme(win, mode, resolved) {
+  if (!win || win.isDestroyed()) return;
   if (resolved !== "dark" && resolved !== "light") return;
+
   nativeTheme.themeSource = mode === "system" ? "system" : resolved;
   const { bg } = getThemeColors(resolved);
-  const isDark = resolved === "dark";
+  win.setBackgroundColor(bg);
+
+  if (process.platform === "win32") {
+    setWindowDarkMode(win, resolved === "dark");
+  }
+}
+
+function applyNativeTheme(mode, resolved) {
+  if (resolved !== "dark" && resolved !== "light") return;
 
   for (const win of BrowserWindow.getAllWindows()) {
-    if (win.isDestroyed()) continue;
-    win.setBackgroundColor(bg);
-    if (process.platform === "win32") {
-      setWindowDarkMode(win, isDark);
-    }
+    syncWindowTheme(win, mode, resolved);
   }
+}
+
+/** DWM title bar repaint is reliable only after the window is visible. */
+function applyNativeThemeWhenVisible(win, mode, resolved) {
+  if (!win || win.isDestroyed()) return;
+  if (resolved !== "dark" && resolved !== "light") return;
+
+  const run = () => syncWindowTheme(win, mode, resolved);
+
+  if (win.isVisible()) {
+    run();
+    setTimeout(run, 0);
+    setTimeout(run, 100);
+    return;
+  }
+
+  win.once("show", () => {
+    run();
+    setTimeout(run, 0);
+    setTimeout(run, 100);
+  });
 }
 
 function windowBackgroundOptions(resolved) {
@@ -441,22 +468,23 @@ function createWindow(port) {
   });
 
   mainWindow.loadURL(`http://127.0.0.1:${port}`);
-  mainWindow.once("ready-to-show", () => mainWindow.show());
+
+  mainWindow.once("ready-to-show", () => {
+    if (process.platform === "win32") {
+      mainWindow.setMenuBarVisibility(true);
+    }
+    mainWindow.show();
+    applyNativeThemeWhenVisible(mainWindow, "system", initialResolved);
+  });
 
   mainWindow.webContents.on("did-finish-load", () => {
     readThemeFromPage(mainWindow.webContents)
       .then((resolved) => {
         return mainWindow.webContents
           .executeJavaScript(`localStorage.getItem("theme") || "system"`)
-          .then((mode) => applyNativeTheme(mode, resolved));
+          .then((mode) => applyNativeThemeWhenVisible(mainWindow, mode, resolved));
       })
       .catch(() => {});
-  });
-
-  mainWindow.once("ready-to-show", () => {
-    if (process.platform === "win32") {
-      mainWindow.setMenuBarVisibility(true);
-    }
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {

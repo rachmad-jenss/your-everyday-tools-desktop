@@ -2,6 +2,12 @@
 
 All notable changes to **Your Everyday Tools** are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project loosely follows [Semantic Versioning](https://semver.org/).
 
+## [Desktop 1.3.4] — 2026-06-15
+
+### Fixed
+
+- **Windows title bar stayed light in dark mode** — apply DWM immersive dark mode after the window is shown, fix native HWND handling, add PowerShell fallback when koffi is unavailable in the packaged app, unpack koffi from asar.
+
 ## [Desktop 1.3.3] — 2026-06-15
 
 ### Fixed
