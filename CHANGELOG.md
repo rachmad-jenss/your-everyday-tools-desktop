@@ -2,6 +2,12 @@
 
 All notable changes to **Your Everyday Tools** are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project loosely follows [Semantic Versioning](https://semver.org/).
 
+## [Desktop 1.3.2] — 2026-06-15
+
+### Fixed
+
+- **Theme toggle covered / menu bar missing (v1.3.1 regression)** — removed `titleBarStyle: 'hidden'` on Windows. Native frame and menu bar (File/Edit/View/Help) are restored; dark mode still applies to menu bar and scrollbars via `nativeTheme` + `color-scheme`.
+
 ## [Desktop 1.3.1] — 2026-06-15
 
 ### Fixed

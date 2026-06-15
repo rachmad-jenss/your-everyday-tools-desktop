@@ -28,33 +28,20 @@ function getThemeColors(resolved) {
   return THEME_COLORS[resolved === "dark" ? "dark" : "light"];
 }
 
-/** Sync OS chrome (title bar, menu, scrollbars) with in-app light/dark theme. */
+/** Sync OS chrome (menu bar, scrollbars) with in-app light/dark theme. */
 function applyNativeTheme(resolved) {
   if (resolved !== "dark" && resolved !== "light") return;
   nativeTheme.themeSource = resolved;
-  const { bg, symbol } = getThemeColors(resolved);
+  const { bg } = getThemeColors(resolved);
 
   for (const win of BrowserWindow.getAllWindows()) {
     if (win.isDestroyed()) continue;
     win.setBackgroundColor(bg);
-    if (process.platform === "win32") {
-      try {
-        win.setTitleBarOverlay({ color: bg, symbolColor: symbol });
-      } catch (_) {
-        // titleBarOverlay requires titleBarStyle: 'hidden'
-      }
-    }
   }
 }
 
-function win32ChromeOptions(resolved) {
-  if (process.platform !== "win32") return {};
-  const { bg, symbol } = getThemeColors(resolved);
-  return {
-    backgroundColor: bg,
-    titleBarStyle: "hidden",
-    titleBarOverlay: { color: bg, symbolColor: symbol },
-  };
+function windowBackgroundOptions(resolved) {
+  return { backgroundColor: getThemeColors(resolved).bg };
 }
 
 function readThemeFromPage(webContents) {
@@ -444,7 +431,7 @@ function createWindow(port) {
       sandbox: true,
     },
     show: false,
-    ...win32ChromeOptions(initialResolved),
+    ...windowBackgroundOptions(initialResolved),
   });
 
   mainWindow.loadURL(`http://127.0.0.1:${port}`);
@@ -640,7 +627,7 @@ function showDownloaderWindow(forceShow = false) {
         nodeIntegration: false,
         sandbox: true,
       },
-      ...win32ChromeOptions(initialResolved),
+      ...windowBackgroundOptions(initialResolved),
     });
 
     downloaderWindow.setMenuBarVisibility(false);
