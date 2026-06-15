@@ -17,6 +17,7 @@
   "build": {
     "appId": "com.youreverydaytools.desktop",
     "productName": "Your Everyday Tools",
+    "artifactName": "Your-Everyday-Tools-Setup-${version}.${ext}",
     "asar": true,
     "directories": {
       "output": "dist"

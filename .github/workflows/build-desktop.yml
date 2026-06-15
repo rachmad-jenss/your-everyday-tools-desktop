@@ -202,12 +202,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
-          EXE=$(ls electron-wrapper/dist/*.exe | head -1)
-          YML=$(ls electron-wrapper/dist/latest.yml | head -1)
-          INSTALLER_NAME=$(python -c "import yaml; d=yaml.safe_load(open('$YML')); print(d.get('path') or d['files'][0]['url'])")
           gh release upload "${{ github.ref_name }}" \
-            "${EXE}#${INSTALLER_NAME}" \
-            "${YML}" \
+            electron-wrapper/dist/*.exe \
+            electron-wrapper/dist/latest.yml \
             --clobber
 
   # ─── Publish Release (undraft after all builds attach) ────────────────────
