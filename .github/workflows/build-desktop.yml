@@ -20,10 +20,12 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ github.ref_name }}"
-          gh release view "$TAG" --repo "${{ github.repository }}" 2>/dev/null \
-            && echo "Release $TAG already exists" \
-            || gh release create "$TAG" --repo "${{ github.repository }}" \
-                 --title "$TAG" --generate-notes --draft
+          if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            echo "Release $TAG already exists — skip create (use upload + edit for manual assets)"
+            exit 0
+          fi
+          gh release create "$TAG" --repo "${{ github.repository }}" \
+            --title "$TAG" --generate-notes --draft
 
   # ─── macOS Build ──────────────────────────────────────────────────────────
   build-macos:
@@ -216,9 +218,14 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Undraft release
+      - name: Publish release if still draft
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release edit "${{ github.ref_name }}" \
-            --repo "${{ github.repository }}" --draft=false
+          TAG="${{ github.ref_name }}"
+          DRAFT=$(gh release view "$TAG" --repo "${{ github.repository }}" --json isDraft -q .isDraft)
+          if [ "$DRAFT" = "true" ]; then
+            gh release edit "$TAG" --repo "${{ github.repository }}" --draft=false
+          else
+            echo "Release $TAG already published — skip undraft"
+          fi

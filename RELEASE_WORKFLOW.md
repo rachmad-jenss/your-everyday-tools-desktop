@@ -93,19 +93,43 @@ git push github main
 
 ### 7. Buat GitHub Release
 
+> **Penting:** Push tag (`git push github vX.X.X`) memicu CI yang otomatis buat **draft release**.
+> Jangan pakai `gh release create` lagi kalau draft/release sudah ada — itu bikin **duplikat** di halaman Releases.
+
+**Alur manual (build lokal, recommended):**
+
 ```powershell
-gh release create vX.X.X \
-  "electron-wrapper/dist/Your Everyday Tools Setup X.X.X.exe" \
-  "electron-wrapper/dist/latest.yml" \
-  --title "vX.X.X — <judul singkat>" \
+git push github main
+git push github vX.X.X
+
+# Upload installer ke release yang sudah ada (draft dari CI atau buat sendiri)
+gh release upload vX.X.X `
+  "electron-wrapper/dist/Your-Everyday-Tools-Setup-X.X.X.exe" `
+  "electron-wrapper/dist/latest.yml" `
+  --clobber
+
+gh release edit vX.X.X `
+  --title "vX.X.X — <judul singkat>" `
+  --notes "<isi release notes>" `
+  --draft=false
+```
+
+Kalau release belum ada sama sekali (CI belum jalan):
+
+```powershell
+gh release create vX.X.X `
+  "electron-wrapper/dist/Your-Everyday-Tools-Setup-X.X.X.exe" `
+  "electron-wrapper/dist/latest.yml" `
+  --title "vX.X.X — <judul singkat>" `
   --notes "<isi release notes>"
 ```
 
-Kalau update release yang sudah ada (re-upload):
+Kalau update release yang sudah ada (re-upload saja):
+
 ```powershell
-gh release upload vX.X.X \
-  "electron-wrapper/dist/Your Everyday Tools Setup X.X.X.exe" \
-  "electron-wrapper/dist/latest.yml" \
+gh release upload vX.X.X `
+  "electron-wrapper/dist/Your-Everyday-Tools-Setup-X.X.X.exe" `
+  "electron-wrapper/dist/latest.yml" `
   --clobber
 ```
 
@@ -119,6 +143,6 @@ gh release upload vX.X.X \
 - [ ] Versi di `package.json` sudah diupdate
 - [ ] `npm run build-win` sukses
 - [ ] `git push github main` — bukan `origin`
-- [ ] `gh release create` dengan `.exe` + `latest.yml`
+- [ ] Push tag `vX.X.X`, lalu `gh release upload` + `gh release edit` (bukan `create` kalau draft CI sudah ada)
 - [ ] Verifikasi: `gh release view vX.X.X --json assets --jq '.assets[].name'`
 - [ ] Update `CHANGELOG.md` kalau ada perubahan signifikan
