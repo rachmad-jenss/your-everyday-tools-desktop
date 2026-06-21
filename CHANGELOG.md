@@ -2,6 +2,21 @@
 
 All notable changes to **Your Everyday Tools** are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project loosely follows [Semantic Versioning](https://semver.org/).
 
+## [Desktop 1.4.0] — 2026-06-21
+
+### Added
+
+- **Tailwind-only UI** — replaced legacy `style.css` with a compiled Tailwind bundle, design tokens, and Poppins via self-hosted `@fontsource`.
+- **Search palette** (Ctrl+K), favorites, and recent activity in the sidebar and home page.
+- **Redesigned pages** — All Tools, Favorites, Recent, and Settings.
+- **Electron two-row chrome** — title bar (favicon + File/Edit/View/Help) and toolbar row (logo + version, search, theme switcher).
+- **Sidebar category dropdowns** — each category expands to list its tools inline.
+
+### Improved
+
+- Dark-mode form controls, custom selects, breadcrumbs, and preview toolbar behavior.
+- Favicon and Windows app icon rebuilt from the `bi-tools` glyph.
+
 ## [Desktop 1.3.5] — 2026-06-15
 
 ### Fixed
