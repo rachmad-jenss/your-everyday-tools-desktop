@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+
+{% block title %}All Tools - Your Everyday Tools{% endblock %}
+
+{% block top_title %}All Tools{% endblock %}
+
+
+
+{% block content %}
+
+<div class="all-tools-header mb-6">
+
+    <h1 class="mb-2 text-2xl font-bold text-text">All Tools</h1>
+
+    <p class="text-text-muted">Browse and search all {{ all_tools | length }} utilities in one place.</p>
+
+</div>
+
+
+
+<div class="all-tools-filter mb-6 max-w-[480px]">
+
+    <input type="text" id="all-tools-search"
+
+        class="h-11 w-full rounded-md border border-border bg-surface px-4 font-sans text-sm text-text outline-none focus:border-primary focus:ring-3 focus:ring-primary/10"
+
+        placeholder="Filter tools…" autocomplete="off" aria-label="Filter tools">
+
+</div>
+
+
+
+{% for cat in tool_categories %}
+
+{% if not active_category or active_category == cat.id %}
+
+<div class="all-tools-section mb-8" data-category="{{ cat.id }}">
+
+    <h2 class="section-heading mb-4 flex items-center gap-2 text-base font-semibold text-text"><i class="bi {{ cat.icon }} text-primary"></i> {{ cat.name }}</h2>
+
+    <div class="tools-grid grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3 max-md:grid-cols-[repeat(auto-fill,minmax(180px,1fr))]">
+
+        {% for tool in cat.tools %}
+
+        {% if tool.disabled %}
+
+        <div class="tool-card relative flex items-start gap-3 rounded-xl border border-border-light bg-surface p-4 opacity-40 shadow-sm grayscale pointer-events-none" title="{{ tool.disabled_reason }}">
+
+            <div class="card-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-primary-soft text-lg text-primary"><i class="bi {{ tool.icon }}"></i></div>
+
+            <div class="card-body min-w-0 flex-1">
+
+                <h3 class="mb-0.5 text-[0.95rem] font-semibold">{{ tool.name }}</h3>
+
+                <p class="text-[0.8rem] leading-snug text-text-muted">{{ tool.disabled_reason }}</p>
+
+            </div>
+
+        </div>
+
+        {% else %}
+
+        <a href="/{{ cat.id }}/{{ tool.id }}" class="tool-card relative flex items-start gap-3 rounded-xl border border-border-light bg-surface p-4 text-text shadow-sm transition hover:-translate-y-px hover:border-border hover:shadow-md no-underline" data-search="{{ (tool.name ~ ' ' ~ tool.desc ~ ' ' ~ cat.name) | lower }}">
+
+            <div class="card-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-primary-soft text-lg text-primary"><i class="bi {{ tool.icon }}"></i></div>
+
+            <div class="card-body min-w-0 flex-1">
+
+                <h3 class="mb-0.5 text-[0.95rem] font-semibold">{{ tool.name }}</h3>
+
+                <p class="text-[0.8rem] leading-snug text-text-muted">{{ tool.desc }}</p>
+
+            </div>
+
+            <button type="button" class="pin-btn absolute right-2.5 top-2.5 cursor-pointer rounded-md border-0 bg-transparent p-1 text-text-muted transition hover:bg-amber-50 hover:text-amber-600" data-favorite
+
+                data-cat-id="{{ cat.id }}" data-tool-id="{{ tool.id }}"
+
+                data-tool-name="{{ tool.name }}" data-tool-desc="{{ tool.desc }}"
+
+                data-tool-icon="{{ tool.icon }}" data-cat-name="{{ cat.name }}"
+
+                data-href="/{{ cat.id }}/{{ tool.id }}" aria-label="Favorite">
+
+                <i class="bi bi-star"></i>
+
+            </button>
+
+        </a>
+
+        {% endif %}
+
+        {% endfor %}
+
+    </div>
+
+</div>
+
+{% endif %}
+
+{% endfor %}
+
+<p id="all-tools-empty" class="search-empty hidden py-4 text-center text-sm text-text-muted">No tools match your search.</p>
+
+{% endblock %}
+
+
+
+{% block scripts %}
+
+<script>
+
+document.addEventListener("DOMContentLoaded", () => {
+
+    const input = document.getElementById("all-tools-search");
+
+    const cards = Array.from(document.querySelectorAll(".tool-card"));
+
+    const sections = Array.from(document.querySelectorAll(".all-tools-section"));
+
+    const empty = document.getElementById("all-tools-empty");
+
+    if (!input) return;
+
+
+
+    input.addEventListener("input", () => {
+
+        const q = input.value.trim().toLowerCase();
+
+        cards.forEach(card => {
+
+            const match = !q || (card.dataset.search || "").includes(q);
+
+            card.classList.toggle("hidden", !match);
+
+        });
+
+        sections.forEach(section => {
+
+            const visible = Array.from(section.querySelectorAll(".tool-card")).some(c => !c.classList.contains("hidden"));
+
+            section.classList.toggle("hidden", !visible);
+
+        });
+
+        if (empty) {
+
+            empty.classList.toggle("hidden", cards.some(c => !c.classList.contains("hidden")));
+
+        }
+
+    });
+
+});
+
+</script>
+
+{% endblock %}
+

@@ -2,7 +2,7 @@ import os
 import sys
 import signal
 import socket
-from flask import Flask, render_template
+from flask import Flask, render_template, request
 
 IS_FROZEN = getattr(sys, "frozen", False)
 
@@ -37,7 +37,7 @@ TOOL_CATEGORIES = [
     {
         "id": "convert",
         "name": "Document Conversion",
-        "icon": "bi-file-earmark-arrow-right-fill",
+        "icon": "bi-file-earmark-arrow-up-fill",
         "tools": [
             {"id": "to-pdf", "name": "Files to PDF", "desc": "Convert images and text files to PDF", "icon": "bi-file-pdf-fill"},
             {"id": "pdf-to-word", "name": "PDF to Word", "desc": "Convert PDF to Word document", "icon": "bi-file-word-fill"},
@@ -238,36 +238,119 @@ TESSERACT_TOOLS = {
 
 
 @app.context_processor
+def inject_static_version():
+    assets = (
+        os.path.join("static", "css", "app.css"),
+        os.path.join("static", "js", "main.js"),
+    )
+    mtimes = []
+    for rel in assets:
+        try:
+            mtimes.append(os.path.getmtime(resource_path(rel)))
+        except OSError:
+            pass
+    v = str(int(max(mtimes))) if mtimes else "0"
+    return {"static_v": v}
+
+
+def _read_app_version():
+    try:
+        import json
+
+        pkg = os.path.join(os.path.dirname(__file__), "electron-wrapper", "package.json")
+        with open(pkg, encoding="utf-8") as f:
+            return json.load(f).get("version", "dev")
+    except OSError:
+        return "dev"
+
+
+@app.context_processor
+def inject_app_version():
+    return {"app_version": _read_app_version()}
+
+
+@app.after_request
+def disable_static_cache_in_dev(response):
+    """Ensure CSS/JS changes are visible when running from source."""
+    if not IS_FROZEN and request.path.startswith("/static/"):
+        response.cache_control.no_cache = True
+        response.cache_control.no_store = True
+        response.cache_control.must_revalidate = True
+        response.headers["Pragma"] = "no-cache"
+    return response
+
+
+@app.context_processor
 def inject_tools():
-    if not IS_FROZEN:
-        return {"tool_categories": TOOL_CATEGORIES}
-
     import copy
-    import shutil
-
-    # Check if FFmpeg/Tesseract are actually available
-    from routes.media_tools import FFMPEG
-    from routes.image_tools import HAS_TESSERACT
 
     categories = copy.deepcopy(TOOL_CATEGORIES)
+    if IS_FROZEN:
+        from routes.media_tools import FFMPEG
+        from routes.image_tools import HAS_TESSERACT
+
+        for cat in categories:
+            for tool in cat["tools"]:
+                key = (cat["id"], tool["id"])
+                if key in FROZEN_DISABLED_TOOLS:
+                    tool["disabled"] = True
+                    tool["disabled_reason"] = FROZEN_DISABLED_TOOLS[key]
+                elif key in FFMPEG_TOOLS and not FFMPEG:
+                    tool["disabled"] = True
+                    tool["disabled_reason"] = "FFmpeg tidak terinstall"
+                elif key in TESSERACT_TOOLS and not HAS_TESSERACT:
+                    tool["disabled"] = True
+                    tool["disabled_reason"] = "Tesseract OCR tidak terinstall"
+
+    tool_index = []
+    all_tools = []
     for cat in categories:
         for tool in cat["tools"]:
-            key = (cat["id"], tool["id"])
-            if key in FROZEN_DISABLED_TOOLS:
-                tool["disabled"] = True
-                tool["disabled_reason"] = FROZEN_DISABLED_TOOLS[key]
-            elif key in FFMPEG_TOOLS and not FFMPEG:
-                tool["disabled"] = True
-                tool["disabled_reason"] = "FFmpeg tidak terinstall"
-            elif key in TESSERACT_TOOLS and not HAS_TESSERACT:
-                tool["disabled"] = True
-                tool["disabled_reason"] = "Tesseract OCR tidak terinstall"
-    return {"tool_categories": categories}
+            entry = {
+                "catId": cat["id"],
+                "toolId": tool["id"],
+                "name": tool["name"],
+                "desc": tool.get("desc", ""),
+                "icon": tool.get("icon", "bi-tools"),
+                "catName": cat["name"],
+                "href": f"/{cat['id']}/{tool['id']}",
+                "disabled": tool.get("disabled", False),
+            }
+            tool_index.append(entry)
+            all_tools.append(entry)
+
+    return {
+        "tool_categories": categories,
+        "tool_index": tool_index,
+        "all_tools": all_tools,
+    }
 
 
 @app.route("/")
 def index():
     return render_template("index.html")
+
+
+@app.route("/tools")
+def all_tools_page():
+    from flask import request
+    category = request.args.get("category")
+    return render_template("all_tools.html", active_category=category)
+
+
+@app.route("/favorites")
+def favorites_page():
+    return render_template("favorites.html")
+
+
+@app.route("/recent")
+def recent_page():
+    return render_template("recent.html")
+
+
+@app.route("/settings")
+def settings_page():
+    return render_template("settings.html")
 
 
 @app.errorhandler(413)

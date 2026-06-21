@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+
+{% block title %}Recent - Your Everyday Tools{% endblock %}
+
+{% block top_title %}Recent{% endblock %}
+
+
+
+{% block content %}
+
+<div class="all-tools-header mb-6">
+
+    <h1 class="mb-2 text-2xl font-bold text-text">Recent Activity</h1>
+
+    <p class="text-text-muted">Tools and files you've used recently.</p>
+
+</div>
+
+
+
+<h2 class="section-heading mb-4 text-base font-semibold text-text">Recent Tools</h2>
+
+<div class="tools-grid mb-8 grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3 max-md:grid-cols-[repeat(auto-fill,minmax(180px,1fr))]" id="recent-tools-grid">
+
+    <p class="search-empty col-span-full py-4 text-center text-sm text-text-muted" id="recent-tools-empty">No recent tools yet.</p>
+
+</div>
+
+
+
+<h2 class="section-heading mb-4 mt-8 text-base font-semibold text-text">Recent Files</h2>
+
+<div class="recent-files-list flex flex-col gap-2" id="recent-page-files">
+
+    <p class="search-empty py-4 text-center text-sm text-text-muted" id="recent-files-page-empty">No recent files yet.</p>
+
+</div>
+
+{% endblock %}
+
+
+
+{% block scripts %}
+
+<script>
+
+document.addEventListener("DOMContentLoaded", () => {
+
+    function renderTools() {
+
+        const grid = document.getElementById("recent-tools-grid");
+
+        const empty = document.getElementById("recent-tools-empty");
+
+        const tools = RecentActivity.getRecentTools();
+
+        grid.querySelectorAll(".tool-card").forEach(el => el.remove());
+
+        if (tools.length === 0) { if (empty) empty.classList.remove("hidden"); return; }
+
+        if (empty) empty.classList.add("hidden");
+
+        tools.forEach(t => {
+
+            const a = document.createElement("a");
+
+            a.href = t.href;
+
+            a.className = TW.toolCard + " no-underline";
+
+            a.innerHTML = `
+
+                <div class="${TW.toolCardIcon}"><i class="bi ${t.icon || 'bi-tools'}"></i></div>
+
+                <div class="card-body min-w-0 flex-1">
+
+                    <h3 class="mb-0.5 text-[0.95rem] font-semibold">${t.name}</h3>
+
+                    <p class="text-[0.8rem] leading-snug text-text-muted">${RecentActivity.formatRelativeTime(t.openedAt)} · ${t.desc || ""}</p>
+
+                </div>
+
+            `;
+
+            grid.appendChild(a);
+
+        });
+
+    }
+
+
+
+    function renderFiles() {
+
+        const container = document.getElementById("recent-page-files");
+
+        const empty = document.getElementById("recent-files-page-empty");
+
+        const files = RecentActivity.getRecentFiles();
+
+        container.querySelectorAll(".recent-file-row").forEach(el => el.remove());
+
+        if (files.length === 0) { if (empty) empty.classList.remove("hidden"); return; }
+
+        if (empty) empty.classList.add("hidden");
+
+        files.forEach(f => {
+
+            const row = document.createElement("div");
+
+            row.className = TW.recentFileRow;
+
+            row.innerHTML = `
+
+                <div class="file-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-bg-subtle text-lg text-primary"><i class="bi bi-file-earmark"></i></div>
+
+                <div class="file-info min-w-0 flex-1">
+
+                    <div class="file-name truncate text-sm font-semibold">${f.name}</div>
+
+                    <div class="file-meta mt-0.5 text-xs text-text-muted">${f.toolName || "Processed"} · ${RecentActivity.formatRelativeTime(f.processedAt)}</div>
+
+                </div>
+
+                <span class="file-size shrink-0 text-xs font-medium text-text-muted">${RecentActivity.formatSize(f.size)}</span>
+
+            `;
+
+            container.appendChild(row);
+
+        });
+
+    }
+
+
+
+    renderTools();
+
+    renderFiles();
+
+});
+
+</script>
+
+{% endblock %}
+

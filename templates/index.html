@@ -1,42 +1,239 @@
 {% extends "base.html" %}
+
 {% block title %}Your Everyday Tools{% endblock %}
 
+{% block content_class %} max-w-[1100px]{% endblock %}
+
+
+
 {% block content %}
-<div class="home-hero">
-    <h1>Your Everyday Tools</h1>
-    <p>All the utilities you need, in one place.</p>
-    <div class="home-search">
-        <input type="text" id="tool-search" placeholder="Search tools..." autocomplete="off">
+
+<div class="dashboard w-full">
+
+    <div class="dashboard-greeting mb-8">
+        <h1 id="dashboard-greeting" class="mb-2 text-[2rem] font-bold tracking-tight text-text"></h1>
+        <script>
+        (function () {
+            var h = new Date().getHours();
+            var g = (h >= 5 && h < 12) ? "Good morning"
+                : (h >= 12 && h < 17) ? "Good afternoon"
+                : (h >= 17 && h < 22) ? "Good evening"
+                : "Good night";
+            var el = document.getElementById("dashboard-greeting");
+            if (el) el.textContent = g;
+        })();
+        </script>
+        <p class="text-[1.05rem] text-text-muted">What would you like to do today?</p>
     </div>
+
+    <h2 class="section-heading mb-4 text-base font-semibold text-text">Browse by Category</h2>
+
+    <div class="category-cards-grid mb-12 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+
+        {% from "components/_category_card.html" import category_card %}
+
+        {% for cat in tool_categories %}
+
+        {{ category_card(cat) }}
+
+        {% endfor %}
+
+    </div>
+
+
+
+    <div class="dashboard-two-col mb-12 grid grid-cols-1 gap-8 lg:grid-cols-2">
+
+        <div>
+
+            <h2 class="section-heading mb-4 text-base font-semibold text-text">Suggested Tools</h2>
+
+            <div class="suggested-tools-row flex flex-col gap-3" id="suggested-tools"></div>
+
+        </div>
+
+        <div>
+
+            <h2 class="section-heading mb-4 text-base font-semibold text-text">Recently Opened</h2>
+
+            <div class="recent-files-list flex flex-col gap-2" id="dashboard-recent-files">
+
+                <p class="search-empty py-4 text-center text-sm text-text-muted" id="recent-files-empty">No recent files yet. Process a file to see it here.</p>
+
+            </div>
+
+        </div>
+
+    </div>
+
 </div>
 
-{% for cat in tool_categories %}
-<div class="category-section">
-    <div class="category-title">
-        <i class="bi {{ cat.icon }}"></i> {{ cat.name }}
-    </div>
-    <div class="tools-grid">
-        {% for tool in cat.tools %}
-        {% if tool.disabled %}
-        <div class="tool-card disabled" title="{{ tool.disabled_reason }}">
-            <div class="card-icon"><i class="bi {{ tool.icon }}"></i></div>
-            <div class="card-body">
-                <h3>{{ tool.name }}</h3>
-                <p>{{ tool.disabled_reason }}</p>
-            </div>
-        </div>
-        {% else %}
-        <a href="/{{ cat.id }}/{{ tool.id }}" class="tool-card" data-search="{{ (tool.name ~ ' ' ~ tool.desc) | lower }}">
-            <div class="card-icon"><i class="bi {{ tool.icon }}"></i></div>
-            <div class="card-body">
-                <h3>{{ tool.name }}</h3>
-                <p>{{ tool.desc }}</p>
-            </div>
-        </a>
-        {% endif %}
-        {% endfor %}
-    </div>
-</div>
-{% endfor %}
-<p id="search-empty" class="search-empty" style="display:none;">No tools match your search.</p>
 {% endblock %}
+
+
+
+{% block scripts %}
+
+<script>
+
+const DashboardUI = (() => {
+
+    function setGreeting() {
+
+        const el = document.getElementById("dashboard-greeting");
+
+        if (!el) return;
+
+        el.textContent = typeof getTimeGreeting === "function" ? getTimeGreeting() : el.textContent;
+
+    }
+
+
+
+    function renderRecentFiles() {
+
+        const container = document.getElementById("dashboard-recent-files");
+
+        const empty = document.getElementById("recent-files-empty");
+
+        if (!container) return;
+
+        const files = RecentActivity.getRecentFiles();
+
+        container.querySelectorAll(".recent-file-row").forEach(el => el.remove());
+
+        if (files.length === 0) {
+
+            if (empty) empty.classList.remove("hidden");
+
+            return;
+
+        }
+
+        if (empty) empty.classList.add("hidden");
+
+        files.forEach(f => {
+
+            const row = document.createElement("div");
+
+            row.className = TW.recentFileRow;
+
+            const ext = (f.name.split(".").pop() || "").toLowerCase();
+
+            const icon = ext === "pdf" ? "bi-file-pdf" : ext.match(/jpe?g|png|gif|webp/) ? "bi-file-image" : "bi-file-earmark";
+
+            row.innerHTML = `
+
+                <div class="file-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-bg-subtle text-lg text-primary"><i class="bi ${icon}"></i></div>
+
+                <div class="file-info min-w-0 flex-1">
+
+                    <div class="file-name truncate text-sm font-semibold">${escapeHtml(f.name)}</div>
+
+                    <div class="file-meta mt-0.5 text-xs text-text-muted">${escapeHtml(f.toolName || "Processed")} · ${RecentActivity.formatRelativeTime(f.processedAt)}</div>
+
+                </div>
+
+                <span class="file-size shrink-0 text-xs font-medium text-text-muted">${RecentActivity.formatSize(f.size)}</span>
+
+            `;
+
+            container.appendChild(row);
+
+        });
+
+    }
+
+
+
+    function refreshSuggested() {
+
+        const container = document.getElementById("suggested-tools");
+
+        if (!container) return;
+
+        const suggested = RecentActivity.getSuggestedTools(window.__TOOL_INDEX__ || [], 4);
+
+        if (suggested.length === 0) {
+
+            const defaults = (window.__TOOL_INDEX__ || []).filter(t => !t.disabled).slice(0, 4);
+
+            renderSuggestedCards(container, defaults);
+
+            return;
+
+        }
+
+        renderSuggestedCards(container, suggested);
+
+    }
+
+
+
+    function renderSuggestedCards(container, tools) {
+
+        container.innerHTML = tools.map(t => `
+
+            <a href="${t.href}" class="${TW.suggestedCard}">
+
+                <div class="${TW.toolCardIcon}"><i class="bi ${t.icon || 'bi-tools'}"></i></div>
+
+                <div class="card-body min-w-0 flex-1">
+
+                    <h3 class="mb-0.5 text-sm font-semibold">${escapeHtml(t.name)}</h3>
+
+                    <p class="truncate text-xs leading-snug text-text-muted">${escapeHtml(t.desc || "")}</p>
+
+                </div>
+
+                <button type="button" class="${Favorites.isFavorite(t.catId, t.toolId) ? TW.pinBtnPinned : TW.pinBtn}" data-favorite
+
+                    data-cat-id="${t.catId}" data-tool-id="${t.toolId}"
+
+                    data-tool-name="${escapeHtml(t.name)}" data-tool-desc="${escapeHtml(t.desc || '')}"
+
+                    data-tool-icon="${t.icon || 'bi-tools'}" data-cat-name="${escapeHtml(t.catName || '')}"
+
+                    data-href="${t.href}" aria-label="Favorite">
+
+                    <i class="bi ${Favorites.isFavorite(t.catId, t.toolId) ? 'bi-star-fill' : 'bi-star'}"></i>
+
+                </button>
+
+            </a>
+
+        `).join("");
+
+        Favorites.renderPinButtons();
+
+    }
+
+
+
+    function init() {
+
+        setGreeting();
+
+        renderRecentFiles();
+
+        refreshSuggested();
+
+        window.addEventListener("everytools:recent-changed", renderRecentFiles);
+
+        window.addEventListener("everytools:favorites-changed", refreshSuggested);
+    }
+
+
+
+    return { init, refreshSuggested, renderRecentFiles };
+
+})();
+
+
+
+document.addEventListener("DOMContentLoaded", () => DashboardUI.init());
+
+</script>
+
+{% endblock %}
+

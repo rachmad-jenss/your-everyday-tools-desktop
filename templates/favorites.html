@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}Favorites - Your Everyday Tools{% endblock %}
+
+{% block top_title %}Favorites{% endblock %}
+
+
+
+{% block content %}
+
+<div class="all-tools-header mb-6">
+
+    <h1 class="mb-2 text-2xl font-bold text-text">Favorites</h1>
+
+    <p class="text-text-muted">Tools you've pinned for quick access.</p>
+
+</div>
+
+<div class="tools-grid grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3 max-md:grid-cols-[repeat(auto-fill,minmax(180px,1fr))]" id="favorites-grid">
+
+    <p class="search-empty col-span-full py-4 text-center text-sm text-text-muted" id="favorites-empty">No favorites yet. Click the star on any tool to pin it here.</p>
+
+</div>
+
+{% endblock %}
+
+
+
+{% block scripts %}
+
+<script>
+
+document.addEventListener("DOMContentLoaded", () => {
+
+    function render() {
+
+        const grid = document.getElementById("favorites-grid");
+
+        const empty = document.getElementById("favorites-empty");
+
+        const favs = Favorites.getAll();
+
+        grid.querySelectorAll(".tool-card").forEach(el => el.remove());
+
+        if (favs.length === 0) {
+
+            if (empty) empty.classList.remove("hidden");
+
+            return;
+
+        }
+
+        if (empty) empty.classList.add("hidden");
+
+        favs.forEach(f => {
+
+            const a = document.createElement("a");
+
+            a.href = f.href;
+
+            a.className = TW.toolCard + " no-underline";
+
+            a.innerHTML = `
+
+                <div class="${TW.toolCardIcon}"><i class="bi ${f.icon || 'bi-tools'}"></i></div>
+
+                <div class="card-body min-w-0 flex-1">
+
+                    <h3 class="mb-0.5 text-[0.95rem] font-semibold">${f.name}</h3>
+
+                    <p class="text-[0.8rem] leading-snug text-text-muted">${f.desc || f.catName || ""}</p>
+
+                </div>
+
+                <button type="button" class="${TW.pinBtnPinned}" data-favorite
+
+                    data-cat-id="${f.catId}" data-tool-id="${f.toolId}"
+
+                    data-tool-name="${f.name}" data-tool-desc="${f.desc || ''}"
+
+                    data-tool-icon="${f.icon || 'bi-tools'}" data-cat-name="${f.catName || ''}"
+
+                    data-href="${f.href}" aria-label="Remove favorite">
+
+                    <i class="bi bi-star-fill"></i>
+
+                </button>
+
+            `;
+
+            grid.appendChild(a);
+
+        });
+
+        Favorites.renderPinButtons();
+
+    }
+
+    render();
+
+    window.addEventListener("everytools:favorites-changed", render);
+
+});
+
+</script>
+
+{% endblock %}
+

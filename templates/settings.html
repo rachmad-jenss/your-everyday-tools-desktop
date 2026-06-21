@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% from "components/_tw_workspace.html" import btn_sm_sec, btn_pri %}
+
+{% block title %}Settings - Your Everyday Tools{% endblock %}
+
+{% block top_title %}Settings{% endblock %}
+
+{% block content_class %}{% endblock %}
+
+{% block content %}
+<div class="settings-page w-full space-y-5">
+    <h1 class="text-xl font-bold text-text">Settings</h1>
+
+    <div class="settings-section rounded-lg border border-border bg-surface p-6">
+        <h2 class="mb-2 text-base font-semibold text-text">Appearance</h2>
+        <p class="settings-desc mb-4 text-sm leading-relaxed text-text-muted">Choose how Your Everyday Tools looks on your device.</p>
+        <div class="settings-theme-switcher flex w-full max-w-md gap-1 rounded-lg border border-border bg-bg-subtle p-1" id="settings-theme-switcher" role="group" aria-label="Color theme">
+            <button type="button" class="settings-theme-btn inline-flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium text-text-muted transition hover:text-text" data-theme-mode="system"><i class="bi bi-circle-half"></i> System</button>
+            <button type="button" class="settings-theme-btn inline-flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium text-text-muted transition hover:text-text" data-theme-mode="light"><i class="bi bi-sun-fill"></i> Light</button>
+            <button type="button" class="settings-theme-btn inline-flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium text-text-muted transition hover:text-text" data-theme-mode="dark"><i class="bi bi-moon-fill"></i> Dark</button>
+        </div>
+    </div>
+
+    <div class="settings-section rounded-lg border border-border bg-surface p-6" id="components">
+        <h2 class="mb-2 text-base font-semibold text-text">System Components</h2>
+        <p class="settings-desc mb-4 text-sm leading-relaxed text-text-muted">Optional local engines used by some tools. On desktop, use Install/Manage to download FFmpeg and Tesseract. On web, follow the install guide for your OS.</p>
+
+        <div class="flex flex-col gap-3" id="settings-components-list">
+            <div class="rounded-lg border border-border bg-bg-subtle p-4" data-component-row="ffmpeg">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                        <div class="font-medium text-text">FFmpeg</div>
+                        <div class="mt-1 text-xs text-text-muted">Video/audio conversion, speech-to-text</div>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span data-component="ffmpeg" class="inline-flex items-center gap-1 rounded-full border border-border bg-bg px-2 py-0.5 text-[0.72rem] font-semibold text-text-muted">Checking…</span>
+                        <button type="button" class="{{ btn_sm_sec() }} hidden" data-component-action="manage" data-component-id="ffmpeg">Manage</button>
+                        <button type="button" class="{{ btn_pri() }} !min-h-9 !px-3 !py-2 !text-xs hidden" data-component-action="install" data-component-id="ffmpeg">Install</button>
+                    </div>
+                </div>
+                <details class="component-hint mt-3 hidden text-sm text-text-muted" data-component-hint="ffmpeg">
+                    <summary class="cursor-pointer font-medium text-primary">Install guide</summary>
+                    <p class="component-hint-text mt-2 leading-relaxed"></p>
+                </details>
+            </div>
+
+            <div class="rounded-lg border border-border bg-bg-subtle p-4" data-component-row="tesseract">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                        <div class="font-medium text-text">Tesseract OCR</div>
+                        <div class="mt-1 text-xs text-text-muted">Image OCR and searchable PDF tools</div>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <span data-component="tesseract" class="inline-flex items-center gap-1 rounded-full border border-border bg-bg px-2 py-0.5 text-[0.72rem] font-semibold text-text-muted">Checking…</span>
+                        <button type="button" class="{{ btn_sm_sec() }} hidden" data-component-action="manage" data-component-id="tesseract">Manage</button>
+                        <button type="button" class="{{ btn_pri() }} !min-h-9 !px-3 !py-2 !text-xs hidden" data-component-action="install" data-component-id="tesseract">Install</button>
+                    </div>
+                </div>
+                <details class="component-hint mt-3 hidden text-sm text-text-muted" data-component-hint="tesseract">
+                    <summary class="cursor-pointer font-medium text-primary">Install guide</summary>
+                    <p class="component-hint-text mt-2 leading-relaxed"></p>
+                </details>
+            </div>
+        </div>
+    </div>
+
+    <div class="settings-section rounded-lg border border-border bg-surface p-6">
+        <h2 class="mb-2 text-base font-semibold text-text">Data</h2>
+        <p class="settings-desc mb-4 text-sm leading-relaxed text-text-muted">Favorites and recent activity are stored locally in your browser.</p>
+        <button type="button" class="{{ btn_sm_sec() }}" id="clear-local-data">Clear favorites &amp; recent data</button>
+    </div>
+
+    <div class="settings-section rounded-lg border border-border bg-surface p-6">
+        <h2 class="mb-2 text-base font-semibold text-text">About</h2>
+        <p class="settings-desc mb-4 text-sm leading-relaxed text-text-muted">Your Everyday Tools — a unified desktop workspace for everyday productivity utilities.</p>
+        <div class="flex flex-wrap gap-3">
+            <a href="https://codeberg.org/listyantidewi/your-everyday-tools" target="_blank" rel="noopener noreferrer" class="{{ btn_sm_sec() }} no-underline">
+                <i class="bi bi-box-arrow-up-right"></i> Codeberg
+            </a>
+            <a href="https://github.com/rachmad-jenss/your-everyday-tools-desktop" target="_blank" rel="noopener noreferrer" class="{{ btn_sm_sec() }} no-underline">
+                <i class="bi bi-github"></i> GitHub Desktop
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    document.getElementById("clear-local-data")?.addEventListener("click", () => {
+        if (!confirm("Clear all favorites and recent activity?")) return;
+        localStorage.removeItem("everytools:favorites");
+        localStorage.removeItem("everytools:recent-tools");
+        localStorage.removeItem("everytools:recent-files");
+        localStorage.removeItem("everytools:tool-usage");
+        window.dispatchEvent(new CustomEvent("everytools:favorites-changed"));
+        window.dispatchEvent(new CustomEvent("everytools:recent-changed"));
+        showToast("Local data cleared.", "success");
+    });
+
+    document.querySelectorAll("#settings-theme-switcher .settings-theme-btn").forEach(btn => {
+        btn.addEventListener("click", () => applyTheme(btn.dataset.themeMode, true));
+    });
+
+    document.querySelectorAll("[data-component-action]").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const id = btn.dataset.componentId;
+            const action = btn.dataset.componentAction;
+            if (action === "manage" && window.electronAPI?.openComponentManager) {
+                window.electronAPI.openComponentManager();
+                return;
+            }
+            const hint = document.querySelector(`[data-component-hint="${id}"]`);
+            if (hint) {
+                hint.open = true;
+                hint.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

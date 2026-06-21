@@ -151,6 +151,8 @@ def to_pdf_page():
     return render_template("upload_tool.html",
         title="Files to PDF",
         description="Convert images, Word documents, and text files to PDF",
+        step1_title="Step 1: Add Images",
+        button_text="Convert to PDF",
         notes=notes,
         endpoint="/convert/to-pdf",
         accept=".jpg,.jpeg,.png,.bmp,.tiff,.webp,.txt,.docx,.doc,.odt",
