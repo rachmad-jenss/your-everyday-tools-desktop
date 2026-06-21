@@ -42,8 +42,8 @@ function cacheTheme(mode, resolved) {
 }
 
 const THEME_COLORS = {
-  light: { bg: "#f5f6fa", symbol: "#2d3436" },
-  dark: { bg: "#1a1d23", symbol: "#e4e6eb" },
+  light: { bg: "#f8fafc", symbol: "#0f172a" },
+  dark: { bg: "#0f1117", symbol: "#f1f5f9" },
 };
 
 function getThemeColors(resolved) {
@@ -61,7 +61,7 @@ function syncWindowTheme(win, mode, resolved) {
 
   if (process.platform === "win32") {
     try {
-      win.setTitleBarOverlay({ color: bg, symbolColor: symbol, height: 30 });
+      win.setTitleBarOverlay({ color: bg, symbolColor: symbol, height: 32 });
     } catch (_) {
       // titleBarOverlay requires titleBarStyle other than default
     }
@@ -74,7 +74,7 @@ function win32ChromeOptions(resolved) {
   return {
     backgroundColor: bg,
     titleBarStyle: "hidden",
-    titleBarOverlay: { color: bg, symbolColor: symbol, height: 30 },
+    titleBarOverlay: { color: bg, symbolColor: symbol, height: 32 },
   };
 }
 
@@ -750,6 +750,10 @@ ipcMain.handle("theme:set", (_event, payload) => {
   const resolved = payload && payload.resolved ? payload.resolved : mode;
   cacheTheme(mode, resolved);
   applyNativeTheme(mode, resolved);
+});
+
+ipcMain.handle("components:open", async () => {
+  await showDownloaderWindow(true);
 });
 
 ipcMain.on("menu:popup", (event, label) => {
