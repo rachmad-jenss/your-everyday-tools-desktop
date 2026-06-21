@@ -1,0 +1,26 @@
+{
+  "name": "your-everyday-tools",
+  "version": "1.0.0",
+  "description": "A lightweight, self-hosted web app that bundles 100 everyday utilities into a single interface. Built with Python + Flask, zero JavaScript frameworks, and minimal CSS — no bloat, just tools.",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "build:css": "npx @tailwindcss/cli -i ./static/css/app.input.css -o ./static/css/app.css --minify",
+    "watch:css": "npx @tailwindcss/cli -i ./static/css/app.input.css -o ./static/css/app.css --watch",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://codeberg.org/listyantidewi/your-everyday-tools.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@fontsource/poppins": "^5.2.7",
+    "@tailwindcss/cli": "^4.3.1",
+    "tailwindcss": "^4.3.1"
+  }
+}
