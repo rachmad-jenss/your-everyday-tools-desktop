@@ -1,79 +1,277 @@
 <!DOCTYPE html>
+
 <html lang="en">
+
 <head>
+
     <meta charset="UTF-8">
+
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <title>{% block title %}Your Everyday Tools{% endblock %}</title>
+
+    <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
+
     <script>
+
         (function () {
+
             var stored = localStorage.getItem('theme') || 'system';
+
             var resolved = stored === 'dark' ? 'dark'
+
                 : stored === 'light' ? 'light'
+
                 : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+
             document.documentElement.dataset.theme = resolved;
+
         })();
+
     </script>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/icons.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/icons.css') }}?v={{ static_v }}">
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}?v={{ static_v }}">
+
+    <script>
+
+        window.__TOOL_INDEX__ = {{ tool_index | tojson }};
+
+    </script>
+
 </head>
-<body>
-    <nav class="sidebar" id="sidebar">
-        <div class="sidebar-header">
-            <a href="/" class="logo"><i class="bi bi-tools"></i> EveryTools</a>
+
+{% from 'components/_app_logo.html' import app_logo with context %}
+
+<body class="flex min-h-screen bg-bg font-sans text-sm leading-normal text-text antialiased">
+
+    <header class="app-chrome fixed inset-x-0 top-0 z-[110] flex flex-col pointer-events-none" id="app-chrome">
+
+        <div class="title-bar-row pointer-events-auto flex h-8 min-h-8 shrink-0 items-center gap-0 border-b border-border bg-surface pl-2 pr-[max(1rem,158px)]" id="title-bar" hidden>
+
+            <a href="/" class="title-bar-favicon flex shrink-0 items-center justify-center p-1 no-underline" aria-label="Your Everyday Tools home">
+
+                <img src="{{ url_for('static', filename='favicon.svg') }}" class="h-4 w-4" width="16" height="16" alt="">
+
+            </a>
+
+            <nav class="electron-menu-bar flex items-center gap-0" id="electron-menu-bar" aria-label="Application menu" hidden>
+
+                <button type="button" class="electron-menu-item cursor-pointer rounded border-0 bg-transparent px-2.5 py-1 text-[0.85rem] text-text hover:bg-primary-soft" data-menu-label="File">File</button>
+
+                <button type="button" class="electron-menu-item cursor-pointer rounded border-0 bg-transparent px-2.5 py-1 text-[0.85rem] text-text hover:bg-primary-soft" data-menu-label="Edit">Edit</button>
+
+                <button type="button" class="electron-menu-item cursor-pointer rounded border-0 bg-transparent px-2.5 py-1 text-[0.85rem] text-text hover:bg-primary-soft" data-menu-label="View">View</button>
+
+                <button type="button" class="electron-menu-item cursor-pointer rounded border-0 bg-transparent px-2.5 py-1 text-[0.85rem] text-text hover:bg-primary-soft" data-menu-label="Help">Help</button>
+
+            </nav>
+
         </div>
-        <div class="sidebar-nav">
-            {% for cat in tool_categories %}
-            <div class="nav-category">
-                <button class="nav-category-btn" onclick="toggleCategory(this)">
-                    <i class="bi {{ cat.icon }}"></i> {{ cat.name }}
-                    <i class="bi bi-chevron-down chevron"></i>
-                </button>
-                <div class="nav-items">
-                    {% for tool in cat.tools %}
-                    {% if tool.disabled %}
-                    <span class="nav-item disabled" title="{{ tool.disabled_reason }}">
-                        <i class="bi {{ tool.icon }}"></i> {{ tool.name }}
-                    </span>
-                    {% else %}
-                    <a href="/{{ cat.id }}/{{ tool.id }}" class="nav-item" data-desc="{{ tool.desc | lower }}">
-                        <i class="bi {{ tool.icon }}"></i> {{ tool.name }}
-                    </a>
-                    {% endif %}
-                    {% endfor %}
-                </div>
+
+        <div class="top-bar-row pointer-events-auto flex h-[68px] min-h-[68px] shrink-0 items-stretch border-b border-border">
+
+            <div class="chrome-sidebar-brand flex w-[280px] shrink-0 items-center border-r border-border bg-surface px-5" id="chrome-sidebar-brand" hidden>
+
+                {{ app_logo(show_text=true, show_version=true) }}
+
             </div>
-            {% endfor %}
+
+            <div class="top-bar flex min-w-0 flex-1 items-center gap-3 border-border bg-surface px-4 md:gap-4 md:px-6 top-bar--offset">
+
+                <button class="menu-btn hidden max-md:block cursor-pointer border-0 bg-transparent text-2xl text-text" onclick="openSidebar()" aria-label="Open menu"><i class="bi bi-list"></i></button>
+
+                <nav class="top-breadcrumbs hidden min-w-0 shrink items-center gap-1.5 text-sm text-text-muted md:gap-2" id="top-breadcrumbs" aria-label="Breadcrumb" hidden></nav>
+
+                <span class="top-title min-w-0 shrink-0 truncate text-base font-semibold text-text" id="top-title">{% block top_title %}Your Everyday Tools{% endblock %}</span>
+
+                <button type="button" class="search-trigger flex max-w-[520px] flex-1 cursor-pointer items-center gap-3 rounded-lg border border-border bg-bg-subtle px-4 py-2.5 text-sm text-text-muted transition hover:border-border hover:bg-surface hover:shadow-sm" data-open-palette aria-label="Search tools">
+
+                    <i class="bi bi-search text-text-muted"></i>
+
+                    <span>Search tools, files, or actions…</span>
+
+                    <kbd class="ml-auto rounded-md border border-border bg-surface px-2 py-0.5 font-sans text-[0.68rem] text-text-muted max-md:hidden">Ctrl K</kbd>
+
+                </button>
+
+                <div class="top-bar-actions ml-auto flex shrink-0 items-center gap-2">
+
+                    <div class="theme-switcher flex items-center gap-0.5 rounded-lg border border-border bg-bg-subtle p-0.5" id="theme-switcher" role="group" aria-label="Color theme">
+
+                        <button class="theme-btn flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-text-muted transition hover:text-text" data-theme-mode="system" title="System theme"><i class="bi bi-circle-half"></i></button>
+
+                        <button class="theme-btn flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-text-muted transition hover:text-text" data-theme-mode="light" title="Light theme"><i class="bi bi-sun-fill"></i></button>
+
+                        <button class="theme-btn flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-text-muted transition hover:text-text" data-theme-mode="dark" title="Dark theme"><i class="bi bi-moon-fill"></i></button>
+
+                    </div>
+
+                </div>
+
+            </div>
+
         </div>
+
+    </header>
+
+
+
+    <nav class="sidebar fixed bottom-0 left-0 z-[100] flex w-[280px] max-md-sidebar flex-col overflow-hidden border-r border-border bg-surface transition-transform duration-200 ease-out md:translate-x-0" id="sidebar" aria-label="Main navigation">
+
+        <div class="sidebar-brand flex h-[68px] min-h-[68px] shrink-0 items-center border-b border-border px-5">
+
+            {{ app_logo(show_text=true, show_version=true) }}
+
+        </div>
+
+        <div class="sidebar-nav min-h-0 flex-1 overflow-y-auto px-3 py-3">
+
+            <div class="mb-1.5 px-2 pt-1 text-[0.6875rem] font-semibold uppercase tracking-wider text-text-muted">Navigation</div>
+
+            <div class="mb-4 flex flex-col gap-0.5">
+
+            <a href="/" class="sidebar-link flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-text-muted no-underline transition-colors hover:bg-bg-subtle hover:text-text{% if request.path == '/' %} active{% endif %}">
+
+                <i class="bi bi-house-door w-5 shrink-0 text-center text-base opacity-85"></i> Home
+
+            </a>
+
+            <a href="/tools" class="sidebar-link flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-text-muted no-underline transition-colors hover:bg-bg-subtle hover:text-text{% if request.path == '/tools' and not request.args.get('category') %} active{% endif %}">
+
+                <i class="bi bi-grid w-5 shrink-0 text-center text-base opacity-85"></i> All Tools
+
+            </a>
+
+            <a href="/favorites" class="sidebar-link flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-text-muted no-underline transition-colors hover:bg-bg-subtle hover:text-text{% if request.path == '/favorites' %} active{% endif %}">
+
+                <i class="bi bi-star w-5 shrink-0 text-center text-base opacity-85"></i> Favorites
+
+            </a>
+
+            <a href="/recent" class="sidebar-link flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-text-muted no-underline transition-colors hover:bg-bg-subtle hover:text-text{% if request.path == '/recent' %} active{% endif %}">
+
+                <i class="bi bi-clock-history w-5 shrink-0 text-center text-base opacity-85"></i> Recent
+
+            </a>
+
+            </div>
+
+
+
+            <div class="mx-1 mb-4 h-px bg-border"></div>
+
+            <div class="mb-1.5 px-2 text-[0.6875rem] font-semibold uppercase tracking-wider text-text-muted">Recent</div>
+
+            <div class="sidebar-recent-list mb-4 flex flex-col gap-0.5 empty:hidden" id="sidebar-recent"></div>
+
+
+
+            <div class="mb-1.5 px-2 text-[0.6875rem] font-semibold uppercase tracking-wider text-text-muted">Favorites</div>
+
+            <div class="sidebar-favorites-list mb-4 flex flex-col gap-0.5 empty:hidden" id="sidebar-favorites"></div>
+
+
+
+            <div class="mb-1.5 px-2 text-[0.6875rem] font-semibold uppercase tracking-wider text-text-muted">Categories</div>
+
+            <div class="sidebar-categories-list mb-2 flex flex-col gap-0.5">
+
+            {% for cat in tool_categories %}
+
+            {% set ns = namespace(open_cat=request.args.get('category') == cat.id) %}
+
+            {% for tool in cat.tools %}
+
+            {% if request.path == '/' ~ cat.id ~ '/' ~ tool.id %}{% set ns.open_cat = true %}{% endif %}
+
+            {% endfor %}
+
+            <details class="sidebar-cat-fold"{% if ns.open_cat %} open{% endif %}>
+
+                <summary class="sidebar-cat-summary sidebar-link flex cursor-pointer list-none items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-text-muted transition-colors hover:bg-bg-subtle hover:text-text{% if request.args.get('category') == cat.id %} active{% endif %}">
+
+                    <i class="bi {{ cat.icon }} w-5 shrink-0 text-center text-base opacity-85"></i>
+
+                    <span class="min-w-0 truncate">{{ cat.name }}</span>
+
+                    <span class="badge badge-default ml-auto shrink-0 rounded-full border-0 bg-bg-subtle px-2 py-0.5 text-[0.68rem] tabular-nums text-text-muted">{{ cat.tools | length }}</span>
+
+                    <i class="bi bi-chevron-down sidebar-cat-chevron ml-1 shrink-0 text-xs opacity-70" aria-hidden="true"></i>
+
+                </summary>
+
+                <div class="sidebar-cat-tools mb-1 flex flex-col gap-0.5 py-0.5 pl-3">
+
+                {% for tool in cat.tools %}
+
+                <a href="/{{ cat.id }}/{{ tool.id }}" class="sidebar-mini-link flex items-center gap-2 rounded-md px-3 py-1.5 text-[0.8rem] text-text-muted no-underline hover:bg-bg-subtle hover:text-text{% if request.path == '/' ~ cat.id ~ '/' ~ tool.id %} !bg-primary-soft !text-primary font-medium{% endif %}{% if tool.disabled %} pointer-events-none opacity-45{% endif %}"{% if tool.disabled %} aria-disabled="true"{% endif %}>
+
+                    <i class="bi {{ tool.icon or 'bi-tools' }} shrink-0 text-primary"></i>
+
+                    <span class="min-w-0 truncate">{{ tool.name }}</span>
+
+                </a>
+
+                {% endfor %}
+
+                </div>
+
+            </details>
+
+            {% endfor %}
+
+            </div>
+
+        </div>
+
+        <div class="sidebar-footer shrink-0 border-t border-border bg-surface px-3 pt-3 pb-4">
+
+            <a href="/settings" class="sidebar-link flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-text-muted no-underline transition-colors hover:bg-bg-subtle hover:text-text{% if request.path == '/settings' %} active{% endif %}">
+
+                <i class="bi bi-gear w-5 text-center text-base opacity-85"></i> Settings
+
+            </a>
+
+        </div>
+
     </nav>
 
-    <div class="overlay" id="overlay" onclick="closeSidebar()"></div>
 
-    <main class="main-content">
-        <nav class="electron-menu-bar" id="electron-menu-bar" hidden aria-label="Application menu">
-            <button type="button" class="electron-menu-item" data-menu-label="File">File</button>
-            <button type="button" class="electron-menu-item" data-menu-label="Edit">Edit</button>
-            <button type="button" class="electron-menu-item" data-menu-label="View">View</button>
-            <button type="button" class="electron-menu-item" data-menu-label="Help">Help</button>
-        </nav>
-        <header class="top-bar">
-            <button class="menu-btn" onclick="openSidebar()"><i class="bi bi-list"></i></button>
-            <span class="top-title">{% block top_title %}Your Everyday Tools{% endblock %}</span>
-            <div class="global-search" id="global-search">
-                <input type="text" id="global-search-input" placeholder="Search tools..." autocomplete="off" aria-label="Search tools" aria-expanded="false" aria-controls="global-search-dropdown">
-                <div class="global-search-dropdown" id="global-search-dropdown" role="listbox"></div>
-            </div>
-            <div class="theme-switcher" id="theme-switcher" role="group" aria-label="Color theme">
-                <button class="theme-btn" data-theme-mode="system" title="System theme"><i class="bi bi-circle-half"></i></button>
-                <button class="theme-btn" data-theme-mode="light" title="Light theme"><i class="bi bi-sun-fill"></i></button>
-                <button class="theme-btn" data-theme-mode="dark" title="Dark theme"><i class="bi bi-moon-fill"></i></button>
-            </div>
-        </header>
-        <div class="content-area">
+
+    <div class="overlay fixed inset-0 z-[90] hidden bg-black/30" id="overlay" onclick="closeSidebar()"></div>
+
+
+
+    <main class="main-content ml-0 flex min-h-screen flex-1 flex-col md:ml-[280px]">
+
+        <div class="content-area mx-auto w-full max-w-[1200px] flex-1 px-8 pb-12 pt-8{% block content_class %}{% endblock %}">
+
             {% block content %}{% endblock %}
+
         </div>
+
     </main>
 
-    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+
+
+    {% include "components/_search_palette.html" %}
+
+    <div class="toast-container pointer-events-none fixed bottom-6 right-6 z-[9999] flex flex-col gap-2" id="toast-container" aria-live="polite"></div>
+
+
+
+    <script src="{{ url_for('static', filename='js/favorites.js') }}?v={{ static_v }}"></script>
+
+    <script src="{{ url_for('static', filename='js/recent-activity.js') }}?v={{ static_v }}"></script>
+
+    <script src="{{ url_for('static', filename='js/search-palette.js') }}?v={{ static_v }}"></script>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}?v={{ static_v }}"></script>
+
     {% block scripts %}{% endblock %}
+
 </body>
+
 </html>
