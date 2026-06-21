@@ -1,31 +1,29 @@
-{% extends "base.html" %}
-{% block title %}Number Base Converter - EveryTools{% endblock %}
-{% block top_title %}Number Base Converter{% endblock %}
+{% extends "layouts/tool_workspace.html" %}
 
-{% block content %}
-<div class="client-tool" style="max-width:500px">
-    <div class="tool-header">
-        <h1>Number Base Converter</h1>
-        <p>Convert between decimal, binary, octal, and hexadecimal</p>
-    </div>
-    <div class="form-group">
-        <label>Decimal (base 10)</label>
-        <input type="text" id="nb-dec" placeholder="e.g. 255" oninput="fromBase('dec')">
-    </div>
-    <div class="form-group">
-        <label>Binary (base 2)</label>
-        <input type="text" id="nb-bin" placeholder="e.g. 11111111" oninput="fromBase('bin')">
-    </div>
-    <div class="form-group">
-        <label>Octal (base 8)</label>
-        <input type="text" id="nb-oct" placeholder="e.g. 377" oninput="fromBase('oct')">
-    </div>
-    <div class="form-group">
-        <label>Hexadecimal (base 16)</label>
-        <input type="text" id="nb-hex" placeholder="e.g. FF" oninput="fromBase('hex')">
-    </div>
-    <div id="nb-error" style="color:var(--danger);font-size:.85rem;margin-top:.5rem"></div>
+{% from "components/_tw_workspace.html" import field_block, label_sm, input_cls, inline_status %}
+
+{% set title = "Number Base Converter" %}
+{% set description = "Convert between decimal, binary, octal, and hexadecimal" %}
+{% set workspace_single = true %}
+
+{% block workspace_input %}
+<div class="{{ field_block() }}">
+    <label class="{{ label_sm() }}">Decimal (base 10)</label>
+    <input type="text" id="nb-dec" class="{{ input_cls() }}" placeholder="e.g. 255" oninput="fromBase('dec')">
 </div>
+<div class="{{ field_block() }}">
+    <label class="{{ label_sm() }}">Binary (base 2)</label>
+    <input type="text" id="nb-bin" class="{{ input_cls() }}" placeholder="e.g. 11111111" oninput="fromBase('bin')">
+</div>
+<div class="{{ field_block() }}">
+    <label class="{{ label_sm() }}">Octal (base 8)</label>
+    <input type="text" id="nb-oct" class="{{ input_cls() }}" placeholder="e.g. 377" oninput="fromBase('oct')">
+</div>
+<div class="{{ field_block() }}">
+    <label class="{{ label_sm() }}">Hexadecimal (base 16)</label>
+    <input type="text" id="nb-hex" class="{{ input_cls() }}" placeholder="e.g. FF" oninput="fromBase('hex')">
+</div>
+<div id="nb-error" class="{{ inline_status() }}"></div>
 {% endblock %}
 
 {% block scripts %}
@@ -33,7 +31,8 @@
 function fromBase(source) {
     const val = document.getElementById(`nb-${source}`).value.trim();
     const err = document.getElementById("nb-error");
-    err.textContent = "";
+    if (typeof setInlineStatus === "function") setInlineStatus(err, "");
+    else err.textContent = "";
     if (!val) {
         ["dec","bin","oct","hex"].forEach(b => { if (b !== source) document.getElementById(`nb-${b}`).value = ""; });
         return;
@@ -48,7 +47,8 @@ function fromBase(source) {
             case "hex": num = BigInt("0x" + val); break;
         }
     } catch (e) {
-        err.textContent = "Invalid input for this base.";
+        if (typeof setInlineStatus === "function") setInlineStatus(err, "Invalid input for this base.", "error");
+        else err.textContent = "Invalid input for this base.";
         return;
     }
 

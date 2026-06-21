@@ -1,37 +1,22 @@
-{% extends "base.html" %}
-{% block title %}HTML Formatter - EveryTools{% endblock %}
-{% block top_title %}HTML Formatter{% endblock %}
+{% extends "layouts/tool_workspace.html" %}
+{% from "components/_tw_workspace.html" import btn_sm_sec, btn_sm, textarea, pre_out %}
+{% set title = "HTML Formatter" %}
+{% set description = "Beautify or minify HTML source" %}
 
-{% block content %}
-<div class="client-tool">
-    <div class="tool-header">
-        <h1>HTML Formatter</h1>
-        <p>Beautify or minify HTML source</p>
-    </div>
-    <div class="split-pane">
-        <div class="pane">
-            <div class="pane-header">
-                <span>Input</span>
-                <div>
-                    <button class="btn btn-small" onclick="formatHTML()">Beautify</button>
-                    <button class="btn btn-small" onclick="minifyHTML()">Minify</button>
-                </div>
-            </div>
-            <div class="pane-body">
-                <textarea id="html-input" placeholder="<div><p>Hello</p></div>"></textarea>
-            </div>
-        </div>
-        <div class="pane">
-            <div class="pane-header">
-                <span>Output</span>
-                <button class="btn btn-small" onclick="copyOutput()"><i class="bi bi-clipboard"></i> Copy</button>
-            </div>
-            <div class="pane-body">
-                <pre id="html-output"></pre>
-            </div>
-        </div>
-    </div>
+{% block workspace_input %}
+<div class="mb-3 flex flex-wrap gap-2">
+    <button type="button" class="{{ btn_sm_sec() }}" onclick="formatHTML()">Beautify</button>
+    <button type="button" class="{{ btn_sm_sec() }}" onclick="minifyHTML()">Minify</button>
 </div>
+<textarea id="html-input" class="{{ textarea() }}" placeholder="<div>Hello</div>"></textarea>
+{% endblock %}
+
+{% block workspace_output_toolbar %}
+<button type="button" class="{{ btn_sm() }}" onclick="copyOutput()"><i class="bi bi-clipboard"></i> Copy</button>
+{% endblock %}
+
+{% block workspace_output %}
+<pre id="html-output" class="{{ pre_out() }}"></pre>
 {% endblock %}
 
 {% block scripts %}
@@ -93,7 +78,6 @@ function formatHTML() {
         const t = tokens[i];
         const next = tokens[i + 1];
         if (t.type === "open") {
-            // Inline tag with just text inside, keep on one line
             if (INLINE_TAGS.has(t.name) && next && next.type === "text" &&
                 tokens[i + 2] && tokens[i + 2].type === "close" && tokens[i + 2].name === t.name) {
                 out.push(pad() + t.value + next.value + tokens[i + 2].value);
@@ -114,6 +98,7 @@ function formatHTML() {
         }
     }
     document.getElementById("html-output").textContent = out.join("\n");
+    updateWorkspaceStatus("Beautified", "success");
 }
 
 function minifyHTML() {
@@ -124,10 +109,12 @@ function minifyHTML() {
         .replace(/\s{2,}/g, " ")
         .trim();
     document.getElementById("html-output").textContent = out;
+    updateWorkspaceStatus("Minified", "success");
 }
 
 function copyOutput() {
     navigator.clipboard.writeText(document.getElementById("html-output").textContent);
+    showToast("Copied to clipboard", "success");
 }
 </script>
 {% endblock %}

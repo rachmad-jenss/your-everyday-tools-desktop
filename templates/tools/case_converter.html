@@ -1,67 +1,36 @@
-{% extends "base.html" %}
-{% block title %}Case Converter - EveryTools{% endblock %}
-{% block top_title %}Case Converter{% endblock %}
+{% extends "layouts/tool_workspace.html" %}
 
-{% block content %}
-<div class="client-tool">
-    <div class="tool-header">
-        <h1>Case Converter</h1>
-        <p>Convert text between different cases</p>
+{% from "components/_tw_workspace.html" import btn_sm, field_block, label_sm, textarea, hash_card, hash_card_header %}
+
+{% set title = "Case Converter" %}
+{% set description = "Convert text between different cases" %}
+{% set workspace_single = true %}
+
+{% macro case_card(id, label) %}
+<div class="{{ hash_card() }}">
+    <div class="{{ hash_card_header() }}">
+        <span>{{ label }}</span>
+        <button type="button" class="{{ btn_sm() }}" onclick="copyText('{{ id }}')"><i class="bi bi-clipboard"></i></button>
     </div>
-    <div class="form-group">
-        <label>Input Text</label>
-        <textarea id="case-input" class="text-input" rows="4" placeholder="Type or paste your text here..." oninput="convertAll()"></textarea>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.8rem">
-        <div class="calc-section">
-            <div class="pane-header" style="margin:-1.2rem -1.2rem .8rem;padding:.5rem .8rem"><span>UPPERCASE</span>
-                <button class="btn btn-small" onclick="copyText('case-upper')"><i class="bi bi-clipboard"></i></button>
-            </div>
-            <div id="case-upper" style="font-size:.9rem;word-break:break-word;min-height:2em"></div>
-        </div>
-        <div class="calc-section">
-            <div class="pane-header" style="margin:-1.2rem -1.2rem .8rem;padding:.5rem .8rem"><span>lowercase</span>
-                <button class="btn btn-small" onclick="copyText('case-lower')"><i class="bi bi-clipboard"></i></button>
-            </div>
-            <div id="case-lower" style="font-size:.9rem;word-break:break-word;min-height:2em"></div>
-        </div>
-        <div class="calc-section">
-            <div class="pane-header" style="margin:-1.2rem -1.2rem .8rem;padding:.5rem .8rem"><span>Title Case</span>
-                <button class="btn btn-small" onclick="copyText('case-title')"><i class="bi bi-clipboard"></i></button>
-            </div>
-            <div id="case-title" style="font-size:.9rem;word-break:break-word;min-height:2em"></div>
-        </div>
-        <div class="calc-section">
-            <div class="pane-header" style="margin:-1.2rem -1.2rem .8rem;padding:.5rem .8rem"><span>Sentence case</span>
-                <button class="btn btn-small" onclick="copyText('case-sentence')"><i class="bi bi-clipboard"></i></button>
-            </div>
-            <div id="case-sentence" style="font-size:.9rem;word-break:break-word;min-height:2em"></div>
-        </div>
-        <div class="calc-section">
-            <div class="pane-header" style="margin:-1.2rem -1.2rem .8rem;padding:.5rem .8rem"><span>camelCase</span>
-                <button class="btn btn-small" onclick="copyText('case-camel')"><i class="bi bi-clipboard"></i></button>
-            </div>
-            <div id="case-camel" style="font-size:.9rem;word-break:break-word;min-height:2em"></div>
-        </div>
-        <div class="calc-section">
-            <div class="pane-header" style="margin:-1.2rem -1.2rem .8rem;padding:.5rem .8rem"><span>snake_case</span>
-                <button class="btn btn-small" onclick="copyText('case-snake')"><i class="bi bi-clipboard"></i></button>
-            </div>
-            <div id="case-snake" style="font-size:.9rem;word-break:break-word;min-height:2em"></div>
-        </div>
-        <div class="calc-section">
-            <div class="pane-header" style="margin:-1.2rem -1.2rem .8rem;padding:.5rem .8rem"><span>kebab-case</span>
-                <button class="btn btn-small" onclick="copyText('case-kebab')"><i class="bi bi-clipboard"></i></button>
-            </div>
-            <div id="case-kebab" style="font-size:.9rem;word-break:break-word;min-height:2em"></div>
-        </div>
-        <div class="calc-section">
-            <div class="pane-header" style="margin:-1.2rem -1.2rem .8rem;padding:.5rem .8rem"><span>PascalCase</span>
-                <button class="btn btn-small" onclick="copyText('case-pascal')"><i class="bi bi-clipboard"></i></button>
-            </div>
-            <div id="case-pascal" style="font-size:.9rem;word-break:break-word;min-height:2em"></div>
-        </div>
-    </div>
+    <div id="{{ id }}" class="min-h-[2em] break-words text-sm text-text"></div>
+</div>
+{% endmacro %}
+
+{% block workspace_input %}
+<div class="{{ field_block() }}">
+    <label class="{{ label_sm() }}">Input Text</label>
+    <textarea id="case-input" class="{{ textarea() }} min-h-[120px]" rows="4" placeholder="Type or paste your text here..." oninput="convertAll()"></textarea>
+</div>
+
+<div class="grid grid-cols-2 gap-3">
+    {{ case_card("case-upper", "UPPERCASE") }}
+    {{ case_card("case-lower", "lowercase") }}
+    {{ case_card("case-title", "Title Case") }}
+    {{ case_card("case-sentence", "Sentence case") }}
+    {{ case_card("case-camel", "camelCase") }}
+    {{ case_card("case-snake", "snake_case") }}
+    {{ case_card("case-kebab", "kebab-case") }}
+    {{ case_card("case-pascal", "PascalCase") }}
 </div>
 {% endblock %}
 

@@ -1,38 +1,37 @@
-{% extends "base.html" %}
-{% block title %}Unit Converter - EveryTools{% endblock %}
-{% block top_title %}Unit Converter{% endblock %}
+{% extends "layouts/tool_workspace.html" %}
 
-{% block content %}
-<div class="client-tool">
-    <div class="tool-header">
-        <h1>Unit Converter</h1>
-        <p>Convert between common units of measurement</p>
+{% from "components/_tw_workspace.html" import field_block, label_sm, select_cls, input_cls, converter_row, converter_swap %}
+
+{% set title = "Unit Converter" %}
+{% set description = "Convert between common units of measurement" %}
+{% set workspace_single = true %}
+
+{% block workspace_input %}
+<div class="{{ field_block() }}">
+    <label class="{{ label_sm() }}">Category</label>
+    <select id="uc-category" class="{{ select_cls() }}" onchange="loadUnits()">
+        <option value="length">Length</option>
+        <option value="weight">Weight</option>
+        <option value="temperature">Temperature</option>
+        <option value="area">Area</option>
+        <option value="volume">Volume</option>
+        <option value="speed">Speed</option>
+        <option value="data">Digital Storage</option>
+        <option value="time">Time</option>
+    </select>
+</div>
+
+<div class="{{ converter_row() }}">
+    <div class="{{ field_block() }} mb-0 flex-1">
+        <label class="{{ label_sm() }}">From</label>
+        <input type="number" id="uc-from-val" class="{{ input_cls() }}" value="1" oninput="convertUnit()">
+        <select id="uc-from-unit" class="{{ select_cls() }} mt-2" onchange="convertUnit()"></select>
     </div>
-    <div class="form-group">
-        <label>Category</label>
-        <select id="uc-category" onchange="loadUnits()">
-            <option value="length">Length</option>
-            <option value="weight">Weight</option>
-            <option value="temperature">Temperature</option>
-            <option value="area">Area</option>
-            <option value="volume">Volume</option>
-            <option value="speed">Speed</option>
-            <option value="data">Digital Storage</option>
-            <option value="time">Time</option>
-        </select>
-    </div>
-    <div class="converter-row">
-        <div class="form-group">
-            <label>From</label>
-            <input type="number" id="uc-from-val" value="1" oninput="convertUnit()">
-            <select id="uc-from-unit" onchange="convertUnit()" style="margin-top:.3rem"></select>
-        </div>
-        <button class="converter-swap" onclick="swapUnits()"><i class="bi bi-arrow-left-right"></i></button>
-        <div class="form-group">
-            <label>To</label>
-            <input type="number" id="uc-to-val" readonly>
-            <select id="uc-to-unit" onchange="convertUnit()" style="margin-top:.3rem"></select>
-        </div>
+    <button type="button" class="{{ converter_swap() }}" onclick="swapUnits()" aria-label="Swap units"><i class="bi bi-arrow-left-right"></i></button>
+    <div class="{{ field_block() }} mb-0 flex-1">
+        <label class="{{ label_sm() }}">To</label>
+        <input type="number" id="uc-to-val" class="{{ input_cls() }}" readonly>
+        <select id="uc-to-unit" class="{{ select_cls() }} mt-2" onchange="convertUnit()"></select>
     </div>
 </div>
 {% endblock %}

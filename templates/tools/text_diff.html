@@ -1,54 +1,29 @@
-{% extends "base.html" %}
-{% block title %}Text Diff - EveryTools{% endblock %}
-{% block top_title %}Text Diff{% endblock %}
+{% extends "layouts/tool_workspace.html" %}
+{% from "components/_tw_workspace.html" import btn_pri, textarea, label_sm %}
+{% set title = "Text Diff" %}
+{% set description = "Compare two texts and see the differences" %}
 
-{% block content %}
-<div class="client-tool">
-    <div class="tool-header">
-        <h1>Text Diff</h1>
-        <p>Compare two texts and see the differences</p>
-    </div>
-    <div class="split-pane">
-        <div class="pane">
-            <div class="pane-header"><span>Original</span></div>
-            <div class="pane-body">
-                <textarea id="diff-left" placeholder="Paste original text..."></textarea>
-            </div>
-        </div>
-        <div class="pane">
-            <div class="pane-header"><span>Modified</span></div>
-            <div class="pane-body">
-                <textarea id="diff-right" placeholder="Paste modified text..."></textarea>
-            </div>
-        </div>
-    </div>
-    <button class="btn btn-primary" style="margin-top:1rem" onclick="computeDiff()">Compare</button>
-    <div id="diff-output" style="margin-top:1rem"></div>
-</div>
+{% block workspace_input %}
+<label class="{{ label_sm() }}" for="diff-left">Original</label>
+<textarea id="diff-left" class="{{ textarea() }} mb-4" placeholder="Paste original text..."></textarea>
+<label class="{{ label_sm() }}" for="diff-right">Modified</label>
+<textarea id="diff-right" class="{{ textarea() }}" placeholder="Paste modified text..."></textarea>
+{% endblock %}
+
+{% block workspace_actions %}
+<button type="button" class="{{ btn_pri() }}" onclick="computeDiff()">Compare</button>
+{% endblock %}
+
+{% block workspace_output %}
+<div id="diff-output"></div>
 {% endblock %}
 
 {% block scripts %}
-<style>
-.diff-view { font-family: "Consolas","Monaco",monospace; font-size: .85rem; border: 1px solid var(--border); border-radius: var(--radius); overflow: auto; max-height: 500px; }
-.diff-line { padding: .15rem .6rem; white-space: pre-wrap; word-break: break-word; display: flex; }
-.diff-num { color: var(--text-light); min-width: 3rem; text-align: right; padding-right: .6rem; user-select: none; flex-shrink: 0; }
-.diff-add { background: #d4edda; }
-.diff-del { background: #f8d7da; }
-.diff-ctx { background: var(--surface); }
-.diff-hdr { background: var(--bg); color: var(--text-light); font-weight: 600; padding: .3rem .6rem; }
-.diff-stats { font-size: .85rem; margin-bottom: .5rem; }
-.diff-stats .add { color: #28a745; font-weight: 600; }
-.diff-stats .del { color: var(--danger); font-weight: 600; }
-[data-theme="dark"] .diff-add { background: #0d2e14; }
-[data-theme="dark"] .diff-del { background: #2e0d0d; }
-[data-theme="dark"] .diff-stats .add { color: #4ecdc4; }
-</style>
 <script>
 function computeDiff() {
     const a = document.getElementById("diff-left").value.split("\n");
     const b = document.getElementById("diff-right").value.split("\n");
 
-    // Simple LCS-based diff
     const lcs = buildLCS(a, b);
     const lines = [];
     let i = 0, j = 0, li = 0;
@@ -56,7 +31,6 @@ function computeDiff() {
 
     while (li < lcs.length || i < a.length || j < b.length) {
         if (li < lcs.length) {
-            // Output removals before next common line
             while (i < lcs[li][0]) { lines.push({type:"del", num: i+1, text: a[i]}); dels++; i++; }
             while (j < lcs[li][1]) { lines.push({type:"add", num: j+1, text: b[j]}); adds++; j++; }
             lines.push({type:"ctx", num: i+1, text: a[i]});
@@ -68,17 +42,22 @@ function computeDiff() {
     }
 
     const out = document.getElementById("diff-output");
-    let html = `<div class="diff-stats"><span class="add">+${adds} additions</span> &nbsp; <span class="del">-${dels} deletions</span></div>`;
-    html += '<div class="diff-view">';
-    for (const l of lines) {
-        const prefix = l.type === "add" ? "+" : l.type === "del" ? "-" : " ";
-        const cls = l.type === "add" ? "diff-add" : l.type === "del" ? "diff-del" : "diff-ctx";
-        const escaped = l.text.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-        html += `<div class="diff-line ${cls}"><span class="diff-num">${l.num}</span>${prefix} ${escaped}</div>`;
+    if (!lines.length) {
+        out.innerHTML = '<p class="text-sm text-text-muted">No differences.</p>';
+        updateWorkspaceStatus("No differences", "idle");
+    } else {
+        let html = '<div class="diff-stats mb-3 text-sm"><span class="font-semibold text-emerald-700 dark:text-emerald-300">+' + adds + '</span> / <span class="font-semibold text-danger">-' + dels + '</span></div>';
+        html += '<div class="diff-view">';
+        for (const l of lines) {
+            const prefix = l.type === "add" ? "+" : l.type === "del" ? "-" : " ";
+            const cls = l.type === "add" ? "diff-add" : l.type === "del" ? "diff-del" : "diff-ctx";
+            const escaped = l.text.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+            html += `<div class="diff-line ${cls}"><span class="diff-num">${l.num}</span>${prefix} ${escaped}</div>`;
+        }
+        html += '</div>';
+        updateWorkspaceStatus(`+${adds} / -${dels}`, "success");
+        out.innerHTML = html;
     }
-    html += '</div>';
-    if (adds === 0 && dels === 0) html = '<div style="color:var(--success);font-weight:500"><i class="bi bi-check-circle"></i> Texts are identical.</div>';
-    out.innerHTML = html;
 }
 
 function buildLCS(a, b) {

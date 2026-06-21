@@ -1,58 +1,57 @@
-{% extends "base.html" %}
-{% block title %}Base64 Encode/Decode - EveryTools{% endblock %}
-{% block top_title %}Base64{% endblock %}
+{% extends "layouts/tool_workspace.html" %}
+{% from "components/_tw_workspace.html" import btn_sm, textarea, textarea_mono, toolbar_between, section_sm, inline_status %}
+{% set title = "Base64 Encode / Decode" %}
+{% set description = "Encode text to Base64 or decode Base64 to text" %}
 
-{% block content %}
-<div class="client-tool">
-    <div class="tool-header">
-        <h1>Base64 Encode / Decode</h1>
-        <p>Encode text to Base64 or decode Base64 to text</p>
-    </div>
-    <div class="split-pane">
-        <div class="pane">
-            <div class="pane-header">
-                <span>Text</span>
-                <button class="btn btn-small" onclick="encodeB64()">Encode &rarr;</button>
-            </div>
-            <div class="pane-body">
-                <textarea id="b64-text" placeholder="Enter text to encode..."></textarea>
-            </div>
-        </div>
-        <div class="pane">
-            <div class="pane-header">
-                <button class="btn btn-small" onclick="decodeB64()">&larr; Decode</button>
-                <span>Base64</span>
-                <button class="btn btn-small" onclick="navigator.clipboard.writeText(document.getElementById('b64-encoded').value)"><i class="bi bi-clipboard"></i></button>
-            </div>
-            <div class="pane-body">
-                <textarea id="b64-encoded" placeholder="Enter Base64 to decode..."></textarea>
-            </div>
-        </div>
-    </div>
-    <div id="b64-status" style="margin-top:.5rem;font-size:.85rem"></div>
+{% block workspace_input %}
+<div class="{{ toolbar_between() }}">
+    <span class="{{ section_sm() }}">Plain text</span>
+    <button type="button" class="{{ btn_sm() }}" onclick="encodeB64()">Encode →</button>
 </div>
+<textarea id="b64-text" class="{{ textarea() }}" placeholder="Enter text to encode..."></textarea>
+{% endblock %}
+
+{% block workspace_output_toolbar %}
+<button type="button" class="{{ btn_sm() }}" onclick="decodeB64()">← Decode</button>
+<button type="button" class="{{ btn_sm() }}" onclick="copyEncoded()"><i class="bi bi-clipboard"></i> Copy</button>
+{% endblock %}
+
+{% block workspace_output %}
+<textarea id="b64-encoded" class="{{ textarea_mono() }}" placeholder="Enter Base64 to decode..."></textarea>
+<div id="b64-status" class="{{ inline_status() }}"></div>
 {% endblock %}
 
 {% block scripts %}
 <script>
 function encodeB64() {
     const text = document.getElementById("b64-text").value;
+    const status = document.getElementById("b64-status");
     try {
         document.getElementById("b64-encoded").value = btoa(unescape(encodeURIComponent(text)));
-        document.getElementById("b64-status").innerHTML = '<span style="color:var(--success)"><i class="bi bi-check-circle"></i> Encoded</span>';
+        setInlineStatus(status, "Encoded", "success");
+        updateWorkspaceStatus("Encoded", "success");
     } catch (e) {
-        document.getElementById("b64-status").innerHTML = `<span style="color:var(--danger)"><i class="bi bi-x-circle"></i> ${e.message}</span>`;
+        setInlineStatus(status, e.message, "error");
+        updateWorkspaceStatus(e.message, "error");
     }
 }
 
 function decodeB64() {
     const encoded = document.getElementById("b64-encoded").value;
+    const status = document.getElementById("b64-status");
     try {
         document.getElementById("b64-text").value = decodeURIComponent(escape(atob(encoded)));
-        document.getElementById("b64-status").innerHTML = '<span style="color:var(--success)"><i class="bi bi-check-circle"></i> Decoded</span>';
+        setInlineStatus(status, "Decoded", "success");
+        updateWorkspaceStatus("Decoded", "success");
     } catch (e) {
-        document.getElementById("b64-status").innerHTML = `<span style="color:var(--danger)"><i class="bi bi-x-circle"></i> Invalid Base64</span>`;
+        setInlineStatus(status, "Invalid Base64", "error");
+        updateWorkspaceStatus("Invalid Base64", "error");
     }
+}
+
+function copyEncoded() {
+    navigator.clipboard.writeText(document.getElementById("b64-encoded").value);
+    showToast("Copied to clipboard", "success");
 }
 </script>
 {% endblock %}

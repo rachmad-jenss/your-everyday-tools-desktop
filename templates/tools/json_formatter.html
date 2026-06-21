@@ -1,68 +1,120 @@
-{% extends "base.html" %}
-{% block title %}JSON Formatter - EveryTools{% endblock %}
-{% block top_title %}JSON Formatter{% endblock %}
+{% extends "layouts/tool_workspace.html" %}
 
-{% block content %}
-<div class="client-tool">
-    <div class="tool-header">
-        <h1>JSON Formatter</h1>
-        <p>Format, validate, and minify JSON data</p>
-    </div>
-    <div class="split-pane">
-        <div class="pane">
-            <div class="pane-header">
-                <span>Input</span>
-                <div>
-                    <button class="btn btn-small" onclick="formatJSON()">Format</button>
-                    <button class="btn btn-small" onclick="minifyJSON()">Minify</button>
-                </div>
-            </div>
-            <div class="pane-body">
-                <textarea id="json-input" placeholder='Paste your JSON here...'></textarea>
-            </div>
-        </div>
-        <div class="pane">
-            <div class="pane-header">
-                <span>Output</span>
-                <button class="btn btn-small" onclick="copyOutput()"><i class="bi bi-clipboard"></i> Copy</button>
-            </div>
-            <div class="pane-body">
-                <pre id="json-output"></pre>
-            </div>
-        </div>
-    </div>
-    <div id="json-status" style="margin-top:.5rem;font-size:.85rem"></div>
+{% from "components/_tw_workspace.html" import btn_sm_sec, btn_sm, textarea, pre_out, inline_status %}
+
+{% set title = "JSON Formatter" %}
+
+{% set description = "Format, validate, and minify JSON data" %}
+
+
+
+{% block workspace_input %}
+
+<div class="mb-3 flex flex-wrap gap-2">
+
+    <button type="button" class="{{ btn_sm_sec() }}" onclick="formatJSON()">Format</button>
+
+    <button type="button" class="{{ btn_sm_sec() }}" onclick="minifyJSON()">Minify</button>
+
 </div>
+
+<textarea id="json-input" class="{{ textarea() }}" placeholder="Paste your JSON here..."></textarea>
+
 {% endblock %}
+
+
+
+{% block workspace_output_toolbar %}
+
+<button type="button" class="{{ btn_sm() }}" onclick="copyOutput()"><i class="bi bi-clipboard"></i> Copy</button>
+
+{% endblock %}
+
+
+
+{% block workspace_output %}
+
+<pre id="json-output" class="{{ pre_out() }}"></pre>
+
+<div id="json-status" class="{{ inline_status() }}"></div>
+
+{% endblock %}
+
+
+
+{% block workspace_status %}Ready to format JSON{% endblock %}
+
+
 
 {% block scripts %}
+
 <script>
+
 function formatJSON() {
+
     const input = document.getElementById("json-input").value;
+
     const status = document.getElementById("json-status");
+
     try {
+
         const obj = JSON.parse(input);
+
         document.getElementById("json-output").textContent = JSON.stringify(obj, null, 2);
-        status.innerHTML = '<span style="color:var(--success)"><i class="bi bi-check-circle"></i> Valid JSON</span>';
+
+        setInlineStatus(status, "Valid JSON", "success");
+
+        updateWorkspaceStatus("Valid JSON", "success");
+
     } catch (e) {
-        status.innerHTML = `<span style="color:var(--danger)"><i class="bi bi-x-circle"></i> ${e.message}</span>`;
+
+        setInlineStatus(status, e.message, "error");
+
+        updateWorkspaceStatus(e.message, "error");
+
     }
+
 }
+
+
 
 function minifyJSON() {
+
     const input = document.getElementById("json-input").value;
+
     const status = document.getElementById("json-status");
+
     try {
+
         const obj = JSON.parse(input);
+
         document.getElementById("json-output").textContent = JSON.stringify(obj);
-        status.innerHTML = '<span style="color:var(--success)"><i class="bi bi-check-circle"></i> Valid JSON (minified)</span>';
+
+        setInlineStatus(status, "Valid JSON (minified)", "success");
+
+        updateWorkspaceStatus("Minified", "success");
+
     } catch (e) {
-        status.innerHTML = `<span style="color:var(--danger)"><i class="bi bi-x-circle"></i> ${e.message}</span>`;
+
+        setInlineStatus(status, e.message, "error");
+
+        updateWorkspaceStatus(e.message, "error");
+
     }
+
 }
 
+
+
 function copyOutput() {
+
     navigator.clipboard.writeText(document.getElementById("json-output").textContent);
+
+    showToast("Copied to clipboard", "success");
+
 }
+
 </script>
+
 {% endblock %}
+

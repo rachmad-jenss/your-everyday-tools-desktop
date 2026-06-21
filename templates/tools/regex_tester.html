@@ -1,54 +1,49 @@
-{% extends "base.html" %}
-{% block title %}Regex Tester - EveryTools{% endblock %}
-{% block top_title %}Regex Tester{% endblock %}
+{% extends "layouts/tool_workspace.html" %}
 
-{% block content %}
-<div class="client-tool">
-    <div class="tool-header">
-        <h1>Regex Tester</h1>
-        <p>Test regular expressions with live match highlighting</p>
+{% from "components/_tw_workspace.html" import field_block, label_sm, input_cls, input_sm, textarea_mono, pane, pane_header, pane_body, inline_status %}
+
+{% set title = "Regex Tester" %}
+{% set description = "Test regular expressions with live match highlighting" %}
+{% set workspace_single = true %}
+
+{% block workspace_input %}
+<div class="mb-4 flex items-end gap-3">
+    <div class="{{ field_block() }} mb-0 flex-1">
+        <label class="{{ label_sm() }}">Regular Expression</label>
+        <input type="text" id="regex-pattern" class="{{ input_cls() }}" placeholder="e.g. \b\w+@\w+\.\w+\b" oninput="testRegex()">
     </div>
-    <div style="display:flex;gap:.5rem;margin-bottom:1rem;align-items:flex-end">
-        <div class="form-group" style="flex:1;margin-bottom:0">
-            <label>Regular Expression</label>
-            <input type="text" id="regex-pattern" placeholder="e.g. \b\w+@\w+\.\w+\b" oninput="testRegex()">
-        </div>
-        <div class="form-group" style="width:100px;margin-bottom:0">
-            <label>Flags</label>
-            <input type="text" id="regex-flags" value="gi" placeholder="gi" oninput="testRegex()" style="width:100%">
-        </div>
+    <div class="{{ field_block() }} mb-0 w-24">
+        <label class="{{ label_sm() }}">Flags</label>
+        <input type="text" id="regex-flags" class="{{ input_sm() }} w-full" value="gi" placeholder="gi" oninput="testRegex()">
     </div>
-    <div class="form-group">
-        <label>Test String</label>
-        <textarea id="regex-input" class="text-input" rows="5" placeholder="Enter text to test against..." oninput="testRegex()"></textarea>
+</div>
+
+<div class="{{ field_block() }}">
+    <label class="{{ label_sm() }}">Test String</label>
+    <textarea id="regex-input" class="{{ textarea_mono() }} min-h-[140px]" rows="5" placeholder="Enter text to test against..." oninput="testRegex()"></textarea>
+</div>
+
+<div id="regex-error" class="{{ inline_status() }} mb-3"></div>
+
+<div class="{{ pane() }} mb-4">
+    <div class="{{ pane_header() }}">
+        <span>Highlighted Matches</span>
+        <span id="regex-count" class="text-xs font-normal text-text-muted">0 matches</span>
     </div>
-    <div id="regex-error" style="color:var(--danger);font-size:.85rem;margin-bottom:.5rem"></div>
-    <div class="pane" style="margin-bottom:1rem">
-        <div class="pane-header"><span>Highlighted Matches</span><span id="regex-count" style="font-size:.8rem;color:var(--text-light)">0 matches</span></div>
-        <div class="pane-body">
-            <div id="regex-output" style="min-height:80px;white-space:pre-wrap;word-break:break-word;font-family:Consolas,Monaco,monospace;font-size:.9rem;line-height:1.6"></div>
-        </div>
+    <div class="{{ pane_body() }}">
+        <div id="regex-output" class="min-h-[80px] whitespace-pre-wrap break-words font-mono text-sm leading-relaxed text-text"></div>
     </div>
-    <div class="pane">
-        <div class="pane-header"><span>Match Details</span></div>
-        <div class="pane-body">
-            <div id="regex-matches" style="font-size:.85rem;max-height:250px;overflow:auto"></div>
-        </div>
+</div>
+
+<div class="{{ pane() }}">
+    <div class="{{ pane_header() }}"><span>Match Details</span></div>
+    <div class="{{ pane_body() }}">
+        <div id="regex-matches" class="max-h-[250px] overflow-auto text-sm"></div>
     </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
-<style>
-.regex-hl { background: #fff3cd; border-bottom: 2px solid var(--warning); border-radius: 2px; }
-.regex-hl:nth-of-type(even) { background: #d1ecf1; border-bottom-color: #17a2b8; }
-.match-row { padding: .3rem 0; border-bottom: 1px solid var(--border); display: flex; gap: 1rem; }
-.match-idx { color: var(--text-light); min-width: 2rem; }
-.match-val { font-family: Consolas,Monaco,monospace; }
-.match-pos { color: var(--text-light); font-size: .8rem; }
-[data-theme="dark"] .regex-hl { background: rgba(244,162,97,.22); }
-[data-theme="dark"] .regex-hl:nth-of-type(even) { background: rgba(23,162,184,.22); border-bottom-color: #17a2b8; }
-</style>
 <script>
 function testRegex() {
     const pattern = document.getElementById("regex-pattern").value;
@@ -59,11 +54,12 @@ function testRegex() {
     const countEl = document.getElementById("regex-count");
     const matchesEl = document.getElementById("regex-matches");
 
-    errEl.textContent = "";
+    if (typeof setInlineStatus === "function") setInlineStatus(errEl, "");
+    else errEl.textContent = "";
     if (!pattern) {
         output.textContent = input;
         countEl.textContent = "0 matches";
-        matchesEl.innerHTML = '<span style="color:var(--text-light)">Enter a pattern to see matches.</span>';
+        matchesEl.innerHTML = '<span class="text-text-muted">Enter a pattern to see matches.</span>';
         return;
     }
 
@@ -71,7 +67,8 @@ function testRegex() {
     try {
         regex = new RegExp(pattern, flags);
     } catch (e) {
-        errEl.textContent = e.message;
+        if (typeof setInlineStatus === "function") setInlineStatus(errEl, e.message, "error");
+        else errEl.textContent = e.message;
         output.textContent = input;
         countEl.textContent = "0 matches";
         matchesEl.innerHTML = "";
@@ -102,11 +99,11 @@ function testRegex() {
     countEl.textContent = count + " match" + (count !== 1 ? "es" : "");
 
     if (matches.length === 0) {
-        matchesEl.innerHTML = '<span style="color:var(--text-light)">No matches found.</span>';
+        matchesEl.innerHTML = '<span class="text-text-muted">No matches found.</span>';
     } else {
         matchesEl.innerHTML = matches.map(m => {
             let groups = "";
-            if (m.groups.length) groups = " &nbsp; groups: " + m.groups.map((g,i) => `<span style="color:var(--primary)">[${i+1}]</span> ${escapeHtml(g||"")}`).join(", ");
+            if (m.groups.length) groups = ' &nbsp; groups: ' + m.groups.map((g,i) => `<span class="text-primary">[${i+1}]</span> ${escapeHtml(g||"")}`).join(", ");
             return `<div class="match-row"><span class="match-idx">#${m.index+1}</span><span class="match-val">${escapeHtml(m.value)}</span><span class="match-pos">[${m.start}:${m.end}]</span>${groups}</div>`;
         }).join("");
     }

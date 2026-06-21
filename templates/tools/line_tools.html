@@ -1,53 +1,46 @@
-{% extends "base.html" %}
-{% block title %}Line Tools - EveryTools{% endblock %}
-{% block top_title %}Line Tools{% endblock %}
+{% extends "layouts/tool_workspace.html" %}
+{% from "components/_tw_workspace.html" import btn_pri, btn_sec, btn_sm, textarea, pre_plain, inline_status, toolbar, field_label, select_cls, check_label, checkbox %}
+{% set title = "Line Tools" %}
+{% set description = "Sort, deduplicate, shuffle, reverse, or count lines — all client-side" %}
 
-{% block content %}
-<div class="client-tool">
-    <div class="tool-header">
-        <h1>Line Tools</h1>
-        <p>Sort, deduplicate, shuffle, reverse, or count lines &mdash; all client-side</p>
-    </div>
+{% block workspace_input %}
+<textarea id="input" class="{{ textarea() }}" placeholder="One line per row..."></textarea>
+{% endblock %}
 
-    <div style="display:flex;gap:.5rem;margin-bottom:.6rem;flex-wrap:wrap;align-items:center">
-        <label>Operation:
-            <select id="op">
-                <option value="sort-asc">Sort A→Z</option>
-                <option value="sort-desc">Sort Z→A</option>
-                <option value="sort-num-asc">Sort numerically (low→high)</option>
-                <option value="sort-num-desc">Sort numerically (high→low)</option>
-                <option value="dedupe">Remove duplicates</option>
-                <option value="dedupe-keep-order">Remove duplicates (keep order)</option>
-                <option value="shuffle">Shuffle randomly</option>
-                <option value="reverse">Reverse line order</option>
-                <option value="trim">Trim whitespace on each line</option>
-                <option value="strip-empty">Drop empty / whitespace-only lines</option>
-                <option value="add-numbers">Number every line</option>
-                <option value="count">Count lines / words / chars</option>
-            </select>
-        </label>
-        <label><input type="checkbox" id="case-insensitive"> Case-insensitive (sort/dedupe)</label>
-        <button class="btn btn-primary" onclick="run()"><i class="bi bi-play-circle"></i> Run</button>
-        <button class="btn btn-small" onclick="swap()"><i class="bi bi-arrow-left-right"></i> Output → Input</button>
-    </div>
-
-    <div class="split-pane">
-        <div class="pane">
-            <div class="pane-header"><span>Input</span></div>
-            <div class="pane-body">
-                <textarea id="input" placeholder="One line per row..."></textarea>
-            </div>
-        </div>
-        <div class="pane">
-            <div class="pane-header">
-                <span>Output</span>
-                <button class="btn btn-small" onclick="copyOutput()"><i class="bi bi-clipboard"></i> Copy</button>
-            </div>
-            <div class="pane-body"><pre id="output"></pre></div>
-        </div>
-    </div>
-    <div id="status" style="margin-top:.5rem;font-size:.85rem"></div>
+{% block workspace_settings %}
+<div class="{{ toolbar() }}">
+    <label class="{{ field_label() }}">Operation
+        <select id="op" class="{{ select_cls() }}">
+            <option value="sort-asc">Sort A→Z</option>
+            <option value="sort-desc">Sort Z→A</option>
+            <option value="sort-num-asc">Sort numerically (low→high)</option>
+            <option value="sort-num-desc">Sort numerically (high→low)</option>
+            <option value="dedupe">Remove duplicates</option>
+            <option value="dedupe-keep-order">Remove duplicates (keep order)</option>
+            <option value="shuffle">Shuffle randomly</option>
+            <option value="reverse">Reverse line order</option>
+            <option value="trim">Trim whitespace on each line</option>
+            <option value="strip-empty">Drop empty / whitespace-only lines</option>
+            <option value="add-numbers">Number every line</option>
+            <option value="count">Count lines / words / chars</option>
+        </select>
+    </label>
+    <label class="{{ check_label() }}"><input type="checkbox" id="case-insensitive" class="{{ checkbox() }}"> Case-insensitive (sort/dedupe)</label>
 </div>
+{% endblock %}
+
+{% block workspace_actions %}
+<button type="button" class="{{ btn_pri() }}" onclick="run()"><i class="bi bi-play-circle"></i> Run</button>
+<button type="button" class="{{ btn_sec() }}" onclick="swap()"><i class="bi bi-arrow-left-right"></i> Output → Input</button>
+{% endblock %}
+
+{% block workspace_output_toolbar %}
+<button type="button" class="{{ btn_sm() }}" onclick="copyOutput()"><i class="bi bi-clipboard"></i> Copy</button>
+{% endblock %}
+
+{% block workspace_output %}
+<pre id="output" class="{{ pre_plain() }}"></pre>
+<div id="status" class="{{ inline_status() }}"></div>
 {% endblock %}
 
 {% block scripts %}
@@ -58,9 +51,14 @@ function getLines() {
 
 function setOutput(lines, statusMsg) {
     document.getElementById("output").textContent = Array.isArray(lines) ? lines.join("\n") : lines;
-    document.getElementById("status").innerHTML = statusMsg
-        ? `<span style="color:var(--success)"><i class="bi bi-check-circle"></i> ${statusMsg}</span>`
-        : "";
+    const status = document.getElementById("status");
+    if (statusMsg) {
+        setInlineStatus(status, statusMsg, "success");
+        updateWorkspaceStatus(statusMsg, "success");
+    } else {
+        status.textContent = "";
+        updateWorkspaceStatus("Ready", "idle");
+    }
 }
 
 function run() {
@@ -152,10 +150,12 @@ function swap() {
     document.getElementById("input").value = out;
     document.getElementById("output").textContent = "";
     document.getElementById("status").textContent = "";
+    updateWorkspaceStatus("Ready", "idle");
 }
 
 function copyOutput() {
     navigator.clipboard.writeText(document.getElementById("output").textContent);
+    showToast("Copied to clipboard", "success");
 }
 </script>
 {% endblock %}

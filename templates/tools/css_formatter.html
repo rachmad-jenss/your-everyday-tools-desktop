@@ -1,37 +1,22 @@
-{% extends "base.html" %}
-{% block title %}CSS Formatter - EveryTools{% endblock %}
-{% block top_title %}CSS Formatter{% endblock %}
+{% extends "layouts/tool_workspace.html" %}
+{% from "components/_tw_workspace.html" import btn_sm_sec, btn_sm, textarea, pre_out %}
+{% set title = "CSS Formatter" %}
+{% set description = "Beautify or minify CSS" %}
 
-{% block content %}
-<div class="client-tool">
-    <div class="tool-header">
-        <h1>CSS Formatter</h1>
-        <p>Beautify or minify CSS</p>
-    </div>
-    <div class="split-pane">
-        <div class="pane">
-            <div class="pane-header">
-                <span>Input</span>
-                <div>
-                    <button class="btn btn-small" onclick="formatCSS()">Beautify</button>
-                    <button class="btn btn-small" onclick="minifyCSS()">Minify</button>
-                </div>
-            </div>
-            <div class="pane-body">
-                <textarea id="css-input" placeholder=".example { color: red; background: #fff; }"></textarea>
-            </div>
-        </div>
-        <div class="pane">
-            <div class="pane-header">
-                <span>Output</span>
-                <button class="btn btn-small" onclick="copyOutput()"><i class="bi bi-clipboard"></i> Copy</button>
-            </div>
-            <div class="pane-body">
-                <pre id="css-output"></pre>
-            </div>
-        </div>
-    </div>
+{% block workspace_input %}
+<div class="mb-3 flex flex-wrap gap-2">
+    <button type="button" class="{{ btn_sm_sec() }}" onclick="formatCSS()">Beautify</button>
+    <button type="button" class="{{ btn_sm_sec() }}" onclick="minifyCSS()">Minify</button>
 </div>
+<textarea id="css-input" class="{{ textarea() }}" placeholder=".example { color: red; }"></textarea>
+{% endblock %}
+
+{% block workspace_output_toolbar %}
+<button type="button" class="{{ btn_sm() }}" onclick="copyOutput()"><i class="bi bi-clipboard"></i> Copy</button>
+{% endblock %}
+
+{% block workspace_output %}
+<pre id="css-output" class="{{ pre_out() }}"></pre>
 {% endblock %}
 
 {% block scripts %}
@@ -72,6 +57,7 @@ function formatCSS() {
         try { return decodeURIComponent(escape(atob(b))); } catch (e) { return ""; }
     });
     document.getElementById("css-output").textContent = result;
+    updateWorkspaceStatus("Beautified", "success");
 }
 
 function minifyCSS() {
@@ -83,10 +69,12 @@ function minifyCSS() {
         .replace(/\s+/g, " ")
         .trim();
     document.getElementById("css-output").textContent = out;
+    updateWorkspaceStatus("Minified", "success");
 }
 
 function copyOutput() {
     navigator.clipboard.writeText(document.getElementById("css-output").textContent);
+    showToast("Copied to clipboard", "success");
 }
 </script>
 {% endblock %}

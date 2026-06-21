@@ -1,45 +1,44 @@
-{% extends "base.html" %}
-{% block title %}Cron Parser - EveryTools{% endblock %}
-{% block top_title %}Cron Parser{% endblock %}
+{% extends "layouts/tool_workspace.html" %}
 
-{% block content %}
-<div class="client-tool">
-    <div class="tool-header">
-        <h1>Cron Expression Parser</h1>
-        <p>Validate cron expressions and preview upcoming run times</p>
+{% from "components/_tw_workspace.html" import btn_pri, btn_sm_sec, input_cls, input_sm, field_label, split_pane, pane, pane_header, pane_body, pre_plain, inline_status %}
+
+{% set title = "Cron Expression Parser" %}
+{% set description = "Validate cron expressions and preview upcoming run times" %}
+{% set workspace_single = true %}
+
+{% block workspace_input %}
+<div class="mb-3 flex flex-wrap items-end gap-3">
+    <label class="{{ field_label() }} min-w-[200px]">
+        Expression
+        <input type="text" id="cron-expr" class="{{ input_cls() }}" value="*/5 * * * *">
+    </label>
+    <label class="{{ field_label() }} w-24">
+        Count
+        <input type="number" id="cron-count" class="{{ input_sm() }} w-full" value="10" min="1" max="50">
+    </label>
+    <button type="button" class="{{ btn_pri() }}" onclick="parseCron()"><i class="bi bi-play-circle"></i> Parse</button>
+</div>
+
+<div class="mb-3 flex flex-wrap gap-2">
+    <button type="button" class="{{ btn_sm_sec() }}" onclick="setExpr('* * * * *')">Every minute</button>
+    <button type="button" class="{{ btn_sm_sec() }}" onclick="setExpr('*/5 * * * *')">Every 5 min</button>
+    <button type="button" class="{{ btn_sm_sec() }}" onclick="setExpr('0 * * * *')">Hourly</button>
+    <button type="button" class="{{ btn_sm_sec() }}" onclick="setExpr('0 0 * * *')">Daily midnight</button>
+    <button type="button" class="{{ btn_sm_sec() }}" onclick="setExpr('0 9 * * 1-5')">Weekdays 9am</button>
+    <button type="button" class="{{ btn_sm_sec() }}" onclick="setExpr('0 0 1 * *')">Monthly 1st</button>
+    <button type="button" class="{{ btn_sm_sec() }}" onclick="setExpr('0 0 * * 0')">Weekly Sunday</button>
+</div>
+
+<div id="cron-status" class="{{ inline_status() }} mb-3"></div>
+
+<div class="{{ split_pane() }}">
+    <div class="{{ pane() }}">
+        <div class="{{ pane_header() }}"><span>Description</span></div>
+        <div class="{{ pane_body() }}"><pre id="cron-desc" class="{{ pre_plain() }}"></pre></div>
     </div>
-
-    <div style="display:flex;gap:.5rem;margin-bottom:.6rem;flex-wrap:wrap;align-items:center">
-        <label>Expression:
-            <input type="text" id="cron-expr" value="*/5 * * * *" style="font-family:monospace;min-width:200px">
-        </label>
-        <label>Count:
-            <input type="number" id="cron-count" value="10" min="1" max="50" style="width:70px">
-        </label>
-        <button class="btn btn-primary" onclick="parseCron()"><i class="bi bi-play-circle"></i> Parse</button>
-    </div>
-
-    <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-bottom:.6rem">
-        <button class="btn btn-small" onclick="setExpr('* * * * *')">Every minute</button>
-        <button class="btn btn-small" onclick="setExpr('*/5 * * * *')">Every 5 min</button>
-        <button class="btn btn-small" onclick="setExpr('0 * * * *')">Hourly</button>
-        <button class="btn btn-small" onclick="setExpr('0 0 * * *')">Daily midnight</button>
-        <button class="btn btn-small" onclick="setExpr('0 9 * * 1-5')">Weekdays 9am</button>
-        <button class="btn btn-small" onclick="setExpr('0 0 1 * *')">Monthly 1st</button>
-        <button class="btn btn-small" onclick="setExpr('0 0 * * 0')">Weekly Sunday</button>
-    </div>
-
-    <div id="cron-status" style="margin:.5rem 0;font-size:.9rem"></div>
-
-    <div class="split-pane">
-        <div class="pane">
-            <div class="pane-header"><span>Description</span></div>
-            <div class="pane-body"><pre id="cron-desc"></pre></div>
-        </div>
-        <div class="pane">
-            <div class="pane-header"><span>Next runs</span></div>
-            <div class="pane-body"><pre id="cron-next"></pre></div>
-        </div>
+    <div class="{{ pane() }}">
+        <div class="{{ pane_header() }}"><span>Next runs</span></div>
+        <div class="{{ pane_body() }}"><pre id="cron-next" class="{{ pre_plain() }}"></pre></div>
     </div>
 </div>
 {% endblock %}
@@ -56,27 +55,35 @@ async function parseCron() {
     const count = document.getElementById("cron-count").value;
     const status = document.getElementById("cron-status");
 
-    if (!expr.trim()) { status.textContent = "Enter a cron expression."; return; }
+    if (!expr.trim()) {
+        if (typeof setInlineStatus === "function") setInlineStatus(status, "Enter a cron expression.", "warning");
+        else status.textContent = "Enter a cron expression.";
+        return;
+    }
 
     const fd = new FormData();
     fd.append("expr", expr);
     fd.append("count", count);
 
-    status.textContent = "Parsing...";
+    if (typeof setInlineStatus === "function") setInlineStatus(status, "Parsing...", "info");
+    else status.textContent = "Parsing...";
     try {
         const r = await fetch("/dev/cron", { method: "POST", body: fd });
         const j = await r.json();
         if (j.error) {
-            status.innerHTML = `<span style="color:var(--danger)"><i class="bi bi-x-circle"></i> ${j.error}</span>`;
+            if (typeof setInlineStatus === "function") setInlineStatus(status, j.error, "error");
+            else status.textContent = j.error;
             document.getElementById("cron-desc").textContent = "";
             document.getElementById("cron-next").textContent = "";
         } else {
-            status.innerHTML = '<span style="color:var(--success)"><i class="bi bi-check-circle"></i> Valid expression</span>';
+            if (typeof setInlineStatus === "function") setInlineStatus(status, "Valid expression", "success");
+            else status.textContent = "Valid expression";
             document.getElementById("cron-desc").textContent = j.description;
             document.getElementById("cron-next").textContent = j.next.join("\n");
         }
     } catch (e) {
-        status.innerHTML = `<span style="color:var(--danger)">Network error: ${e.message}</span>`;
+        if (typeof setInlineStatus === "function") setInlineStatus(status, "Network error: " + e.message, "error");
+        else status.textContent = "Network error: " + e.message;
     }
 }
 

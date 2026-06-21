@@ -1,48 +1,45 @@
-{% extends "base.html" %}
-{% block title %}Hash Generator - EveryTools{% endblock %}
-{% block top_title %}Hash Generator{% endblock %}
+{% extends "layouts/tool_workspace.html" %}
 
-{% block content %}
-<div class="client-tool">
-    <div class="tool-header">
-        <h1>Hash Generator</h1>
-        <p>Generate MD5, SHA-1, SHA-256, and SHA-512 hashes from text</p>
+{% from "components/_tw_workspace.html" import btn_sm, textarea_mono, field_block, label_sm, hash_card, hash_card_header %}
+
+{% set title = "Hash Generator" %}
+{% set description = "Generate MD5, SHA-1, SHA-256, and SHA-512 hashes from text" %}
+{% set workspace_single = true %}
+
+{% block workspace_input %}
+<div class="{{ field_block() }}">
+    <label class="{{ label_sm() }}">Input Text</label>
+    <textarea id="hash-input" class="{{ textarea_mono() }} min-h-[120px]" rows="4" placeholder="Enter text to hash..." oninput="computeHashes()"></textarea>
+</div>
+
+<div id="hash-results" class="grid gap-3">
+    <div class="{{ hash_card() }}" id="hash-md5-section">
+        <div class="{{ hash_card_header() }}">
+            <span>MD5</span>
+            <button type="button" class="{{ btn_sm() }}" onclick="copyHash('hash-md5')"><i class="bi bi-clipboard"></i></button>
+        </div>
+        <code id="hash-md5" class="break-all font-mono text-[0.85rem] text-text-muted">-</code>
     </div>
-
-    <div class="form-group">
-        <label>Input Text</label>
-        <textarea id="hash-input" class="text-input" rows="4" placeholder="Enter text to hash..." oninput="computeHashes()"></textarea>
+    <div class="{{ hash_card() }}">
+        <div class="{{ hash_card_header() }}">
+            <span>SHA-1</span>
+            <button type="button" class="{{ btn_sm() }}" onclick="copyHash('hash-sha1')"><i class="bi bi-clipboard"></i></button>
+        </div>
+        <code id="hash-sha1" class="break-all font-mono text-[0.85rem] text-text-muted">-</code>
     </div>
-
-    <div id="hash-results" style="display:grid;gap:.8rem">
-        <div class="calc-section" id="hash-md5-section">
-            <div class="pane-header" style="margin:-1.2rem -1.2rem .5rem;padding:.4rem .8rem">
-                <span>MD5</span>
-                <button class="btn btn-small" onclick="copyHash('hash-md5')"><i class="bi bi-clipboard"></i></button>
-            </div>
-            <code id="hash-md5" style="word-break:break-all;font-size:.85rem;color:var(--text-light)">-</code>
+    <div class="{{ hash_card() }}">
+        <div class="{{ hash_card_header() }}">
+            <span>SHA-256</span>
+            <button type="button" class="{{ btn_sm() }}" onclick="copyHash('hash-sha256')"><i class="bi bi-clipboard"></i></button>
         </div>
-        <div class="calc-section">
-            <div class="pane-header" style="margin:-1.2rem -1.2rem .5rem;padding:.4rem .8rem">
-                <span>SHA-1</span>
-                <button class="btn btn-small" onclick="copyHash('hash-sha1')"><i class="bi bi-clipboard"></i></button>
-            </div>
-            <code id="hash-sha1" style="word-break:break-all;font-size:.85rem;color:var(--text-light)">-</code>
+        <code id="hash-sha256" class="break-all font-mono text-[0.85rem] text-text-muted">-</code>
+    </div>
+    <div class="{{ hash_card() }}">
+        <div class="{{ hash_card_header() }}">
+            <span>SHA-512</span>
+            <button type="button" class="{{ btn_sm() }}" onclick="copyHash('hash-sha512')"><i class="bi bi-clipboard"></i></button>
         </div>
-        <div class="calc-section">
-            <div class="pane-header" style="margin:-1.2rem -1.2rem .5rem;padding:.4rem .8rem">
-                <span>SHA-256</span>
-                <button class="btn btn-small" onclick="copyHash('hash-sha256')"><i class="bi bi-clipboard"></i></button>
-            </div>
-            <code id="hash-sha256" style="word-break:break-all;font-size:.85rem;color:var(--text-light)">-</code>
-        </div>
-        <div class="calc-section">
-            <div class="pane-header" style="margin:-1.2rem -1.2rem .5rem;padding:.4rem .8rem">
-                <span>SHA-512</span>
-                <button class="btn btn-small" onclick="copyHash('hash-sha512')"><i class="bi bi-clipboard"></i></button>
-            </div>
-            <code id="hash-sha512" style="word-break:break-all;font-size:.85rem;color:var(--text-light)">-</code>
-        </div>
+        <code id="hash-sha512" class="break-all font-mono text-[0.85rem] text-text-muted">-</code>
     </div>
 </div>
 {% endblock %}
@@ -58,12 +55,9 @@ async function computeHashes() {
 
     const data = new TextEncoder().encode(text);
 
-    // Web Crypto API for SHA family
     const sha1 = await digest("SHA-1", data);
     const sha256 = await digest("SHA-256", data);
     const sha512 = await digest("SHA-512", data);
-
-    // MD5 via pure JS (Web Crypto doesn't support it)
     const md5 = md5Hash(text);
 
     document.getElementById("hash-md5").textContent = md5;
@@ -82,7 +76,6 @@ function copyHash(id) {
     if (text !== "-") navigator.clipboard.writeText(text);
 }
 
-// MD5 implementation (RFC 1321)
 function md5Hash(string) {
     function md5cycle(x, k) {
         let a = x[0], b = x[1], c = x[2], d = x[3];
@@ -145,7 +138,6 @@ function md5Hash(string) {
     function add32(a,b) { return (a+b) & 0xFFFFFFFF; }
     function rhex(n) { let s=""; for (let j=0; j<4; j++) s += "0123456789abcdef".charAt((n>>(j*8+4))&0x0F) + "0123456789abcdef".charAt((n>>(j*8))&0x0F); return s; }
     function hex(x) { return x.map(rhex).join(""); }
-    // Encode as UTF-8 bytes for correct hashing
     const utf8 = unescape(encodeURIComponent(string));
     return hex(md51(utf8));
 }

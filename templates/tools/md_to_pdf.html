@@ -1,50 +1,50 @@
-{% extends "base.html" %}
-{% block title %}Markdown to PDF - EveryTools{% endblock %}
-{% block top_title %}Markdown to PDF{% endblock %}
+{% extends "layouts/tool_workspace.html" %}
 
-{% block content %}
-<div class="client-tool">
-    <div class="tool-header">
-        <h1>Markdown to PDF</h1>
-        <p>Paste or type Markdown and export it as a formatted PDF</p>
-    </div>
+{% from "components/_tw_workspace.html" import tool_callout, btn_pri, btn_sm_sec, select_cls, input_sm, input_cls, textarea_mono, inline_status, toolbar %}
 
-    <div class="tool-notes">
-        <p><strong>Supported Markdown:</strong> CommonMark + GFM extensions: headings, bold/italic,
-        ordered &amp; unordered lists, fenced code blocks, tables, blockquotes, links, inline code, horizontal rules.</p>
-        <p style="font-size:.9em;color:var(--muted)">Rendering uses PyMuPDF's <code>Story</code> API for proper multi-page
-        pagination. <strong>No external dependencies.</strong> For images embedded via <code>![alt](url)</code> with remote URLs,
-        the image won't be fetched (offline by design); use base64 data URIs instead if you need to embed.</p>
-    </div>
+{% set title = "Markdown to PDF" %}
+{% set description = "Paste or type Markdown and export it as a formatted PDF" %}
+{% set workspace_single = true %}
 
-    <div style="display:flex;gap:.5rem;margin-bottom:.6rem;flex-wrap:wrap;align-items:center">
-        <label>Page size:
-            <select id="page-size">
-                <option value="A4" selected>A4</option>
-                <option value="letter">Letter</option>
-                <option value="legal">Legal</option>
-                <option value="A5">A5</option>
-            </select>
-        </label>
-        <label>Base font size:
-            <input type="number" id="font-size" value="11" min="8" max="18" style="width:60px">
-        </label>
-        <label>File name:
-            <input type="text" id="file-name" value="document" style="width:160px">
-        </label>
-        <label style="margin-left:auto">
-            <input type="file" id="md-upload" accept=".md,.markdown,.txt" style="display:none"
-                onchange="loadFile(this.files[0])">
-            <button type="button" class="btn btn-small" onclick="document.getElementById('md-upload').click()">
-                <i class="bi bi-folder2-open"></i> Load .md file
-            </button>
-        </label>
-        <button class="btn btn-primary" onclick="convertMD()">
-            <i class="bi bi-file-pdf-fill"></i> Convert to PDF
+{% block workspace_input %}
+<div class="{{ tool_callout() }}">
+    <p class="mb-2 text-text"><strong>Supported Markdown:</strong> CommonMark + GFM extensions: headings, bold/italic,
+    ordered &amp; unordered lists, fenced code blocks, tables, blockquotes, links, inline code, horizontal rules.</p>
+    <p class="text-xs">Rendering uses PyMuPDF's <code class="rounded bg-bg px-1 py-0.5 font-mono text-xs">Story</code> API for proper multi-page
+    pagination. <strong>No external dependencies.</strong> For images embedded via <code class="rounded bg-bg px-1 py-0.5 font-mono text-xs">![alt](url)</code> with remote URLs,
+    the image won't be fetched (offline by design); use base64 data URIs instead if you need to embed.</p>
+</div>
+
+<div class="{{ toolbar() }} items-end">
+    <label class="flex flex-col gap-1 text-sm text-text">
+        Page size
+        <select id="page-size" class="{{ select_cls() }} w-auto min-w-[100px]">
+            <option value="A4" selected>A4</option>
+            <option value="letter">Letter</option>
+            <option value="legal">Legal</option>
+            <option value="A5">A5</option>
+        </select>
+    </label>
+    <label class="flex flex-col gap-1 text-sm text-text">
+        Base font size
+        <input type="number" id="font-size" class="{{ input_sm() }} w-16" value="11" min="8" max="18">
+    </label>
+    <label class="flex flex-col gap-1 text-sm text-text">
+        File name
+        <input type="text" id="file-name" class="{{ input_cls() }} min-w-[160px]" value="document">
+    </label>
+    <label class="ml-auto">
+        <input type="file" id="md-upload" class="hidden" accept=".md,.markdown,.txt" onchange="loadFile(this.files[0])">
+        <button type="button" class="{{ btn_sm_sec() }}" onclick="document.getElementById('md-upload').click()">
+            <i class="bi bi-folder2-open"></i> Load .md file
         </button>
-    </div>
+    </label>
+    <button type="button" class="{{ btn_pri() }}" onclick="convertMD()">
+        <i class="bi bi-file-pdf-fill"></i> Convert to PDF
+    </button>
+</div>
 
-    <textarea id="md-input" placeholder="# My Document
+<textarea id="md-input" class="{{ textarea_mono() }} min-h-[400px]" placeholder="# My Document
 
 Paste your **Markdown** here.
 
@@ -58,10 +58,9 @@ code blocks too
 ```
 
 > And blockquotes.
-" style="min-height:400px;width:100%;font-family:ui-monospace,Menlo,Consolas,monospace"></textarea>
+"></textarea>
 
-    <div id="md-status" style="margin-top:.6rem;font-size:.9rem"></div>
-</div>
+<div id="md-status" class="{{ inline_status() }} mt-3"></div>
 {% endblock %}
 
 {% block scripts %}
@@ -78,7 +77,10 @@ function loadFile(f) {
 async function convertMD() {
     const md = document.getElementById("md-input").value;
     const status = document.getElementById("md-status");
-    if (!md.trim()) { status.textContent = "Enter some Markdown first."; return; }
+    if (!md.trim()) {
+        if (typeof setInlineStatus === "function") setInlineStatus(status, "Enter some Markdown first.", "warning");
+        return;
+    }
 
     const fd = new FormData();
     fd.append("markdown", md);
@@ -86,12 +88,12 @@ async function convertMD() {
     fd.append("font_size", document.getElementById("font-size").value);
     fd.append("file_name", document.getElementById("file-name").value || "document");
 
-    status.textContent = "Generating PDF...";
+    if (typeof setInlineStatus === "function") setInlineStatus(status, "Generating PDF...", "info");
     try {
         const r = await fetch("/convert/md-to-pdf", { method: "POST", body: fd });
         if (!r.ok) {
             const j = await r.json().catch(() => ({}));
-            status.innerHTML = `<span style="color:var(--danger)"><i class="bi bi-x-circle"></i> ${j.error || "Conversion failed"}</span>`;
+            if (typeof setInlineStatus === "function") setInlineStatus(status, j.error || "Conversion failed", "error");
             return;
         }
         const blob = await r.blob();
@@ -101,9 +103,9 @@ async function convertMD() {
         a.download = (document.getElementById("file-name").value || "document") + ".pdf";
         document.body.appendChild(a); a.click(); a.remove();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
-        status.innerHTML = '<span style="color:var(--success)"><i class="bi bi-check-circle"></i> PDF downloaded</span>';
+        if (typeof setInlineStatus === "function") setInlineStatus(status, "PDF downloaded", "success");
     } catch (e) {
-        status.innerHTML = `<span style="color:var(--danger)">Network error: ${e.message}</span>`;
+        if (typeof setInlineStatus === "function") setInlineStatus(status, "Network error: " + e.message, "error");
     }
 }
 </script>

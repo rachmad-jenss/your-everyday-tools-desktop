@@ -1,38 +1,23 @@
-{% extends "base.html" %}
-{% block title %}XML Formatter - EveryTools{% endblock %}
-{% block top_title %}XML Formatter{% endblock %}
+{% extends "layouts/tool_workspace.html" %}
+{% from "components/_tw_workspace.html" import btn_sm_sec, btn_sm, textarea, pre_out, inline_status %}
+{% set title = "XML Formatter" %}
+{% set description = "Format, validate, and minify XML data" %}
 
-{% block content %}
-<div class="client-tool">
-    <div class="tool-header">
-        <h1>XML Formatter</h1>
-        <p>Format, validate, and minify XML data</p>
-    </div>
-    <div class="split-pane">
-        <div class="pane">
-            <div class="pane-header">
-                <span>Input</span>
-                <div>
-                    <button class="btn btn-small" onclick="formatXML()">Format</button>
-                    <button class="btn btn-small" onclick="minifyXML()">Minify</button>
-                </div>
-            </div>
-            <div class="pane-body">
-                <textarea id="xml-input" placeholder="<root><item>value</item></root>"></textarea>
-            </div>
-        </div>
-        <div class="pane">
-            <div class="pane-header">
-                <span>Output</span>
-                <button class="btn btn-small" onclick="copyOutput()"><i class="bi bi-clipboard"></i> Copy</button>
-            </div>
-            <div class="pane-body">
-                <pre id="xml-output"></pre>
-            </div>
-        </div>
-    </div>
-    <div id="xml-status" style="margin-top:.5rem;font-size:.85rem"></div>
+{% block workspace_input %}
+<div class="mb-3 flex flex-wrap gap-2">
+    <button type="button" class="{{ btn_sm_sec() }}" onclick="formatXML()">Beautify</button>
+    <button type="button" class="{{ btn_sm_sec() }}" onclick="minifyXML()">Minify</button>
 </div>
+<textarea id="xml-input" class="{{ textarea() }}" placeholder="<root></root>"></textarea>
+{% endblock %}
+
+{% block workspace_output_toolbar %}
+<button type="button" class="{{ btn_sm() }}" onclick="copyOutput()"><i class="bi bi-clipboard"></i> Copy</button>
+{% endblock %}
+
+{% block workspace_output %}
+<pre id="xml-output" class="{{ pre_out() }}"></pre>
+<div id="xml-status" class="{{ inline_status() }}"></div>
 {% endblock %}
 
 {% block scripts %}
@@ -73,9 +58,11 @@ function formatXML() {
         const result = pretty(doc.documentElement, 0);
         const decl = input.trim().startsWith("<?xml") ? input.trim().match(/^<\?xml[^?]*\?>/)[0] + "\n" : "";
         document.getElementById("xml-output").textContent = decl + result;
-        status.innerHTML = '<span style="color:var(--success)"><i class="bi bi-check-circle"></i> Valid XML</span>';
+        setInlineStatus(status, "Valid XML", "success");
+        updateWorkspaceStatus("Valid XML", "success");
     } catch (e) {
-        status.innerHTML = `<span style="color:var(--danger)"><i class="bi bi-x-circle"></i> ${e.message}</span>`;
+        setInlineStatus(status, e.message, "error");
+        updateWorkspaceStatus(e.message, "error");
     }
 }
 
@@ -86,14 +73,17 @@ function minifyXML() {
         parseXML(input);
         const out = input.replace(/>\s+</g, "><").replace(/\s+/g, " ").trim();
         document.getElementById("xml-output").textContent = out;
-        status.innerHTML = '<span style="color:var(--success)"><i class="bi bi-check-circle"></i> Valid XML (minified)</span>';
+        setInlineStatus(status, "Valid XML (minified)", "success");
+        updateWorkspaceStatus("Minified", "success");
     } catch (e) {
-        status.innerHTML = `<span style="color:var(--danger)"><i class="bi bi-x-circle"></i> ${e.message}</span>`;
+        setInlineStatus(status, e.message, "error");
+        updateWorkspaceStatus(e.message, "error");
     }
 }
 
 function copyOutput() {
     navigator.clipboard.writeText(document.getElementById("xml-output").textContent);
+    showToast("Copied to clipboard", "success");
 }
 </script>
 {% endblock %}

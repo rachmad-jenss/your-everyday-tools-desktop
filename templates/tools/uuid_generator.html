@@ -1,44 +1,42 @@
-{% extends "base.html" %}
-{% block title %}UUID Generator - EveryTools{% endblock %}
-{% block top_title %}UUID Generator{% endblock %}
+{% extends "layouts/tool_workspace.html" %}
 
-{% block content %}
-<div class="client-tool" style="max-width:640px">
-    <div class="tool-header">
-        <h1>UUID Generator</h1>
-        <p>Generate v4 (random) and nil UUIDs. Optionally generate many at once.</p>
-    </div>
+{% from "components/_tw_workspace.html" import btn_pri, btn_sm, btn_sm_sec, field_block, label_sm, input_cls, check_label, checkbox, pane, pane_header, pane_body, pre_plain %}
 
-    <div class="form-group" style="display:grid;grid-template-columns:1fr 150px;gap:.6rem;align-items:end">
-        <div>
-            <label>How many?</label>
-            <input type="number" id="uuid-count" value="1" min="1" max="1000">
-        </div>
-        <button class="btn btn-primary" onclick="generateUUIDs()"><i class="bi bi-arrow-repeat"></i> Generate</button>
-    </div>
+{% set title = "UUID Generator" %}
+{% set description = "Generate v4 (random) and nil UUIDs. Optionally generate many at once." %}
+{% set workspace_single = true %}
 
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-bottom:1rem">
-        <label class="checkbox-label"><input type="checkbox" id="uuid-upper" onchange="generateUUIDs()"><span>Uppercase</span></label>
-        <label class="checkbox-label"><input type="checkbox" id="uuid-braces" onchange="generateUUIDs()"><span>Wrap in braces { }</span></label>
-        <label class="checkbox-label"><input type="checkbox" id="uuid-nodash" onchange="generateUUIDs()"><span>Remove dashes</span></label>
+{% block workspace_input %}
+<div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end">
+    <div class="min-w-0 flex-1">
+        <label class="{{ label_sm() }}" for="uuid-count">How many?</label>
+        <input type="number" id="uuid-count" class="{{ input_cls() }}" value="1" min="1" max="1000">
     </div>
+    <button type="button" class="{{ btn_pri() }} w-full shrink-0 sm:w-auto" onclick="generateUUIDs()"><i class="bi bi-arrow-repeat"></i> Generate</button>
+</div>
 
-    <div class="pane">
-        <div class="pane-header">
-            <span>Output</span>
-            <button class="btn btn-small" onclick="copyOutput()"><i class="bi bi-clipboard"></i> Copy</button>
-        </div>
-        <div class="pane-body">
-            <pre id="uuid-output" style="white-space:pre-wrap;word-break:break-all"></pre>
-        </div>
-    </div>
+<div class="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+    <label class="{{ check_label() }}"><input type="checkbox" id="uuid-upper" class="{{ checkbox() }}" onchange="generateUUIDs()"><span>Uppercase</span></label>
+    <label class="{{ check_label() }}"><input type="checkbox" id="uuid-braces" class="{{ checkbox() }}" onchange="generateUUIDs()"><span>Wrap in braces { }</span></label>
+    <label class="{{ check_label() }}"><input type="checkbox" id="uuid-nodash" class="{{ checkbox() }}" onchange="generateUUIDs()"><span>Remove dashes</span></label>
+</div>
 
-    <div style="margin-top:1rem;font-size:.85rem;color:var(--text-light)">
-        <p><strong>Special values:</strong>
-            <button class="btn btn-small" onclick="showNil()">Nil UUID</button>
-            <button class="btn btn-small" onclick="showMax()">Max UUID</button>
-        </p>
+<div class="{{ pane() }}">
+    <div class="{{ pane_header() }}">
+        <span>Output</span>
+        <button type="button" class="{{ btn_sm() }}" onclick="copyOutput()"><i class="bi bi-clipboard"></i> Copy</button>
     </div>
+    <div class="{{ pane_body() }}">
+        <pre id="uuid-output" class="{{ pre_plain() }}"></pre>
+    </div>
+</div>
+
+<div class="mt-4 text-sm text-text-muted">
+    <p class="flex flex-wrap items-center gap-2">
+        <strong class="text-text">Special values:</strong>
+        <button type="button" class="{{ btn_sm_sec() }}" onclick="showNil()">Nil UUID</button>
+        <button type="button" class="{{ btn_sm_sec() }}" onclick="showMax()">Max UUID</button>
+    </p>
 </div>
 {% endblock %}
 

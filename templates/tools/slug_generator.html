@@ -1,32 +1,32 @@
-{% extends "base.html" %}
-{% block title %}Slug Generator - EveryTools{% endblock %}
-{% block top_title %}Slug Generator{% endblock %}
+{% extends "layouts/tool_workspace.html" %}
 
-{% block content %}
-<div class="client-tool">
-    <div class="tool-header">
-        <h1>Slug Generator</h1>
-        <p>Create URL-friendly slugs from any text</p>
+{% from "components/_tw_workspace.html" import btn_sm, field_block, label_sm, textarea_mono, radio_label, pane, pane_header, pane_body, pre_plain %}
+
+{% set title = "Slug Generator" %}
+{% set description = "Create URL-friendly slugs from any text" %}
+{% set workspace_single = true %}
+
+{% block workspace_input %}
+<div class="{{ field_block() }}">
+    <label class="{{ label_sm() }}">Input Text</label>
+    <textarea id="slug-input" class="{{ textarea_mono() }} min-h-[100px]" rows="3" placeholder="My Blog Post Title! (2024)" oninput="generateSlug()"></textarea>
+</div>
+
+<div class="{{ field_block() }}">
+    <label class="{{ label_sm() }}">Separator</label>
+    <div class="flex flex-wrap gap-2">
+        <label class="{{ radio_label() }}"><input type="radio" name="sep" value="-" checked onchange="generateSlug()"><span>Hyphen (-)</span></label>
+        <label class="{{ radio_label() }}"><input type="radio" name="sep" value="_" onchange="generateSlug()"><span>Underscore (_)</span></label>
     </div>
-    <div class="form-group">
-        <label>Input Text</label>
-        <textarea id="slug-input" class="text-input" rows="3" placeholder="My Blog Post Title! (2024)" oninput="generateSlug()"></textarea>
+</div>
+
+<div class="{{ pane() }} mt-4">
+    <div class="{{ pane_header() }}">
+        <span>Slug</span>
+        <button type="button" class="{{ btn_sm() }}" onclick="navigator.clipboard.writeText(document.getElementById('slug-output').textContent)"><i class="bi bi-clipboard"></i> Copy</button>
     </div>
-    <div class="form-group">
-        <label>Separator</label>
-        <div class="radio-group">
-            <label class="radio-label"><input type="radio" name="sep" value="-" checked onchange="generateSlug()"><span>Hyphen (-)</span></label>
-            <label class="radio-label"><input type="radio" name="sep" value="_" onchange="generateSlug()"><span>Underscore (_)</span></label>
-        </div>
-    </div>
-    <div class="pane" style="margin-top:1rem">
-        <div class="pane-header">
-            <span>Slug</span>
-            <button class="btn btn-small" onclick="navigator.clipboard.writeText(document.getElementById('slug-output').textContent)"><i class="bi bi-clipboard"></i> Copy</button>
-        </div>
-        <div class="pane-body">
-            <pre id="slug-output" style="min-height:2em;font-size:1rem;color:var(--primary)"></pre>
-        </div>
+    <div class="{{ pane_body() }}">
+        <pre id="slug-output" class="{{ pre_plain() }} min-h-[2em] text-base text-primary"></pre>
     </div>
 </div>
 {% endblock %}

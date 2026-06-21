@@ -1,37 +1,30 @@
-{% extends "base.html" %}
-{% block title %}JSON / YAML Converter - EveryTools{% endblock %}
-{% block top_title %}JSON / YAML{% endblock %}
+{% extends "layouts/tool_workspace.html" %}
+{% from "components/_tw_workspace.html" import btn_pri, btn_sm, textarea, pre_plain, inline_status, mode_wrap, mode_btn, mode_btn_on %}
+{% set title = "JSON / YAML Converter" %}
+{% set description = "Convert between JSON and YAML formats" %}
 
-{% block content %}
-<div class="client-tool">
-    <div class="tool-header">
-        <h1>JSON / YAML Converter</h1>
-        <p>Convert between JSON and YAML formats</p>
-    </div>
-    <div style="margin-bottom:1rem">
-        <button class="btn btn-primary" id="btn-j2y" onclick="setMode('j2y')" style="opacity:1">JSON &rarr; YAML</button>
-        <button class="btn btn-primary" id="btn-y2j" onclick="setMode('y2j')" style="opacity:.5">YAML &rarr; JSON</button>
-    </div>
-    <div class="split-pane">
-        <div class="pane">
-            <div class="pane-header"><span id="jy-input-label">JSON Input</span></div>
-            <div class="pane-body">
-                <textarea id="jy-input" placeholder="Paste your data here..."></textarea>
-            </div>
-        </div>
-        <div class="pane">
-            <div class="pane-header">
-                <span id="jy-output-label">YAML Output</span>
-                <button class="btn btn-small" onclick="navigator.clipboard.writeText(document.getElementById('jy-output').textContent)"><i class="bi bi-clipboard"></i> Copy</button>
-            </div>
-            <div class="pane-body">
-                <pre id="jy-output"></pre>
-            </div>
-        </div>
-    </div>
-    <button class="btn btn-primary" style="margin-top:1rem" onclick="convert()">Convert</button>
-    <div id="jy-status" style="margin-top:.5rem;font-size:.85rem"></div>
+{% block workspace_settings %}
+<div class="{{ mode_wrap() }}">
+    <button type="button" class="{{ mode_btn_on() }}" id="btn-j2y" onclick="setMode('j2y')">JSON → YAML</button>
+    <button type="button" class="{{ mode_btn() }}" id="btn-y2j" onclick="setMode('y2j')">YAML → JSON</button>
 </div>
+{% endblock %}
+
+{% block workspace_input %}
+<textarea id="jy-input" class="{{ textarea() }}" placeholder="Paste your data here..."></textarea>
+{% endblock %}
+
+{% block workspace_actions %}
+<button type="button" class="{{ btn_pri() }}" onclick="convert()">Convert</button>
+{% endblock %}
+
+{% block workspace_output_toolbar %}
+<button type="button" class="{{ btn_sm() }}" onclick="copyOutput()"><i class="bi bi-clipboard"></i> Copy</button>
+{% endblock %}
+
+{% block workspace_output %}
+<pre id="jy-output" class="{{ pre_plain() }}"></pre>
+<div id="jy-status" class="{{ inline_status() }}"></div>
 {% endblock %}
 
 {% block scripts %}
@@ -39,17 +32,20 @@
 let mode = "j2y";
 function setMode(m) {
     mode = m;
-    document.getElementById("btn-j2y").style.opacity = m === "j2y" ? 1 : .5;
-    document.getElementById("btn-y2j").style.opacity = m === "y2j" ? 1 : .5;
-    document.getElementById("jy-input-label").textContent = m === "j2y" ? "JSON Input" : "YAML Input";
-    document.getElementById("jy-output-label").textContent = m === "j2y" ? "YAML Output" : "JSON Output";
+    document.getElementById("btn-j2y").className = m === "j2y" ? TW.modeBtnOn : TW.modeBtn;
+    document.getElementById("btn-y2j").className = m === "y2j" ? TW.modeBtnOn : TW.modeBtn;
+    updateWorkspaceStatus(m === "j2y" ? "JSON → YAML" : "YAML → JSON", "idle");
 }
 
 function convert() {
     const input = document.getElementById("jy-input").value.trim();
     const status = document.getElementById("jy-status");
     const output = document.getElementById("jy-output");
-    if (!input) { status.innerHTML = '<span style="color:var(--danger)">Please enter data.</span>'; return; }
+    if (!input) {
+        setInlineStatus(status, "Please enter data.", "error");
+        updateWorkspaceStatus("Please enter data.", "error");
+        return;
+    }
     try {
         if (mode === "j2y") {
             const obj = JSON.parse(input);
@@ -58,10 +54,17 @@ function convert() {
             const obj = yamlToJson(input);
             output.textContent = JSON.stringify(obj, null, 2);
         }
-        status.innerHTML = '<span style="color:var(--success)"><i class="bi bi-check-circle"></i> Converted</span>';
+        setInlineStatus(status, "Converted", "success");
+        updateWorkspaceStatus("Converted", "success");
     } catch (e) {
-        status.innerHTML = `<span style="color:var(--danger)"><i class="bi bi-x-circle"></i> ${e.message}</span>`;
+        setInlineStatus(status, e.message, "error");
+        updateWorkspaceStatus(e.message, "error");
     }
+}
+
+function copyOutput() {
+    navigator.clipboard.writeText(document.getElementById("jy-output").textContent);
+    showToast("Copied to clipboard", "success");
 }
 
 function jsonToYaml(obj, indent) {
@@ -119,7 +122,6 @@ function parseYamlLines(lines, startIndent) {
             isArray = true;
             const val = trimmed.slice(2).trim();
             if (val.includes(": ")) {
-                // inline object in array
                 const colonIdx = val.indexOf(": ");
                 const k = val.slice(0, colonIdx);
                 const v = parseYamlValue(val.slice(colonIdx + 2));
@@ -133,7 +135,6 @@ function parseYamlLines(lines, startIndent) {
             const key = trimmed.slice(0, colonIdx);
             const val = trimmed.slice(colonIdx + 2).trim();
             if (val === "" || val === "|" || val === ">") {
-                // nested object or block
                 const nested = [];
                 i++;
                 while (i < lines.length) {
@@ -144,8 +145,7 @@ function parseYamlLines(lines, startIndent) {
                 if (nested.length > 0 && nested[0].trim().startsWith("- ")) {
                     result[key] = parseYamlLines(nested, nested[0].search(/\S/)).value;
                 } else if (nested.length > 0) {
-                    const r = parseYamlLines(nested, nested[0].search(/\S/));
-                    result[key] = r.value;
+                    result[key] = parseYamlLines(nested, nested[0].search(/\S/)).value;
                 } else {
                     result[key] = null;
                 }

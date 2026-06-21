@@ -1,54 +1,52 @@
-{% extends "base.html" %}
-{% block title %}Calculator - EveryTools{% endblock %}
-{% block top_title %}Calculator{% endblock %}
+{% extends "layouts/tool_workspace.html" %}
 
-{% block content %}
-<div class="client-tool" style="max-width:360px">
-    <div class="tool-header">
-        <h1>Calculator</h1>
-        <p>Basic and scientific calculator</p>
-    </div>
-    <div class="calc-display">
-        <div class="calc-expression" id="calc-expr">&nbsp;</div>
-        <div class="calc-result" id="calc-result">0</div>
-    </div>
-    <div class="calc-grid">
-        <button class="calc-btn" onclick="clearCalc()">C</button>
-        <button class="calc-btn" onclick="backspace()"><i class="bi bi-backspace"></i></button>
-        <button class="calc-btn op" onclick="appendOp('%')">%</button>
-        <button class="calc-btn op" onclick="appendOp('/')">÷</button>
+{% from "components/_tw_workspace.html" import calc_display, calc_expr, calc_result_lg, calc_btn, calc_btn_op, calc_btn_eq, calc_grid %}
 
-        <button class="calc-btn" onclick="appendNum('7')">7</button>
-        <button class="calc-btn" onclick="appendNum('8')">8</button>
-        <button class="calc-btn" onclick="appendNum('9')">9</button>
-        <button class="calc-btn op" onclick="appendOp('*')">×</button>
+{% set title = "Calculator" %}
+{% set description = "Basic and scientific calculator" %}
+{% set workspace_single = true %}
 
-        <button class="calc-btn" onclick="appendNum('4')">4</button>
-        <button class="calc-btn" onclick="appendNum('5')">5</button>
-        <button class="calc-btn" onclick="appendNum('6')">6</button>
-        <button class="calc-btn op" onclick="appendOp('-')">−</button>
+{% block workspace_input %}
+<div class="{{ calc_display() }}">
+    <div class="{{ calc_expr() }}" id="calc-expr">&nbsp;</div>
+    <div class="{{ calc_result_lg() }}" id="calc-result">0</div>
+</div>
+<div class="{{ calc_grid() }}">
+    <button type="button" class="{{ calc_btn() }}" onclick="clearCalc()">C</button>
+    <button type="button" class="{{ calc_btn() }}" onclick="backspace()"><i class="bi bi-backspace"></i></button>
+    <button type="button" class="{{ calc_btn_op() }}" onclick="appendOp('%')">%</button>
+    <button type="button" class="{{ calc_btn_op() }}" onclick="appendOp('/')">÷</button>
 
-        <button class="calc-btn" onclick="appendNum('1')">1</button>
-        <button class="calc-btn" onclick="appendNum('2')">2</button>
-        <button class="calc-btn" onclick="appendNum('3')">3</button>
-        <button class="calc-btn op" onclick="appendOp('+')">+</button>
+    <button type="button" class="{{ calc_btn() }}" onclick="appendNum('7')">7</button>
+    <button type="button" class="{{ calc_btn() }}" onclick="appendNum('8')">8</button>
+    <button type="button" class="{{ calc_btn() }}" onclick="appendNum('9')">9</button>
+    <button type="button" class="{{ calc_btn_op() }}" onclick="appendOp('*')">×</button>
 
-        <button class="calc-btn" onclick="appendNum('.')">.</button>
-        <button class="calc-btn" onclick="appendNum('0')">0</button>
-        <button class="calc-btn eq span2" onclick="calculate()">=</button>
-    </div>
-    <div class="calc-grid" style="margin-top:.5rem;grid-template-columns:repeat(5,1fr)">
-        <button class="calc-btn op" onclick="sciOp('sqrt')">√</button>
-        <button class="calc-btn op" onclick="sciOp('pow2')">x²</button>
-        <button class="calc-btn op" onclick="sciOp('inv')">1/x</button>
-        <button class="calc-btn op" onclick="sciOp('sin')">sin</button>
-        <button class="calc-btn op" onclick="sciOp('cos')">cos</button>
-        <button class="calc-btn op" onclick="sciOp('tan')">tan</button>
-        <button class="calc-btn op" onclick="sciOp('log')">log</button>
-        <button class="calc-btn op" onclick="sciOp('ln')">ln</button>
-        <button class="calc-btn op" onclick="appendNum(Math.PI.toFixed(8))">π</button>
-        <button class="calc-btn op" onclick="appendNum(Math.E.toFixed(8))">e</button>
-    </div>
+    <button type="button" class="{{ calc_btn() }}" onclick="appendNum('4')">4</button>
+    <button type="button" class="{{ calc_btn() }}" onclick="appendNum('5')">5</button>
+    <button type="button" class="{{ calc_btn() }}" onclick="appendNum('6')">6</button>
+    <button type="button" class="{{ calc_btn_op() }}" onclick="appendOp('-')">−</button>
+
+    <button type="button" class="{{ calc_btn() }}" onclick="appendNum('1')">1</button>
+    <button type="button" class="{{ calc_btn() }}" onclick="appendNum('2')">2</button>
+    <button type="button" class="{{ calc_btn() }}" onclick="appendNum('3')">3</button>
+    <button type="button" class="{{ calc_btn_op() }}" onclick="appendOp('+')">+</button>
+
+    <button type="button" class="{{ calc_btn() }}" onclick="appendNum('.')">.</button>
+    <button type="button" class="{{ calc_btn() }}" onclick="appendNum('0')">0</button>
+    <button type="button" class="{{ calc_btn_eq() }}" onclick="calculate()">=</button>
+</div>
+<div class="{{ calc_grid() }} mt-2 grid-cols-5">
+    <button type="button" class="{{ calc_btn_op() }}" onclick="sciOp('sqrt')">√</button>
+    <button type="button" class="{{ calc_btn_op() }}" onclick="sciOp('pow2')">x²</button>
+    <button type="button" class="{{ calc_btn_op() }}" onclick="sciOp('inv')">1/x</button>
+    <button type="button" class="{{ calc_btn_op() }}" onclick="sciOp('sin')">sin</button>
+    <button type="button" class="{{ calc_btn_op() }}" onclick="sciOp('cos')">cos</button>
+    <button type="button" class="{{ calc_btn_op() }}" onclick="sciOp('tan')">tan</button>
+    <button type="button" class="{{ calc_btn_op() }}" onclick="sciOp('log')">log</button>
+    <button type="button" class="{{ calc_btn_op() }}" onclick="sciOp('ln')">ln</button>
+    <button type="button" class="{{ calc_btn_op() }}" onclick="appendNum(Math.PI.toFixed(8))">π</button>
+    <button type="button" class="{{ calc_btn_op() }}" onclick="appendNum(Math.E.toFixed(8))">e</button>
 </div>
 {% endblock %}
 
@@ -79,7 +77,6 @@ function appendOp(op) {
 function calculate() {
     const expr = expression + currentNum;
     try {
-        // Safe evaluation using Function constructor
         let sanitized = expr.replace(/[^0-9+\-*/.%() ]/g, "");
         let result = Function('"use strict"; return (' + sanitized + ')')();
         if (!isFinite(result)) throw new Error("Invalid");

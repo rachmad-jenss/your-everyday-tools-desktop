@@ -1,59 +1,56 @@
-{% extends "base.html" %}
-{% block title %}Date Calculator - EveryTools{% endblock %}
-{% block top_title %}Date Calculator{% endblock %}
+{% extends "layouts/tool_workspace.html" %}
 
-{% block content %}
-<div class="client-tool">
-    <div class="tool-header">
-        <h1>Date Calculator</h1>
-        <p>Calculate differences between dates or add/subtract days</p>
-    </div>
+{% from "components/_tw_workspace.html" import calc_section, section_title, inline_form, field_block, label_sm, input_cls, input_sm, select_cls, calc_result %}
 
-    <div class="calc-section">
-        <h3>Difference between two dates</h3>
-        <div class="inline-form">
-            <div class="form-group">
-                <label>Start Date</label>
-                <input type="date" id="d1-start" onchange="calcDiff()">
-            </div>
-            <div class="form-group">
-                <label>End Date</label>
-                <input type="date" id="d1-end" onchange="calcDiff()">
-            </div>
+{% set title = "Date Calculator" %}
+{% set description = "Calculate differences between dates or add/subtract days" %}
+{% set workspace_single = true %}
+
+{% block workspace_input %}
+<div class="{{ calc_section() }}">
+    <h3 class="{{ section_title() }}">Difference between two dates</h3>
+    <div class="{{ inline_form() }}">
+        <div class="{{ field_block() }} mb-0">
+            <label class="{{ label_sm() }}">Start Date</label>
+            <input type="date" id="d1-start" class="{{ input_cls() }}" onchange="calcDiff()">
         </div>
-        <div id="d1-result" class="calc-result-inline">&mdash;</div>
-        <div id="d1-detail" style="font-size:.85rem;color:var(--text-light);margin-top:.3rem"></div>
-    </div>
-
-    <div class="calc-section">
-        <h3>Add or subtract days from a date</h3>
-        <div class="inline-form">
-            <div class="form-group">
-                <label>Date</label>
-                <input type="date" id="d2-date" onchange="calcAdd()">
-            </div>
-            <select id="d2-dir" onchange="calcAdd()" style="width:auto;align-self:flex-end;margin-bottom:.1rem">
-                <option value="add">+ Add</option>
-                <option value="sub">− Subtract</option>
-            </select>
-            <div class="form-group" style="max-width:80px">
-                <label>Days</label>
-                <input type="number" id="d2-days" value="7" min="0" oninput="calcAdd()">
-            </div>
+        <div class="{{ field_block() }} mb-0">
+            <label class="{{ label_sm() }}">End Date</label>
+            <input type="date" id="d1-end" class="{{ input_cls() }}" onchange="calcDiff()">
         </div>
-        <div id="d2-result" class="calc-result-inline">&mdash;</div>
     </div>
+    <div id="d1-result" class="{{ calc_result() }} mt-3">&mdash;</div>
+    <div id="d1-detail" class="mt-2 text-sm text-text-muted"></div>
+</div>
 
-    <div class="calc-section">
-        <h3>What day of the week?</h3>
-        <div class="inline-form">
-            <div class="form-group">
-                <label>Date</label>
-                <input type="date" id="d3-date" onchange="calcDay()">
-            </div>
+<div class="{{ calc_section() }}">
+    <h3 class="{{ section_title() }}">Add or subtract days from a date</h3>
+    <div class="{{ inline_form() }}">
+        <div class="{{ field_block() }} mb-0">
+            <label class="{{ label_sm() }}">Date</label>
+            <input type="date" id="d2-date" class="{{ input_cls() }}" onchange="calcAdd()">
         </div>
-        <div id="d3-result" class="calc-result-inline">&mdash;</div>
+        <select id="d2-dir" class="{{ select_cls() }} w-auto self-end" onchange="calcAdd()">
+            <option value="add">+ Add</option>
+            <option value="sub">− Subtract</option>
+        </select>
+        <div class="{{ field_block() }} mb-0 max-w-[100px]">
+            <label class="{{ label_sm() }}">Days</label>
+            <input type="number" id="d2-days" class="{{ input_sm() }} w-full" value="7" min="0" oninput="calcAdd()">
+        </div>
     </div>
+    <div id="d2-result" class="{{ calc_result() }} mt-3">&mdash;</div>
+</div>
+
+<div class="{{ calc_section() }}">
+    <h3 class="{{ section_title() }}">What day of the week?</h3>
+    <div class="{{ inline_form() }}">
+        <div class="{{ field_block() }} mb-0">
+            <label class="{{ label_sm() }}">Date</label>
+            <input type="date" id="d3-date" class="{{ input_cls() }}" onchange="calcDay()">
+        </div>
+    </div>
+    <div id="d3-result" class="{{ calc_result() }} mt-3">&mdash;</div>
 </div>
 {% endblock %}
 

@@ -1,61 +1,58 @@
-{% extends "base.html" %}
-{% block title %}Percentage Calculator - EveryTools{% endblock %}
-{% block top_title %}Percentage Calculator{% endblock %}
+{% extends "layouts/tool_workspace.html" %}
 
-{% block content %}
-<div class="client-tool">
-    <div class="tool-header">
-        <h1>Percentage Calculator</h1>
-        <p>Quick percentage calculations</p>
-    </div>
+{% from "components/_tw_workspace.html" import calc_section, section_title, inline_form, input_sm, select_cls, calc_result %}
 
-    <div class="calc-section">
-        <h3>What is X% of Y?</h3>
-        <div class="inline-form">
-            <span>What is</span>
-            <input type="number" id="p1-pct" style="width:80px" oninput="calc1()">
-            <span>% of</span>
-            <input type="number" id="p1-val" style="width:100px" oninput="calc1()">
-            <span>?</span>
-        </div>
-        <div class="calc-result-inline" id="p1-result">&mdash;</div>
-    </div>
+{% set title = "Percentage Calculator" %}
+{% set description = "Quick percentage calculations" %}
+{% set workspace_single = true %}
 
-    <div class="calc-section">
-        <h3>X is what % of Y?</h3>
-        <div class="inline-form">
-            <input type="number" id="p2-x" style="width:100px" oninput="calc2()">
-            <span>is what % of</span>
-            <input type="number" id="p2-y" style="width:100px" oninput="calc2()">
-            <span>?</span>
-        </div>
-        <div class="calc-result-inline" id="p2-result">&mdash;</div>
+{% block workspace_input %}
+<div class="{{ calc_section() }}">
+    <h3 class="{{ section_title() }}">What is X% of Y?</h3>
+    <div class="{{ inline_form() }}">
+        <span>What is</span>
+        <input type="number" id="p1-pct" class="{{ input_sm() }}" oninput="calc1()">
+        <span>% of</span>
+        <input type="number" id="p1-val" class="{{ input_sm() }} w-28" oninput="calc1()">
+        <span>?</span>
     </div>
+    <div class="{{ calc_result() }} mt-3" id="p1-result">&mdash;</div>
+</div>
 
-    <div class="calc-section">
-        <h3>Percentage change from X to Y</h3>
-        <div class="inline-form">
-            <span>From</span>
-            <input type="number" id="p3-from" style="width:100px" oninput="calc3()">
-            <span>to</span>
-            <input type="number" id="p3-to" style="width:100px" oninput="calc3()">
-        </div>
-        <div class="calc-result-inline" id="p3-result">&mdash;</div>
+<div class="{{ calc_section() }}">
+    <h3 class="{{ section_title() }}">X is what % of Y?</h3>
+    <div class="{{ inline_form() }}">
+        <input type="number" id="p2-x" class="{{ input_sm() }} w-28" oninput="calc2()">
+        <span>is what % of</span>
+        <input type="number" id="p2-y" class="{{ input_sm() }} w-28" oninput="calc2()">
+        <span>?</span>
     </div>
+    <div class="{{ calc_result() }} mt-3" id="p2-result">&mdash;</div>
+</div>
 
-    <div class="calc-section">
-        <h3>Increase / Decrease by percentage</h3>
-        <div class="inline-form">
-            <input type="number" id="p4-val" style="width:100px" oninput="calc4()">
-            <select id="p4-dir" onchange="calc4()" style="width:auto">
-                <option value="increase">+ increase by</option>
-                <option value="decrease">− decrease by</option>
-            </select>
-            <input type="number" id="p4-pct" style="width:80px" oninput="calc4()">
-            <span>%</span>
-        </div>
-        <div class="calc-result-inline" id="p4-result">&mdash;</div>
+<div class="{{ calc_section() }}">
+    <h3 class="{{ section_title() }}">Percentage change from X to Y</h3>
+    <div class="{{ inline_form() }}">
+        <span>From</span>
+        <input type="number" id="p3-from" class="{{ input_sm() }} w-28" oninput="calc3()">
+        <span>to</span>
+        <input type="number" id="p3-to" class="{{ input_sm() }} w-28" oninput="calc3()">
     </div>
+    <div class="{{ calc_result() }} mt-3" id="p3-result">&mdash;</div>
+</div>
+
+<div class="{{ calc_section() }}">
+    <h3 class="{{ section_title() }}">Increase / Decrease by percentage</h3>
+    <div class="{{ inline_form() }}">
+        <input type="number" id="p4-val" class="{{ input_sm() }} w-28" oninput="calc4()">
+        <select id="p4-dir" class="{{ select_cls() }} w-auto" onchange="calc4()">
+            <option value="increase">+ increase by</option>
+            <option value="decrease">− decrease by</option>
+        </select>
+        <input type="number" id="p4-pct" class="{{ input_sm() }}" oninput="calc4()">
+        <span>%</span>
+    </div>
+    <div class="{{ calc_result() }} mt-3" id="p4-result">&mdash;</div>
 </div>
 {% endblock %}
 

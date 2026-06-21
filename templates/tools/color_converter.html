@@ -1,44 +1,44 @@
-{% extends "base.html" %}
-{% block title %}Color Converter - EveryTools{% endblock %}
-{% block top_title %}Color Converter{% endblock %}
+{% extends "layouts/tool_workspace.html" %}
 
-{% block content %}
-<div class="client-tool">
-    <div class="tool-header">
-        <h1>Color Converter</h1>
-        <p>Convert between HEX, RGB, and HSL color formats</p>
+{% from "components/_tw_workspace.html" import btn_sm, field_block, label_sm, input_cls, input_sm, color_preview %}
+
+{% set title = "Color Converter" %}
+{% set description = "Convert between HEX, RGB, and HSL color formats" %}
+{% set workspace_single = true %}
+
+{% block workspace_input %}
+<div class="{{ color_preview() }}" id="color-preview"></div>
+
+<div class="{{ field_block() }}">
+    <label class="{{ label_sm() }}">Color Picker</label>
+    <input type="color" id="color-picker" class="h-9 w-16 cursor-pointer rounded-md border border-border bg-surface p-1" value="#4361ee" onchange="fromPicker()">
+</div>
+
+<div class="grid gap-4">
+    <div class="{{ field_block() }} mb-0">
+        <label class="{{ label_sm() }}">HEX</label>
+        <input type="text" id="c-hex" class="{{ input_cls() }}" value="#4361ee" oninput="fromHex()">
     </div>
-    <div class="color-preview" id="color-preview"></div>
-    <div class="form-group" style="margin-bottom:1rem">
-        <label>Color Picker</label>
-        <input type="color" id="color-picker" value="#4361ee" onchange="fromPicker()" style="width:60px;height:36px;padding:2px;cursor:pointer">
+    <div class="{{ field_block() }} mb-0">
+        <label class="{{ label_sm() }}">RGB</label>
+        <div class="flex gap-2">
+            <input type="number" id="c-r" class="{{ input_sm() }} flex-1" min="0" max="255" value="67" oninput="fromRGB()" placeholder="R">
+            <input type="number" id="c-g" class="{{ input_sm() }} flex-1" min="0" max="255" value="97" oninput="fromRGB()" placeholder="G">
+            <input type="number" id="c-b" class="{{ input_sm() }} flex-1" min="0" max="255" value="238" oninput="fromRGB()" placeholder="B">
+        </div>
     </div>
-    <div class="color-inputs">
-        <div class="form-group">
-            <label>HEX</label>
-            <input type="text" id="c-hex" value="#4361ee" oninput="fromHex()">
+    <div class="{{ field_block() }} mb-0">
+        <label class="{{ label_sm() }}">HSL</label>
+        <div class="flex gap-2">
+            <input type="number" id="c-h" class="{{ input_sm() }} flex-1" min="0" max="360" value="229" oninput="fromHSL()" placeholder="H">
+            <input type="number" id="c-s" class="{{ input_sm() }} flex-1" min="0" max="100" value="82" oninput="fromHSL()" placeholder="S%">
+            <input type="number" id="c-l" class="{{ input_sm() }} flex-1" min="0" max="100" value="60" oninput="fromHSL()" placeholder="L%">
         </div>
-        <div class="form-group">
-            <label>RGB</label>
-            <div style="display:flex;gap:.3rem">
-                <input type="number" id="c-r" min="0" max="255" value="67" oninput="fromRGB()" placeholder="R" style="width:33%">
-                <input type="number" id="c-g" min="0" max="255" value="97" oninput="fromRGB()" placeholder="G" style="width:33%">
-                <input type="number" id="c-b" min="0" max="255" value="238" oninput="fromRGB()" placeholder="B" style="width:33%">
-            </div>
-        </div>
-        <div class="form-group">
-            <label>HSL</label>
-            <div style="display:flex;gap:.3rem">
-                <input type="number" id="c-h" min="0" max="360" value="229" oninput="fromHSL()" placeholder="H" style="width:33%">
-                <input type="number" id="c-s" min="0" max="100" value="82" oninput="fromHSL()" placeholder="S%" style="width:33%">
-                <input type="number" id="c-l" min="0" max="100" value="60" oninput="fromHSL()" placeholder="L%" style="width:33%">
-            </div>
-        </div>
-        <div class="form-group">
-            <label>CSS</label>
-            <input type="text" id="c-css" readonly>
-            <button class="btn btn-small" style="margin-top:.3rem" onclick="navigator.clipboard.writeText(document.getElementById('c-css').value)"><i class="bi bi-clipboard"></i> Copy</button>
-        </div>
+    </div>
+    <div class="{{ field_block() }} mb-0">
+        <label class="{{ label_sm() }}">CSS</label>
+        <input type="text" id="c-css" class="{{ input_cls() }}" readonly>
+        <button type="button" class="{{ btn_sm() }} mt-2" onclick="navigator.clipboard.writeText(document.getElementById('c-css').value)"><i class="bi bi-clipboard"></i> Copy</button>
     </div>
 </div>
 {% endblock %}

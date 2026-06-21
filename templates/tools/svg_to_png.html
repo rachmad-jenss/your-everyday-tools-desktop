@@ -1,66 +1,65 @@
-{% extends "base.html" %}
-{% block title %}SVG to PNG - EveryTools{% endblock %}
-{% block top_title %}SVG to PNG{% endblock %}
+{% extends "layouts/tool_workspace.html" %}
 
-{% block content %}
-<div class="tool-page">
-    <div class="tool-header">
-        <h1>SVG to PNG</h1>
-        <p>Rasterise an SVG file to a PNG image locally in your browser.</p>
+{% from "components/_tw_workspace.html" import upload_zone, btn_pri, btn_sec, btn_success, field_block, label_sm, input_cls, check_label, checkbox %}
+
+{% set title = "SVG to PNG" %}
+{% set description = "Rasterise an SVG file to a PNG image locally in your browser." %}
+{% set workspace_single = true %}
+{% set endpoint = "/image/svg-to-png" %}
+
+{% block workspace_input %}
+<form id="svg-png-form">
+    <div class="{{ upload_zone() }}" id="svg-upload-zone">
+        <input type="file" id="svg-file-input" class="absolute inset-0 cursor-pointer opacity-0" accept=".svg,image/svg+xml">
+        <div class="upload-prompt pointer-events-none" id="svg-upload-prompt">
+            <i class="bi bi-cloud-arrow-up mb-2 block text-3xl text-primary"></i>
+            <p class="mb-1 font-medium text-text">Drag &amp; drop SVG here</p>
+            <span class="text-sm text-text-muted">or click to browse</span>
+            <small class="mt-2 block text-xs text-text-muted">Accepted: .svg</small>
+        </div>
+    </div>
+    <div class="file-list mt-3" id="svg-file-list"></div>
+
+    <div class="mt-4 flex flex-col gap-4">
+        <div class="{{ field_block() }} mb-0">
+            <label class="{{ label_sm() }}" for="svg-width">Output width (pixels, 0 = native size)</label>
+            <input type="number" id="svg-width" class="{{ input_cls() }} max-w-[200px]" value="0" min="0" max="10000" step="1">
+        </div>
+        <div class="{{ field_block() }} mb-0">
+            <label class="{{ check_label() }}">
+                <input type="checkbox" id="svg-transparent" class="{{ checkbox() }}" checked>
+                <span>Transparent (otherwise white)</span>
+            </label>
+        </div>
     </div>
 
-    <div id="capability-status" class="capability-status" data-endpoint="/image/svg-to-png" style="display:none"></div>
-
-    <form id="svg-png-form">
-        <div class="upload-zone" id="svg-upload-zone">
-            <input type="file" id="svg-file-input" accept=".svg,image/svg+xml">
-            <div class="upload-prompt" id="svg-upload-prompt">
-                <i class="bi bi-cloud-arrow-up"></i>
-                <p>Drag &amp; drop SVG here</p>
-                <span>or click to browse</span>
-                <small>Accepted: .svg</small>
-            </div>
-        </div>
-        <div class="file-list" id="svg-file-list"></div>
-
-        <div class="tool-options">
-            <div class="form-group">
-                <label for="svg-width">Output width (pixels, 0 = native size)</label>
-                <input type="number" id="svg-width" value="0" min="0" max="10000" step="1">
-            </div>
-            <div class="form-group">
-                <label>Background</label>
-                <label class="checkbox-label">
-                    <input type="checkbox" id="svg-transparent" checked>
-                    <span>Transparent (otherwise white)</span>
-                </label>
-            </div>
-        </div>
-
-        <button type="submit" class="btn btn-primary" id="svg-render-btn">
+    <div class="mt-4 flex flex-wrap gap-2">
+        <button type="submit" class="{{ btn_pri() }}" id="svg-render-btn">
             <i class="bi bi-image"></i> Render in browser
         </button>
-        <button type="button" class="btn btn-secondary" id="svg-server-btn">
+        <button type="button" class="{{ btn_sec() }}" id="svg-server-btn">
             <i class="bi bi-arrow-repeat"></i> Use server fallback
         </button>
-    </form>
+    </div>
+</form>
 
-    <div id="result-area" class="result-area" style="display:none">
-        <div id="result-success" class="result-success" style="display:none">
-            <i class="bi bi-check-circle-fill"></i>
-            <span id="result-message">Done!</span>
-            <a id="download-btn" class="btn btn-success" download>
-                <i class="bi bi-download"></i> Download
-            </a>
-            <div id="result-preview" style="display:none"></div>
-        </div>
-        <div id="result-error" class="result-error" style="display:none">
-            <i class="bi bi-exclamation-circle-fill"></i>
-            <span id="error-message"></span>
-        </div>
+<div id="result-area" class="result-area hidden">
+    <div id="result-success" class="result-success hidden">
+        <i class="bi bi-check-circle-fill"></i>
+        <span id="result-message">Done!</span>
+        <a id="download-btn" class="{{ btn_success() }}" download>
+            <i class="bi bi-download"></i> Download
+        </a>
+        <div id="result-preview" class="hidden"></div>
+    </div>
+    <div id="result-error" class="result-error hidden">
+        <i class="bi bi-exclamation-circle-fill"></i>
+        <span id="error-message"></span>
     </div>
 </div>
+{% endblock %}
 
+{% block scripts %}
 <script>
 (() => {
     const zone = document.getElementById("svg-upload-zone");
@@ -75,31 +74,31 @@
         selectedFile = file || null;
         if (!selectedFile) {
             list.innerHTML = "";
-            prompt.style.display = "";
+            prompt.classList.remove("hidden");
             return;
         }
-        prompt.style.display = "none";
-        list.innerHTML = `<div class="file-item"><span><i class="bi bi-file-earmark"></i> ${escapeHtml(selectedFile.name)} <small>(${formatSize(selectedFile.size)})</small></span><button type="button" class="remove-file" id="svg-clear-file">&times;</button></div>`;
+        prompt.classList.add("hidden");
+        list.innerHTML = `<div class="file-item"><span><i class="bi bi-file-earmark"></i> ${escapeHtml(selectedFile.name)} <small class="text-text-muted">(${formatSize(selectedFile.size)})</small></span><button type="button" class="rounded-md px-2 py-1 text-lg leading-none text-text-muted transition hover:bg-bg hover:text-danger" id="svg-clear-file">&times;</button></div>`;
         document.getElementById("svg-clear-file").addEventListener("click", () => setFile(null));
     }
 
     function showError(message) {
-        document.getElementById("result-area").style.display = "block";
-        document.getElementById("result-success").style.display = "none";
-        document.getElementById("result-error").style.display = "flex";
+        document.getElementById("result-area").classList.remove("hidden");
+        document.getElementById("result-success").classList.add("hidden");
+        document.getElementById("result-error").classList.remove("hidden");
         document.getElementById("error-message").textContent = message;
     }
 
     function showResult(url, filename, metaText) {
-        document.getElementById("result-area").style.display = "block";
-        document.getElementById("result-error").style.display = "none";
-        document.getElementById("result-success").style.display = "flex";
+        document.getElementById("result-area").classList.remove("hidden");
+        document.getElementById("result-error").classList.add("hidden");
+        document.getElementById("result-success").classList.remove("hidden");
         const link = document.getElementById("download-btn");
         link.href = url;
         link.download = filename;
         const preview = document.getElementById("result-preview");
-        preview.style.display = "block";
-        preview.innerHTML = `<img src="${url}" alt="PNG preview" style="max-width:100%;max-height:420px;border-radius:6px;margin-top:1rem">${metaText ? `<div class="result-meta">${metaText}</div>` : ""}`;
+        preview.classList.remove("hidden");
+        preview.innerHTML = `<img src="${url}" alt="PNG preview" class="mt-4 max-h-[420px] max-w-full rounded-lg">${metaText ? `<div class="mt-2 text-xs text-text-muted">${metaText}</div>` : ""}`;
     }
 
     function intrinsicSize(svgText, img) {

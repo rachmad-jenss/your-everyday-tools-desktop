@@ -1,80 +1,80 @@
-{% extends "base.html" %}
-{% block title %}SQL Formatter - EveryTools{% endblock %}
-{% block top_title %}SQL Formatter{% endblock %}
+{% extends "layouts/tool_workspace.html" %}
+{% from "components/_tw_workspace.html" import btn_pri, btn_sec, btn_sm, textarea, pre_plain, inline_status, toolbar, field_label, select_cls, check_label, checkbox %}
+{% set title = "SQL Formatter" %}
+{% set description = "Format SQL statements with proper indentation and keyword casing" %}
 
-{% block content %}
-<div class="client-tool">
-    <div class="tool-header">
-        <h1>SQL Formatter</h1>
-        <p>Format SQL statements with proper indentation and keyword casing</p>
-    </div>
+{% block workspace_input %}
+<textarea id="input" class="{{ textarea() }}" placeholder="select * from users where id=1"></textarea>
+{% endblock %}
 
-    <div style="display:flex;gap:.5rem;margin-bottom:.6rem;flex-wrap:wrap;align-items:center">
-        <label>Keyword case:
-            <select id="sql-keyword">
-                <option value="upper" selected>UPPERCASE</option>
-                <option value="lower">lowercase</option>
-                <option value="capitalize">Capitalize</option>
-            </select>
-        </label>
-        <label>Indent:
-            <select id="sql-indent">
-                <option value="2" selected>2 spaces</option>
-                <option value="4">4 spaces</option>
-                <option value="tab">tab</option>
-            </select>
-        </label>
-        <button class="btn btn-primary" onclick="formatSQL()"><i class="bi bi-magic"></i> Format</button>
-    </div>
-
-    <div class="split-pane">
-        <div class="pane">
-            <div class="pane-header"><span>Input</span></div>
-            <div class="pane-body">
-                <textarea id="sql-input" placeholder="select * from users where id=1"></textarea>
-            </div>
-        </div>
-        <div class="pane">
-            <div class="pane-header">
-                <span>Output</span>
-                <button class="btn btn-small" onclick="copyOutput()"><i class="bi bi-clipboard"></i> Copy</button>
-            </div>
-            <div class="pane-body"><pre id="sql-output"></pre></div>
-        </div>
-    </div>
-    <div id="sql-status" style="margin-top:.5rem;font-size:.85rem"></div>
+{% block workspace_settings %}
+<div class="{{ toolbar() }}">
+    <label class="{{ field_label() }}">Keyword case
+        <select id="sql-keyword" class="{{ select_cls() }}">
+            <option value="upper" selected>UPPERCASE</option>
+            <option value="lower">lowercase</option>
+            <option value="capitalize">Capitalize</option>
+        </select>
+    </label>
+    <label class="{{ field_label() }}">Indent
+        <select id="sql-indent" class="{{ select_cls() }}">
+            <option value="2" selected>2 spaces</option>
+            <option value="4">4 spaces</option>
+            <option value="tab">tab</option>
+        </select>
+    </label>
 </div>
+{% endblock %}
+
+{% block workspace_actions %}
+<button type="button" class="{{ btn_pri() }}" onclick="formatSQL()"><i class="bi bi-magic"></i> Format</button>
+{% endblock %}
+
+{% block workspace_output_toolbar %}
+<button type="button" class="{{ btn_sm() }}" onclick="copyOutput()"><i class="bi bi-clipboard"></i> Copy</button>
+{% endblock %}
+
+{% block workspace_output %}
+<pre id="sql-output" class="{{ pre_plain() }}"></pre>
+<div id="sql-status" class="{{ inline_status() }}"></div>
 {% endblock %}
 
 {% block scripts %}
 <script>
 async function formatSQL() {
-    const input = document.getElementById("sql-input").value;
+    const input = document.getElementById("input").value;
     const status = document.getElementById("sql-status");
-    if (!input.trim()) { status.textContent = "Enter some SQL."; return; }
+    if (!input.trim()) {
+        setInlineStatus(status, "Enter some SQL.", "error");
+        return;
+    }
 
     const fd = new FormData();
     fd.append("sql", input);
     fd.append("keyword_case", document.getElementById("sql-keyword").value);
     fd.append("indent", document.getElementById("sql-indent").value);
 
-    status.textContent = "Formatting...";
+    updateWorkspaceStatus("Formatting…", "processing");
     try {
         const r = await fetch("/dev/sql-format", { method: "POST", body: fd });
         const j = await r.json();
         if (j.error) {
-            status.innerHTML = `<span style="color:var(--danger)"><i class="bi bi-x-circle"></i> ${j.error}</span>`;
+            setInlineStatus(status, j.error, "error");
+            updateWorkspaceStatus(j.error, "error");
         } else {
             document.getElementById("sql-output").textContent = j.text;
-            status.innerHTML = '<span style="color:var(--success)"><i class="bi bi-check-circle"></i> Formatted</span>';
+            setInlineStatus(status, "Formatted", "success");
+            updateWorkspaceStatus("Formatted", "success");
         }
     } catch (e) {
-        status.innerHTML = `<span style="color:var(--danger)">Network error: ${e.message}</span>`;
+        setInlineStatus(status, `Network error: ${e.message}`, "error");
+        updateWorkspaceStatus("Network error", "error");
     }
 }
 
 function copyOutput() {
     navigator.clipboard.writeText(document.getElementById("sql-output").textContent);
+    showToast("Copied to clipboard", "success");
 }
 </script>
 {% endblock %}

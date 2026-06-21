@@ -1,56 +1,55 @@
-{% extends "base.html" %}
-{% block title %}Pomodoro Timer - EveryTools{% endblock %}
-{% block top_title %}Pomodoro Timer{% endblock %}
+{% extends "layouts/tool_workspace.html" %}
 
-{% block content %}
-<div class="client-tool" style="max-width:420px;text-align:center">
-    <div class="tool-header">
-        <h1>Pomodoro Timer</h1>
-        <p>Stay focused with timed work and break intervals</p>
-    </div>
+{% from "components/_tw_workspace.html" import btn_pri, btn_sm_sec, mode_btn, mode_btn_on, field_block, label_sm, input_cls, calc_display, calc_result_lg %}
 
-    <div style="display:flex;gap:.3rem;margin-bottom:1.5rem;justify-content:center">
-        <button class="btn" id="tab-work" onclick="setTab('work')" style="background:var(--primary);color:#fff">Work</button>
-        <button class="btn" id="tab-short" onclick="setTab('short')" style="background:var(--bg)">Short Break</button>
-        <button class="btn" id="tab-long" onclick="setTab('long')" style="background:var(--bg)">Long Break</button>
-    </div>
+{% set title = "Pomodoro Timer" %}
+{% set description = "Stay focused with timed work and break intervals" %}
+{% set workspace_single = true %}
 
-    <div class="calc-display" style="padding:2rem">
-        <div class="calc-result" id="pom-display" style="font-size:4rem;font-weight:300;letter-spacing:.05em">25:00</div>
-        <div id="pom-label" style="font-size:.9rem;color:var(--text-light);margin-top:.3rem">Work Session</div>
-    </div>
+{% block workspace_input %}
+<div class="mb-6 flex justify-center gap-1">
+    <button type="button" class="pom-tab {{ mode_btn_on() }}" id="tab-work" data-tab="work" onclick="setTab('work')">Work</button>
+    <button type="button" class="pom-tab {{ mode_btn() }}" id="tab-short" data-tab="short" onclick="setTab('short')">Short Break</button>
+    <button type="button" class="pom-tab {{ mode_btn() }}" id="tab-long" data-tab="long" onclick="setTab('long')">Long Break</button>
+</div>
 
-    <div style="display:flex;gap:.6rem;justify-content:center;margin-bottom:1.5rem">
-        <button class="btn btn-primary" id="pom-start" onclick="toggleTimer()" style="min-width:100px">
-            <i class="bi bi-play-fill"></i> Start
-        </button>
-        <button class="btn btn-small" onclick="resetTimer()"><i class="bi bi-arrow-counterclockwise"></i> Reset</button>
-    </div>
+<div class="{{ calc_display() }} py-8 text-center">
+    <div class="text-6xl font-light tabular-nums tracking-wide text-text" id="pom-display">25:00</div>
+    <div class="mt-1 text-sm text-text-muted" id="pom-label">Work Session</div>
+</div>
 
-    <div style="display:flex;gap:1rem;justify-content:center;flex-wrap:wrap">
-        <div class="form-group" style="margin-bottom:0;width:100px">
-            <label>Work (min)</label>
-            <input type="number" id="pom-work-min" value="25" min="1" max="120" onchange="updateDurations()">
-        </div>
-        <div class="form-group" style="margin-bottom:0;width:100px">
-            <label>Short (min)</label>
-            <input type="number" id="pom-short-min" value="5" min="1" max="30" onchange="updateDurations()">
-        </div>
-        <div class="form-group" style="margin-bottom:0;width:100px">
-            <label>Long (min)</label>
-            <input type="number" id="pom-long-min" value="15" min="1" max="60" onchange="updateDurations()">
-        </div>
-    </div>
+<div class="mb-6 flex justify-center gap-3">
+    <button type="button" class="{{ btn_pri() }} min-w-[100px]" id="pom-start" onclick="toggleTimer()">
+        <i class="bi bi-play-fill"></i> Start
+    </button>
+    <button type="button" class="{{ btn_sm_sec() }}" onclick="resetTimer()"><i class="bi bi-arrow-counterclockwise"></i> Reset</button>
+</div>
 
-    <div style="margin-top:1.5rem">
-        <span style="font-size:.85rem;color:var(--text-light)">Sessions completed: </span>
-        <span id="pom-sessions" style="font-weight:600;color:var(--primary)">0</span>
+<div class="flex flex-wrap justify-center gap-4">
+    <div class="{{ field_block() }} mb-0 w-24">
+        <label class="{{ label_sm() }}">Work (min)</label>
+        <input type="number" id="pom-work-min" class="{{ input_cls() }}" value="25" min="1" max="120" onchange="updateDurations()">
     </div>
+    <div class="{{ field_block() }} mb-0 w-24">
+        <label class="{{ label_sm() }}">Short (min)</label>
+        <input type="number" id="pom-short-min" class="{{ input_cls() }}" value="5" min="1" max="30" onchange="updateDurations()">
+    </div>
+    <div class="{{ field_block() }} mb-0 w-24">
+        <label class="{{ label_sm() }}">Long (min)</label>
+        <input type="number" id="pom-long-min" class="{{ input_cls() }}" value="15" min="1" max="60" onchange="updateDurations()">
+    </div>
+</div>
+
+<div class="mt-6 text-center text-sm text-text-muted">
+    Sessions completed: <span class="font-semibold text-primary" id="pom-sessions">0</span>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+const POM_ON = {{ mode_btn_on() | tojson }};
+const POM_OFF = {{ mode_btn() | tojson }};
+
 let durations = { work: 25*60, short: 5*60, long: 15*60 };
 let currentTab = "work";
 let timeLeft = durations.work;
@@ -64,8 +63,8 @@ function setTab(tab) {
     timeLeft = durations[tab];
     updateDisplay();
     ["work","short","long"].forEach(t => {
-        document.getElementById("tab-" + t).style.background = t === tab ? "var(--primary)" : "var(--bg)";
-        document.getElementById("tab-" + t).style.color = t === tab ? "#fff" : "var(--text)";
+        const el = document.getElementById("tab-" + t);
+        el.className = "pom-tab " + (t === tab ? POM_ON : POM_OFF);
     });
     const labels = { work: "Work Session", short: "Short Break", long: "Long Break" };
     document.getElementById("pom-label").textContent = labels[tab];
@@ -94,7 +93,6 @@ function startTimer() {
                 sessions++;
                 document.getElementById("pom-sessions").textContent = sessions;
                 try { new Audio("data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1idH2Mem1naXaAg3x0cHZ/g4F8eHl6fn98enl4eXx+fn18fHx8fn5+fX19fX5+fn19fX1+fn59fX19fn5+fX19fX5+fn19fX1+fn59fX19fn5+").play(); } catch(e){}
-                // Auto-switch to break
                 if (sessions % 4 === 0) setTab("long");
                 else setTab("short");
             } else {

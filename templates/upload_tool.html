@@ -1,145 +1,178 @@
-{% extends "base.html" %}
-{% block title %}{{ title }} - EveryTools{% endblock %}
-{% block top_title %}{{ title }}{% endblock %}
+{% extends "layouts/tool_workspace.html" %}
+{% from "components/_tw_workspace.html" import btn_pri, btn_sec %}
+{% set hide_tool_header = true %}
+{% block title %}{{ title }} - Your Everyday Tools{% endblock %}
 
-{% block content %}
-<div class="tool-page">
-    <div class="tool-header">
-        <h1>{{ title }}</h1>
-        <p>{{ description }}</p>
+{% block workspace_input %}
+{% if options %}
+{% set basic_opts = options | rejectattr('advanced') | list %}
+{% set adv_opts = options | selectattr('advanced') | list %}
+{% else %}
+{% set basic_opts = [] %}
+{% set adv_opts = [] %}
+{% endif %}
+
+<div class="workspace-steps flex flex-col gap-4">
+    <div class="workspace-step-card rounded-md border border-border bg-bg-subtle p-4" data-step="1">
+        <div class="workspace-step-header mb-4 flex items-center gap-3">
+            <span class="workspace-step-num inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-white" aria-hidden="true">1</span>
+            <h3 class="workspace-step-title m-0 text-base font-bold leading-snug text-text">{{ step1_title | default('Step 1: Add Files') }}</h3>
+        </div>
+        <div class="workspace-step-body">
+            <form id="tool-form" data-endpoint="{{ endpoint }}" data-preview-images="{{ 'true' if preview_images | default(true) else 'false' }}">
+                {% if text_input %}
+                <div class="mb-4">
+                    <label for="text-input" class="mb-1.5 block text-sm font-medium text-text">{{ text_label|default('Enter text') }}</label>
+                    <textarea id="text-input" name="text" class="min-h-[100px] w-full resize-y rounded-md border border-border bg-surface px-3.5 py-2 font-sans text-sm text-text outline-none transition focus:border-primary focus:ring-[3px] focus:ring-primary/10" rows="4"
+                        placeholder="{{ text_placeholder|default('Type or paste here...') }}"></textarea>
+                </div>
+                {% else %}
+                <div class="upload-zone relative cursor-pointer rounded-md border-2 border-dashed border-border bg-surface px-6 py-10 text-center transition hover:border-primary hover:bg-primary-soft" id="upload-zone">
+                    <input type="file" id="file-input" name="files" class="absolute inset-0 cursor-pointer opacity-0"
+                        accept="{{ accept }}" {{ 'multiple' if multiple }}>
+                    <div class="upload-prompt pointer-events-none" id="upload-prompt">
+                        <i class="bi bi-cloud-arrow-up mb-2 block text-3xl text-primary"></i>
+                        <p class="mb-1 font-medium text-text">Drag &amp; drop file{{ 's' if multiple }} here</p>
+                        <span class="text-sm text-text-muted">or click to browse</span>
+                        {% if accept %}<small class="mt-2 block text-xs text-text-muted">Accepted: {{ accept }}</small>{% endif %}
+                    </div>
+                </div>
+                <p class="upload-hint mt-2 text-xs text-text-muted" id="upload-hint">Up to 100 MB per file</p>
+                <div class="file-list" id="file-list"></div>
+                {% endif %}
+            </form>
+        </div>
     </div>
 
-    {% if notes %}
-    <div class="tool-notes">
-        {{ notes|safe }}
+    {% if basic_opts %}
+    <div class="workspace-step-card workspace-step-card--fold overflow-hidden rounded-md border border-border bg-bg-subtle p-0" data-step="2">
+        <div class="accordion workspace-step-accordion" id="basic-settings">
+            <button type="button" class="workspace-step-fold-trigger flex w-full cursor-pointer items-center justify-between gap-4 border-0 bg-transparent p-4 text-left font-inherit text-inherit" onclick="toggleStepAccordion(this)" aria-expanded="false">
+                <span class="workspace-step-fold-label flex min-w-0 items-start gap-3">
+                    <span class="workspace-step-num inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-white" aria-hidden="true">2</span>
+                    <span class="workspace-step-fold-text flex min-w-0 flex-col gap-0.5">
+                        <span class="workspace-step-title text-base font-bold leading-snug text-text">Step 2: Settings <span class="workspace-step-optional text-sm font-medium text-text-muted">(Optional)</span></span>
+                        <span class="workspace-step-hint block text-sm font-normal leading-snug text-text-muted">Page size, orientation, and more</span>
+                    </span>
+                </span>
+                <i class="bi bi-chevron-down chevron shrink-0 text-text-muted transition-transform duration-200" aria-hidden="true"></i>
+            </button>
+            <div class="accordion-panel border-0 px-4 pb-4 pl-[calc(1rem+28px+0.75rem)]">
+                <div class="tool-options flex flex-col gap-4" form="tool-form">
+                    {% for opt in basic_opts %}
+                    {% include "components/_option_field.html" %}
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
     </div>
     {% endif %}
 
-    <div id="capability-status" class="capability-status" data-endpoint="{{ endpoint }}" style="display:none"></div>
-
-    <form id="tool-form" data-endpoint="{{ endpoint }}">
-        {% if text_input %}
-        <div class="form-group">
-            <label for="text-input">{{ text_label|default('Enter text') }}</label>
-            <textarea id="text-input" name="text" class="text-input" rows="4"
-                placeholder="{{ text_placeholder|default('Type or paste here...') }}"></textarea>
-        </div>
-        {% else %}
-        <div class="upload-zone" id="upload-zone">
-            <input type="file" id="file-input" name="files"
-                accept="{{ accept }}" {{ 'multiple' if multiple }}>
-            <div class="upload-prompt" id="upload-prompt">
-                <i class="bi bi-cloud-arrow-up"></i>
-                <p>Drag &amp; drop file{{ 's' if multiple }} here</p>
-                <span>or click to browse</span>
-                {% if accept %}<small>Accepted: {{ accept }}</small>{% endif %}
-            </div>
-        </div>
-        <div class="file-list" id="file-list"></div>
-        {% endif %}
-
-        {% if options %}
-        <div class="tool-options">
-            {% for opt in options %}
-            <div class="form-group option-group"
-                {% if opt.depends_on %}
-                data-depends-on="{{ opt.depends_on.keys()|list|first }}"
-                data-depends-value="{{ opt.depends_on.values()|list|first }}"
-                {% endif %}>
-                <label for="opt-{{ opt.name }}">{{ opt.label }}</label>
-
-                {% if opt.type == 'select' %}
-                <select id="opt-{{ opt.name }}" name="{{ opt.name }}">
-                    {% for c in opt.choices %}
-                    <option value="{{ c.value }}" {{ 'selected' if c.value == opt.get('default','') }}>{{ c.label }}</option>
-                    {% endfor %}
-                </select>
-
-                {% elif opt.type == 'number' %}
-                <input type="number" id="opt-{{ opt.name }}" name="{{ opt.name }}"
-                    value="{{ opt.default|default('') }}"
-                    min="{{ opt.min|default('') }}" max="{{ opt.max|default('') }}"
-                    step="{{ opt.step|default('1') }}">
-
-                {% elif opt.type == 'color' %}
-                <input type="color" id="opt-{{ opt.name }}" name="{{ opt.name }}"
-                    value="{{ opt.default|default('#ffffff') }}">
-
-                {% elif opt.type == 'text' %}
-                <input type="text" id="opt-{{ opt.name }}" name="{{ opt.name }}"
-                    value="{{ opt.default|default('') }}"
-                    placeholder="{{ opt.placeholder|default('') }}">
-
-                {% elif opt.type == 'password' %}
-                <input type="password" id="opt-{{ opt.name }}" name="{{ opt.name }}"
-                    placeholder="{{ opt.placeholder|default('') }}">
-
-                {% elif opt.type == 'file' %}
-                <input type="file" id="opt-{{ opt.name }}" name="{{ opt.name }}"
-                    accept="{{ opt.accept|default('') }}"
-                    {{ 'required' if opt.required }}>
-
-                {% elif opt.type == 'checkbox' %}
-                <label class="checkbox-label">
-                    <input type="checkbox" id="opt-{{ opt.name }}" name="{{ opt.name }}"
-                        {{ 'checked' if opt.default }}>
-                    <span>{{ opt.check_label|default('Enable') }}</span>
-                </label>
-
-                {% elif opt.type == 'range' %}
-                <div class="range-group">
-                    <input type="range" id="opt-{{ opt.name }}" name="{{ opt.name }}"
-                        value="{{ opt.default|default(50) }}"
-                        min="{{ opt.min|default(0) }}" max="{{ opt.max|default(100) }}"
-                        step="{{ opt.step|default(1) }}"
-                        oninput="this.nextElementSibling.textContent=this.value+'{{ opt.suffix|default('') }}'">
-                    <span class="range-value">{{ opt.default|default(50) }}{{ opt.suffix|default('') }}</span>
-                </div>
-
-                {% elif opt.type == 'radio' %}
-                <div class="radio-group">
-                    {% for c in opt.choices %}
-                    <label class="radio-label">
-                        <input type="radio" name="{{ opt.name }}" value="{{ c.value }}"
-                            {{ 'checked' if c.value == opt.default }}>
-                        <span>{{ c.label }}</span>
-                    </label>
+    {% if adv_opts %}
+    <div class="workspace-step-card workspace-step-card--fold overflow-hidden rounded-md border border-border bg-bg-subtle p-0" data-step="3">
+        <div class="accordion workspace-step-accordion" id="advanced-settings">
+            <button type="button" class="workspace-step-fold-trigger flex w-full cursor-pointer items-center justify-between gap-4 border-0 bg-transparent p-4 text-left font-inherit text-inherit" onclick="toggleStepAccordion(this)" aria-expanded="false">
+                <span class="workspace-step-fold-label flex min-w-0 items-start gap-3">
+                    <span class="workspace-step-num inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-white" aria-hidden="true">3</span>
+                    <span class="workspace-step-fold-text flex min-w-0 flex-col gap-0.5">
+                        <span class="workspace-step-title text-base font-bold leading-snug text-text">Step 3: Advanced Options</span>
+                        <span class="workspace-step-hint block text-sm font-normal leading-snug text-text-muted">Metadata, compression, and security</span>
+                    </span>
+                </span>
+                <i class="bi bi-chevron-down chevron shrink-0 text-text-muted transition-transform duration-200" aria-hidden="true"></i>
+            </button>
+            <div class="accordion-panel border-0 px-4 pb-4 pl-[calc(1rem+28px+0.75rem)]">
+                <div class="tool-options flex flex-col gap-4" form="tool-form">
+                    {% for opt in adv_opts %}
+                    {% include "components/_option_field.html" %}
                     {% endfor %}
                 </div>
-                {% endif %}
             </div>
-            {% endfor %}
-        </div>
-        {% endif %}
-
-        <button type="submit" class="btn btn-primary" id="submit-btn">
-            <span class="btn-text">{{ button_text|default('Process') }}</span>
-            <span class="btn-loading" style="display:none">
-                <i class="bi bi-arrow-repeat spin"></i> Processing...
-            </span>
-        </button>
-    </form>
-
-    <div id="result-area" class="result-area" style="display:none">
-        <div id="result-success" class="result-success" style="display:none">
-            <i class="bi bi-check-circle-fill"></i>
-            <span id="result-message">Done!</span>
-            <a id="download-btn" class="btn btn-success" download>
-                <i class="bi bi-download"></i> Download
-            </a>
-            <div id="result-preview" style="display:none"></div>
-        </div>
-        <div id="result-text" class="result-text-box" style="display:none">
-            <div class="result-text-header">
-                <span>Result</span>
-                <button class="btn btn-small" onclick="copyResult()"><i class="bi bi-clipboard"></i> Copy</button>
-            </div>
-            <pre id="result-text-content"></pre>
-        </div>
-        <div id="result-error" class="result-error" style="display:none">
-            <i class="bi bi-exclamation-circle-fill"></i>
-            <span id="error-message"></span>
         </div>
     </div>
+    {% endif %}
 </div>
+{% endblock %}
+
+{% block workspace_settings %}{% endblock %}
+
+{% block workspace_actions %}
+<button type="submit" form="tool-form" class="{{ btn_pri() }}" id="submit-btn">
+    <span class="btn-text">{{ button_text|default('Process') }}</span>
+    <span class="btn-loading hidden items-center gap-1.5">
+        <i class="bi bi-arrow-repeat spin"></i> Processing…
+    </span>
+</button>
+<button type="button" class="{{ btn_sec() }}" onclick="resetUploadTool()">Reset</button>
+{% endblock %}
+
+{% block workspace_output_toolbar %}
+<div class="preview-toolbar flex flex-wrap items-center gap-3" id="preview-toolbar" hidden>
+    <div class="preview-view-toggle flex rounded-lg border border-border bg-bg-subtle p-0.5" role="group" aria-label="Preview layout">
+        <button type="button" class="preview-toggle-btn active inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-text-muted transition" data-preview-view="grid" title="Grid view"><i class="bi bi-grid-3x3-gap"></i> Grid</button>
+        <button type="button" class="preview-toggle-btn inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-text-muted transition" data-preview-view="list" title="List view"><i class="bi bi-list-ul"></i> List</button>
+    </div>
+    <div class="preview-zoom flex items-center gap-1 rounded-lg border border-border bg-bg-subtle px-2 py-1 text-sm" aria-label="Zoom">
+        <button type="button" class="preview-zoom-btn flex h-7 w-7 items-center justify-center rounded-md border-0 bg-transparent text-text hover:bg-surface" data-zoom-delta="-10" title="Zoom out">−</button>
+        <span id="preview-zoom-label" class="min-w-[3rem] text-center text-xs font-medium">100%</span>
+        <button type="button" class="preview-zoom-btn flex h-7 w-7 items-center justify-center rounded-md border-0 bg-transparent text-text hover:bg-surface" data-zoom-delta="10" title="Zoom in">+</button>
+    </div>
+    <div class="preview-download-split flex overflow-hidden rounded-xl" id="preview-download-wrap" hidden>
+        <a id="preview-download-btn" class="preview-download-main inline-flex items-center gap-1.5 bg-primary px-4 py-2 text-sm font-medium text-white no-underline hover:bg-primary-dark" download>
+            <i class="bi bi-download"></i> Download
+        </a>
+        <button type="button" class="preview-download-caret inline-flex items-center border-0 border-l border-primary-dark/30 bg-primary px-2 py-2 text-white hover:bg-primary-dark" id="preview-download-caret" title="Download options" aria-label="Download options">
+            <i class="bi bi-chevron-down"></i>
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block workspace_output %}
+<div id="workspace-preview-grid" class="workspace-preview-grid grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-3" hidden></div>
+<div id="result-area" class="hidden h-full">
+    <div id="result-success" class="result-success hidden flex-col items-stretch">
+        <div class="flex flex-wrap items-center gap-2.5">
+            <i class="bi bi-check-circle-fill text-success"></i>
+            <span id="result-message">Done!</span>
+            <a id="download-btn" class="ml-auto inline-flex items-center gap-1.5 rounded-xl bg-success px-4 py-2 text-sm font-medium text-white no-underline hover:opacity-90" download>
+                <i class="bi bi-download"></i> Download
+            </a>
+        </div>
+        <div id="result-preview" class="mt-4 hidden"></div>
+    </div>
+    <div id="result-text" class="result-text-box hidden h-full flex-col">
+        <div class="result-text-header flex items-center justify-between border-b border-border px-4 py-2 text-sm font-semibold">
+            <span>Result</span>
+            <button class="inline-flex items-center gap-1 rounded-md border border-border bg-bg px-2.5 py-1 text-xs hover:bg-border" onclick="copyResult()"><i class="bi bi-clipboard"></i> Copy</button>
+        </div>
+        <pre id="result-text-content" class="flex-1 overflow-auto p-4 font-mono text-sm"></pre>
+    </div>
+    <div id="result-error" class="result-error hidden items-center gap-2 rounded-md bg-red-50 px-4 py-3 text-sm text-red-800 dark:bg-red-950/40 dark:text-red-300">
+        <i class="bi bi-exclamation-circle-fill"></i>
+        <span id="error-message"></span>
+    </div>
+</div>
+<div class="workspace-preview-empty flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center text-text-muted" id="workspace-preview-empty">
+    <i class="bi bi-eye text-3xl opacity-50"></i>
+    <p class="text-sm">Output will appear here after you add files.</p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleStepAccordion(btn) {
+    const acc = btn.parentElement;
+    acc.classList.toggle("open");
+    btn.setAttribute("aria-expanded", acc.classList.contains("open") ? "true" : "false");
+}
+
+function resetUploadTool() {
+    selectedFiles = [];
+    renderFileList();
+    const form = document.getElementById("tool-form");
+    if (form) form.reset();
+    resetWorkspacePreview();
+}
+</script>
 {% endblock %}

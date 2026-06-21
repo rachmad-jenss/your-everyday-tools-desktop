@@ -1,37 +1,30 @@
-{% extends "base.html" %}
-{% block title %}CSV / JSON Converter - EveryTools{% endblock %}
-{% block top_title %}CSV / JSON{% endblock %}
+{% extends "layouts/tool_workspace.html" %}
+{% from "components/_tw_workspace.html" import btn_pri, btn_sm, textarea, pre_plain, inline_status, mode_wrap, mode_btn, mode_btn_on %}
+{% set title = "CSV / JSON Converter" %}
+{% set description = "Convert between CSV and JSON formats" %}
 
-{% block content %}
-<div class="client-tool">
-    <div class="tool-header">
-        <h1>CSV / JSON Converter</h1>
-        <p>Convert between CSV and JSON formats</p>
-    </div>
-    <div style="margin-bottom:1rem">
-        <button class="btn btn-primary" id="btn-csv" onclick="setMode('csv')" style="opacity:1">CSV &rarr; JSON</button>
-        <button class="btn btn-primary" id="btn-json" onclick="setMode('json')" style="opacity:.5">JSON &rarr; CSV</button>
-    </div>
-    <div class="split-pane">
-        <div class="pane">
-            <div class="pane-header"><span id="input-label">CSV Input</span></div>
-            <div class="pane-body">
-                <textarea id="conv-input" placeholder="Paste your data here..."></textarea>
-            </div>
-        </div>
-        <div class="pane">
-            <div class="pane-header">
-                <span id="output-label">JSON Output</span>
-                <button class="btn btn-small" onclick="navigator.clipboard.writeText(document.getElementById('conv-output').textContent)"><i class="bi bi-clipboard"></i> Copy</button>
-            </div>
-            <div class="pane-body">
-                <pre id="conv-output"></pre>
-            </div>
-        </div>
-    </div>
-    <button class="btn btn-primary" style="margin-top:1rem" onclick="convert()">Convert</button>
-    <div id="conv-status" style="margin-top:.5rem;font-size:.85rem"></div>
+{% block workspace_settings %}
+<div class="{{ mode_wrap() }}">
+    <button type="button" class="{{ mode_btn_on() }}" id="btn-csv" onclick="setMode('csv')">CSV → JSON</button>
+    <button type="button" class="{{ mode_btn() }}" id="btn-json" onclick="setMode('json')">JSON → CSV</button>
 </div>
+{% endblock %}
+
+{% block workspace_input %}
+<textarea id="conv-input" class="{{ textarea() }}" placeholder="Paste your data here..."></textarea>
+{% endblock %}
+
+{% block workspace_actions %}
+<button type="button" class="{{ btn_pri() }}" onclick="convert()">Convert</button>
+{% endblock %}
+
+{% block workspace_output_toolbar %}
+<button type="button" class="{{ btn_sm() }}" onclick="copyOutput()"><i class="bi bi-clipboard"></i> Copy</button>
+{% endblock %}
+
+{% block workspace_output %}
+<pre id="conv-output" class="{{ pre_plain() }}"></pre>
+<div id="conv-status" class="{{ inline_status() }}"></div>
 {% endblock %}
 
 {% block scripts %}
@@ -40,17 +33,20 @@ let mode = "csv";
 
 function setMode(m) {
     mode = m;
-    document.getElementById("btn-csv").style.opacity = m === "csv" ? 1 : .5;
-    document.getElementById("btn-json").style.opacity = m === "json" ? 1 : .5;
-    document.getElementById("input-label").textContent = m === "csv" ? "CSV Input" : "JSON Input";
-    document.getElementById("output-label").textContent = m === "csv" ? "JSON Output" : "CSV Output";
+    document.getElementById("btn-csv").className = m === "csv" ? TW.modeBtnOn : TW.modeBtn;
+    document.getElementById("btn-json").className = m === "json" ? TW.modeBtnOn : TW.modeBtn;
+    updateWorkspaceStatus(m === "csv" ? "CSV → JSON" : "JSON → CSV", "idle");
 }
 
 function convert() {
     const input = document.getElementById("conv-input").value.trim();
     const status = document.getElementById("conv-status");
     const output = document.getElementById("conv-output");
-    if (!input) { status.innerHTML = '<span style="color:var(--danger)">Please enter data.</span>'; return; }
+    if (!input) {
+        setInlineStatus(status, "Please enter data.", "error");
+        updateWorkspaceStatus("Please enter data.", "error");
+        return;
+    }
 
     try {
         if (mode === "csv") {
@@ -77,9 +73,11 @@ function convert() {
             });
             output.textContent = lines.join("\n");
         }
-        status.innerHTML = '<span style="color:var(--success)"><i class="bi bi-check-circle"></i> Converted successfully</span>';
+        setInlineStatus(status, "Converted successfully", "success");
+        updateWorkspaceStatus("Converted", "success");
     } catch (e) {
-        status.innerHTML = `<span style="color:var(--danger)"><i class="bi bi-x-circle"></i> ${e.message}</span>`;
+        setInlineStatus(status, e.message, "error");
+        updateWorkspaceStatus(e.message, "error");
     }
 }
 
@@ -100,6 +98,11 @@ function parseCSVLine(line) {
     }
     result.push(current.trim());
     return result;
+}
+
+function copyOutput() {
+    navigator.clipboard.writeText(document.getElementById("conv-output").textContent);
+    showToast("Copied to clipboard", "success");
 }
 </script>
 {% endblock %}

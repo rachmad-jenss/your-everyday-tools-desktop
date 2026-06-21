@@ -1,42 +1,26 @@
-{% extends "base.html" %}
-{% block title %}JS Formatter - EveryTools{% endblock %}
-{% block top_title %}JS Formatter{% endblock %}
+{% extends "layouts/tool_workspace.html" %}
+{% from "components/_tw_workspace.html" import btn_sm_sec, btn_sm, textarea, pre_out, inline_status %}
+{% set title = "JS Formatter" %}
+{% set description = "Basic beautification and minification. For complex code, use a full tool like Prettier." %}
 
-{% block content %}
-<div class="client-tool">
-    <div class="tool-header">
-        <h1>JavaScript Formatter</h1>
-        <p>Basic beautification and minification. For complex code, use a full tool like Prettier.</p>
-    </div>
-    <div class="split-pane">
-        <div class="pane">
-            <div class="pane-header">
-                <span>Input</span>
-                <div>
-                    <button class="btn btn-small" onclick="formatJS()">Beautify</button>
-                    <button class="btn btn-small" onclick="minifyJS()">Minify</button>
-                </div>
-            </div>
-            <div class="pane-body">
-                <textarea id="js-input" placeholder="function hello(){console.log('hi');}"></textarea>
-            </div>
-        </div>
-        <div class="pane">
-            <div class="pane-header">
-                <span>Output</span>
-                <button class="btn btn-small" onclick="copyOutput()"><i class="bi bi-clipboard"></i> Copy</button>
-            </div>
-            <div class="pane-body">
-                <pre id="js-output"></pre>
-            </div>
-        </div>
-    </div>
+{% block workspace_input %}
+<div class="mb-3 flex flex-wrap gap-2">
+    <button type="button" class="{{ btn_sm_sec() }}" onclick="formatJS()">Beautify</button>
+    <button type="button" class="{{ btn_sm_sec() }}" onclick="minifyJS()">Minify</button>
 </div>
+<textarea id="js-input" class="{{ textarea() }}" placeholder="function hello(){console.log('hi');}"></textarea>
+{% endblock %}
+
+{% block workspace_output_toolbar %}
+<button type="button" class="{{ btn_sm() }}" onclick="copyOutput()"><i class="bi bi-clipboard"></i> Copy</button>
+{% endblock %}
+
+{% block workspace_output %}
+<pre id="js-output" class="{{ pre_out() }}"></pre>
 {% endblock %}
 
 {% block scripts %}
 <script>
-// Stash strings, regex, and comments so we don't mangle them.
 function protect(src) {
     const stash = [];
     let i = 0;
@@ -81,7 +65,6 @@ function formatJS() {
 
     let out = "";
     let depth = 0;
-    let inParens = 0;
     const pad = () => "  ".repeat(depth);
     let lineStarted = true;
 
@@ -96,7 +79,6 @@ function formatJS() {
             depth = Math.max(0, depth - 1);
             out = out.trimEnd() + "\n" + pad() + "}";
             lineStarted = false;
-            // Newline after } unless followed by comma/semicolon/paren
             const nx = code[skipSpace(code, i + 1)];
             if (nx && ",;)]".indexOf(nx) === -1) { out += "\n"; lineStarted = true; }
         } else if (c === ";") {
@@ -104,10 +86,8 @@ function formatJS() {
             lineStarted = true;
             i = skipSpace(code, i + 1) - 1;
         } else if (c === "(") {
-            inParens++;
             out += c;
         } else if (c === ")") {
-            inParens = Math.max(0, inParens - 1);
             out += c;
         } else if (c === "\n" || c === "\r") {
             if (!lineStarted) { out += "\n"; lineStarted = true; }
@@ -122,6 +102,7 @@ function formatJS() {
 
     out = out.replace(/\n{3,}/g, "\n\n");
     document.getElementById("js-output").textContent = restore(out, stash).trim();
+    updateWorkspaceStatus("Beautified", "success");
 }
 
 function skipSpace(s, i) {
@@ -138,10 +119,12 @@ function minifyJS() {
         .replace(/\s+/g, " ")
         .trim();
     document.getElementById("js-output").textContent = restore(minified, stash);
+    updateWorkspaceStatus("Minified", "success");
 }
 
 function copyOutput() {
     navigator.clipboard.writeText(document.getElementById("js-output").textContent);
+    showToast("Copied to clipboard", "success");
 }
 </script>
 {% endblock %}

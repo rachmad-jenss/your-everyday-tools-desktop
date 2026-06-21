@@ -1,39 +1,38 @@
-{% extends "base.html" %}
-{% block title %}Lorem Ipsum Generator - EveryTools{% endblock %}
-{% block top_title %}Lorem Ipsum{% endblock %}
+{% extends "layouts/tool_workspace.html" %}
 
-{% block content %}
-<div class="client-tool">
-    <div class="tool-header">
-        <h1>Lorem Ipsum Generator</h1>
-        <p>Generate placeholder text for your designs and layouts</p>
+{% from "components/_tw_workspace.html" import btn_sm, field_block, label_sm, input_sm, select_cls, check_label, checkbox, pane, pane_header, pane_body %}
+
+{% set title = "Lorem Ipsum Generator" %}
+{% set description = "Generate placeholder text for your designs and layouts" %}
+{% set workspace_single = true %}
+
+{% block workspace_input %}
+<div class="mb-4 flex flex-wrap items-end gap-3">
+    <div class="{{ field_block() }} mb-0">
+        <label class="{{ label_sm() }}">Amount</label>
+        <input type="number" id="li-count" class="{{ input_sm() }} w-20" value="3" min="1" max="100" oninput="generate()">
     </div>
-    <div style="display:flex;gap:.8rem;align-items:flex-end;margin-bottom:1rem;flex-wrap:wrap">
-        <div class="form-group" style="margin-bottom:0">
-            <label>Amount</label>
-            <input type="number" id="li-count" value="3" min="1" max="100" style="width:80px" oninput="generate()">
-        </div>
-        <div class="form-group" style="margin-bottom:0">
-            <label>Type</label>
-            <select id="li-type" onchange="generate()">
-                <option value="paragraphs">Paragraphs</option>
-                <option value="sentences">Sentences</option>
-                <option value="words">Words</option>
-            </select>
-        </div>
-        <label class="checkbox-label" style="margin-bottom:.3rem">
-            <input type="checkbox" id="li-start" checked onchange="generate()">
-            <span>Start with "Lorem ipsum..."</span>
-        </label>
+    <div class="{{ field_block() }} mb-0">
+        <label class="{{ label_sm() }}">Type</label>
+        <select id="li-type" class="{{ select_cls() }} w-auto min-w-[140px]" onchange="generate()">
+            <option value="paragraphs">Paragraphs</option>
+            <option value="sentences">Sentences</option>
+            <option value="words">Words</option>
+        </select>
     </div>
-    <div class="pane">
-        <div class="pane-header">
-            <span>Generated Text</span>
-            <button class="btn btn-small" onclick="navigator.clipboard.writeText(document.getElementById('li-output').textContent)"><i class="bi bi-clipboard"></i> Copy</button>
-        </div>
-        <div class="pane-body">
-            <div id="li-output" style="white-space:pre-wrap;line-height:1.7;font-size:.9rem;min-height:150px"></div>
-        </div>
+    <label class="{{ check_label() }} mb-1">
+        <input type="checkbox" id="li-start" class="{{ checkbox() }}" checked onchange="generate()">
+        <span>Start with "Lorem ipsum..."</span>
+    </label>
+</div>
+
+<div class="{{ pane() }}">
+    <div class="{{ pane_header() }}">
+        <span>Generated Text</span>
+        <button type="button" class="{{ btn_sm() }}" onclick="navigator.clipboard.writeText(document.getElementById('li-output').textContent)"><i class="bi bi-clipboard"></i> Copy</button>
+    </div>
+    <div class="{{ pane_body() }}">
+        <div id="li-output" class="min-h-[150px] whitespace-pre-wrap text-sm leading-relaxed text-text"></div>
     </div>
 </div>
 {% endblock %}

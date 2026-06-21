@@ -1,43 +1,42 @@
-{% extends "base.html" %}
-{% block title %}Word Counter - EveryTools{% endblock %}
-{% block top_title %}Word Counter{% endblock %}
+{% extends "layouts/tool_workspace.html" %}
 
-{% block content %}
-<div class="client-tool">
-    <div class="tool-header">
-        <h1>Word Counter</h1>
-        <p>Count words, characters, sentences, and paragraphs</p>
+{% from "components/_tw_workspace.html" import textarea, stat_card, calc_result, pane, pane_body %}
+
+{% set title = "Word Counter" %}
+{% set description = "Count words, characters, sentences, and paragraphs" %}
+{% set workspace_single = true %}
+
+{% block workspace_input %}
+<div class="{{ pane() }} mb-4">
+    <div class="{{ pane_body() }}">
+        <textarea id="wc-input" class="{{ textarea() }} min-h-[200px]" placeholder="Type or paste your text here..." oninput="countWords()"></textarea>
     </div>
-    <div class="pane" style="margin-bottom:1rem">
-        <div class="pane-body">
-            <textarea id="wc-input" style="min-height:200px" placeholder="Type or paste your text here..." oninput="countWords()"></textarea>
-        </div>
+</div>
+
+<div class="grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-3">
+    <div class="{{ stat_card() }}">
+        <div class="{{ calc_result() }}" id="wc-words">0</div>
+        <div class="text-sm text-text-muted">Words</div>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.8rem">
-        <div class="calc-section" style="text-align:center">
-            <div class="calc-result-inline" id="wc-words">0</div>
-            <div style="font-size:.85rem;color:var(--text-light)">Words</div>
-        </div>
-        <div class="calc-section" style="text-align:center">
-            <div class="calc-result-inline" id="wc-chars">0</div>
-            <div style="font-size:.85rem;color:var(--text-light)">Characters</div>
-        </div>
-        <div class="calc-section" style="text-align:center">
-            <div class="calc-result-inline" id="wc-chars-ns">0</div>
-            <div style="font-size:.85rem;color:var(--text-light)">Characters (no spaces)</div>
-        </div>
-        <div class="calc-section" style="text-align:center">
-            <div class="calc-result-inline" id="wc-sentences">0</div>
-            <div style="font-size:.85rem;color:var(--text-light)">Sentences</div>
-        </div>
-        <div class="calc-section" style="text-align:center">
-            <div class="calc-result-inline" id="wc-paragraphs">0</div>
-            <div style="font-size:.85rem;color:var(--text-light)">Paragraphs</div>
-        </div>
-        <div class="calc-section" style="text-align:center">
-            <div class="calc-result-inline" id="wc-reading">0 min</div>
-            <div style="font-size:.85rem;color:var(--text-light)">Reading Time</div>
-        </div>
+    <div class="{{ stat_card() }}">
+        <div class="{{ calc_result() }}" id="wc-chars">0</div>
+        <div class="text-sm text-text-muted">Characters</div>
+    </div>
+    <div class="{{ stat_card() }}">
+        <div class="{{ calc_result() }}" id="wc-chars-ns">0</div>
+        <div class="text-sm text-text-muted">Characters (no spaces)</div>
+    </div>
+    <div class="{{ stat_card() }}">
+        <div class="{{ calc_result() }}" id="wc-sentences">0</div>
+        <div class="text-sm text-text-muted">Sentences</div>
+    </div>
+    <div class="{{ stat_card() }}">
+        <div class="{{ calc_result() }}" id="wc-paragraphs">0</div>
+        <div class="text-sm text-text-muted">Paragraphs</div>
+    </div>
+    <div class="{{ stat_card() }}">
+        <div class="{{ calc_result() }}" id="wc-reading">0 min</div>
+        <div class="text-sm text-text-muted">Reading Time</div>
     </div>
 </div>
 {% endblock %}

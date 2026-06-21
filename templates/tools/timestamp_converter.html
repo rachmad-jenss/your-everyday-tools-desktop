@@ -1,54 +1,53 @@
-{% extends "base.html" %}
-{% block title %}Timestamp Converter - EveryTools{% endblock %}
-{% block top_title %}Timestamp Converter{% endblock %}
+{% extends "layouts/tool_workspace.html" %}
 
-{% block content %}
-<div class="client-tool">
-    <div class="tool-header">
-        <h1>Timestamp Converter</h1>
-        <p>Convert between Unix timestamps and human-readable dates</p>
+{% from "components/_tw_workspace.html" import btn_sm, calc_section, section_title, inline_form, input_cls, select_cls, calc_result %}
+
+{% set title = "Timestamp Converter" %}
+{% set description = "Convert between Unix timestamps and human-readable dates" %}
+{% set workspace_single = true %}
+
+{% block workspace_input %}
+<div class="{{ calc_section() }}">
+    <h3 class="{{ section_title() }}">Current Time</h3>
+    <div class="{{ calc_result() }}" id="ts-now"></div>
+    <div class="text-sm text-text-muted" id="ts-now-date"></div>
+</div>
+
+<div class="{{ calc_section() }}">
+    <h3 class="{{ section_title() }}">Unix Timestamp &rarr; Date</h3>
+    <div class="{{ inline_form() }}">
+        <input type="number" id="ts-input" placeholder="e.g. 1700000000" class="{{ input_cls() }} min-w-[200px] flex-1" oninput="tsToDate()">
+        <select id="ts-unit" class="{{ select_cls() }} w-auto" onchange="tsToDate()">
+            <option value="s">Seconds</option>
+            <option value="ms">Milliseconds</option>
+        </select>
     </div>
+    <div id="ts-to-date-result" class="mt-3 text-base font-medium text-text">&mdash;</div>
+</div>
 
-    <div class="calc-section">
-        <h3>Current Time</h3>
-        <div class="calc-result-inline" id="ts-now"></div>
-        <div style="font-size:.85rem;color:var(--text-light)" id="ts-now-date"></div>
+<div class="{{ calc_section() }}">
+    <h3 class="{{ section_title() }}">Date &rarr; Unix Timestamp</h3>
+    <div class="{{ inline_form() }}">
+        <input type="datetime-local" id="ts-date-input" class="{{ input_cls() }} min-w-[220px]" onchange="dateToTs()" step="1">
     </div>
-
-    <div class="calc-section">
-        <h3>Unix Timestamp &rarr; Date</h3>
-        <div class="inline-form">
-            <input type="number" id="ts-input" placeholder="e.g. 1700000000" class="wide" oninput="tsToDate()">
-            <select id="ts-unit" onchange="tsToDate()" style="width:auto">
-                <option value="s">Seconds</option>
-                <option value="ms">Milliseconds</option>
-            </select>
+    <div class="mt-3 flex gap-6">
+        <div>
+            <div class="text-xs text-text-muted">Seconds</div>
+            <div class="{{ calc_result() }} text-base" id="ts-from-date-s">&mdash;</div>
         </div>
-        <div id="ts-to-date-result" class="calc-result-inline" style="font-size:1rem;margin-top:.5rem">&mdash;</div>
-    </div>
-
-    <div class="calc-section">
-        <h3>Date &rarr; Unix Timestamp</h3>
-        <div class="inline-form">
-            <input type="datetime-local" id="ts-date-input" onchange="dateToTs()" step="1">
+        <div>
+            <div class="text-xs text-text-muted">Milliseconds</div>
+            <div class="{{ calc_result() }} text-base" id="ts-from-date-ms">&mdash;</div>
         </div>
-        <div style="display:flex;gap:1rem;margin-top:.5rem">
-            <div>
-                <div style="font-size:.8rem;color:var(--text-light)">Seconds</div>
-                <div class="calc-result-inline" id="ts-from-date-s" style="font-size:1rem">&mdash;</div>
-            </div>
-            <div>
-                <div style="font-size:.8rem;color:var(--text-light)">Milliseconds</div>
-                <div class="calc-result-inline" id="ts-from-date-ms" style="font-size:1rem">&mdash;</div>
-            </div>
-        </div>
-        <button class="btn btn-small" style="margin-top:.5rem" onclick="copyTs()"><i class="bi bi-clipboard"></i> Copy seconds</button>
     </div>
+    <button type="button" class="{{ btn_sm() }} mt-3" onclick="copyTs()"><i class="bi bi-clipboard"></i> Copy seconds</button>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+const TS_MUTED = "text-sm text-text-muted";
+
 function updateNow() {
     const now = Math.floor(Date.now() / 1000);
     document.getElementById("ts-now").textContent = now;
@@ -69,9 +68,9 @@ function tsToDate() {
     if (isNaN(d)) { document.getElementById("ts-to-date-result").textContent = "Invalid timestamp"; return; }
 
     document.getElementById("ts-to-date-result").innerHTML =
-        `<div>${d.toLocaleString()} <span style="color:var(--text-light);font-size:.85rem">(Local)</span></div>` +
-        `<div>${d.toUTCString()} <span style="color:var(--text-light);font-size:.85rem">(UTC)</span></div>` +
-        `<div>${d.toISOString()} <span style="color:var(--text-light);font-size:.85rem">(ISO 8601)</span></div>`;
+        `<div>${d.toLocaleString()} <span class="${TS_MUTED}">(Local)</span></div>` +
+        `<div>${d.toUTCString()} <span class="${TS_MUTED}">(UTC)</span></div>` +
+        `<div>${d.toISOString()} <span class="${TS_MUTED}">(ISO 8601)</span></div>`;
 }
 
 function dateToTs() {
@@ -88,7 +87,6 @@ function copyTs() {
     if (s !== "\u2014") navigator.clipboard.writeText(s);
 }
 
-// Pre-fill date input with now
 const now = new Date();
 const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 19);
 document.getElementById("ts-date-input").value = local;
