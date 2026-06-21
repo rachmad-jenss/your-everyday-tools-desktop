@@ -1,6 +1,6 @@
 {
   "name": "your-everyday-tools-desktop",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "Your Everyday Tools — 100+ offline utilities in a desktop app",
   "main": "main.js",
   "scripts": {
@@ -53,7 +53,7 @@
       }
     ],
     "releaseInfo": {
-      "releaseNotes": "v1.4.0 — Tailwind UI redesign\n\n• UI migrated to Tailwind with Poppins font (offline via @fontsource)\n• Electron two-row header: favicon + menu bar, then search + theme switcher\n• Sidebar: Recent (3), Favorites (5), expandable category tool lists\n• Search palette, breadcrumbs, favicon/logo branding, and dark-mode fixes"
+      "releaseNotes": "v1.4.1 — Tailwind UI redesign (icon fix)\n\n• Same as v1.4.0 plus fix for Windows installer build (icon.ico now includes 256×256)\n• Tailwind UI, Electron chrome, sidebar category dropdowns, Poppins font"
     },
     "mac": {
       "target": "dmg",

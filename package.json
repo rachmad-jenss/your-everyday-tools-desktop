@@ -9,6 +9,8 @@
   "scripts": {
     "build:css": "npx @tailwindcss/cli -i ./static/css/app.input.css -o ./static/css/app.css --minify",
     "watch:css": "npx @tailwindcss/cli -i ./static/css/app.input.css -o ./static/css/app.css --watch",
+    "build:icon": "node scripts/build_icon_ico.mjs",
+    "build:brand": "python scripts/build_favicon.py && npm run build:icon",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -21,6 +23,8 @@
   "devDependencies": {
     "@fontsource/poppins": "^5.2.7",
     "@tailwindcss/cli": "^4.3.1",
+    "png-to-ico": "^2.1.8",
+    "sharp": "^0.33.5",
     "tailwindcss": "^4.3.1"
   }
 }

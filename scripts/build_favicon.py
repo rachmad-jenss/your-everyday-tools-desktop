@@ -19,7 +19,6 @@ def glyph_path_d() -> str:
     glyph_set = font.getGlyphSet()
     pen = SVGPathPen(glyph_set)
     glyph_set[glyph_name].draw(pen)
-    # fontTools 4.x: serialize path commands to SVG d
     parts = []
     for cmd in pen.getCommands():
         op = cmd[0]
@@ -41,11 +40,11 @@ def glyph_path_d() -> str:
     return d
 
 
-font = TTFont(font_path)
-upem = font["head"].unitsPerEm
-d = glyph_path_d()
-
-favicon = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+def main() -> None:
+    font = TTFont(font_path)
+    upem = font["head"].unitsPerEm
+    d = glyph_path_d()
+    favicon = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
   <rect width="32" height="32" rx="8" fill="#4f46e5"/>
   <svg x="8" y="8" width="16" height="16" viewBox="0 0 {upem} {upem}">
     <g transform="scale(1 -1) translate(0 -{upem})" fill="#ffffff">
@@ -54,6 +53,9 @@ favicon = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="
   </svg>
 </svg>
 """
+    favicon_path.write_text(favicon, encoding="utf-8")
+    print(f"Wrote {favicon_path}")
 
-favicon_path.write_text(favicon, encoding="utf-8")
-print(f"Wrote {favicon_path}")
+
+if __name__ == "__main__":
+    main()

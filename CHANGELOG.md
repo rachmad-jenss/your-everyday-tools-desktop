@@ -2,6 +2,12 @@
 
 All notable changes to **Your Everyday Tools** are documented here. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project loosely follows [Semantic Versioning](https://semver.org/).
 
+## [Desktop 1.4.1] — 2026-06-21
+
+### Fixed
+
+- **Windows installer build** — regenerate `images/icon.ico` with 256×256 (and smaller) sizes required by electron-builder.
+
 ## [Desktop 1.4.0] — 2026-06-21
 
 ### Added
