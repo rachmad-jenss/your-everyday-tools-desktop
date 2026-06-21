@@ -1,0 +1,34 @@
+<div class="search-palette fixed inset-0 z-[10000] hidden items-start justify-center pt-[12vh]" id="search-palette" role="dialog" aria-modal="true" aria-label="Search tools" aria-hidden="true">
+
+    <div class="palette-backdrop absolute inset-0 bg-slate-900/45 backdrop-blur-sm" data-palette-close></div>
+
+    <div class="palette-dialog relative w-[min(560px,calc(100vw-2rem))] overflow-hidden rounded-md border border-border bg-surface shadow-lg animate-[paletteIn_0.2s_ease]">
+
+        <div class="palette-input-wrap flex items-center gap-3 border-b border-border px-4 py-4">
+
+            <i class="bi bi-search text-lg text-text-muted"></i>
+
+            <input type="text" id="palette-input"
+
+                class="flex-1 border-0 bg-transparent font-sans text-base text-text outline-none placeholder:text-text-muted"
+
+                placeholder="Search tools, files, or actions…" autocomplete="off" aria-label="Search">
+
+        </div>
+
+        <div class="palette-results max-h-[360px] overflow-y-auto p-2" id="palette-results" role="listbox"></div>
+
+        <div class="palette-footer flex gap-4 border-t border-border px-4 py-2 text-[0.72rem] text-text-muted">
+
+            <span><kbd class="rounded border border-border bg-bg px-1.5 py-0.5 font-sans">↑↓</kbd> Navigate</span>
+
+            <span><kbd class="rounded border border-border bg-bg px-1.5 py-0.5 font-sans">Enter</kbd> Open</span>
+
+            <span><kbd class="rounded border border-border bg-bg px-1.5 py-0.5 font-sans">Esc</kbd> Close</span>
+
+        </div>
+
+    </div>
+
+</div>
+

@@ -1,0 +1,42 @@
+{% macro category_card(cat) %}
+
+{% set icon_tones = {
+
+    'convert': 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-300',
+
+    'pdf': 'bg-red-50 text-red-600 dark:bg-red-950/50 dark:text-red-300',
+
+    'spreadsheet': 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-300',
+
+    'image': 'bg-violet-50 text-violet-600 dark:bg-violet-950/50 dark:text-violet-300',
+
+    'text': 'bg-sky-50 text-sky-600 dark:bg-sky-950/50 dark:text-sky-300',
+
+    'calc': 'bg-amber-50 text-amber-600 dark:bg-amber-950/50 dark:text-amber-300',
+
+    'qr': 'bg-pink-50 text-pink-600 dark:bg-pink-950/50 dark:text-pink-300',
+
+    'security': 'bg-orange-50 text-orange-600 dark:bg-orange-950/50 dark:text-orange-300',
+
+    'dev': 'bg-cyan-50 text-cyan-600 dark:bg-cyan-950/50 dark:text-cyan-300',
+
+    'archive': 'bg-stone-100 text-stone-600 dark:bg-stone-800/50 dark:text-stone-300',
+
+    'media': 'bg-fuchsia-50 text-fuchsia-600 dark:bg-fuchsia-950/50 dark:text-fuchsia-300'
+
+} %}
+
+{% set tone = icon_tones.get(cat.id, 'bg-primary-soft text-primary') %}
+
+<a href="/tools?category={{ cat.id }}" class="category-card group block rounded-[14px] border border-border-light bg-surface px-4 py-6 text-center text-text shadow-sm transition hover:-translate-y-0.5 hover:border-border hover:shadow-md no-underline" data-cat="{{ cat.id }}">
+
+    <div class="category-card-icon mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl text-[1.35rem] {{ tone }}"><i class="bi {{ cat.icon }}"></i></div>
+
+    <h3 class="mb-1 text-[0.8125rem] font-semibold leading-snug">{{ cat.name }}</h3>
+
+    <span class="tool-count text-xs text-text-muted">{{ cat.tools | length }} Tools</span>
+
+</a>
+
+{% endmacro %}
+

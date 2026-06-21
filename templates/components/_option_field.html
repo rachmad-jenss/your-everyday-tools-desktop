@@ -1,0 +1,157 @@
+{# Shared field utilities for upload tool options #}
+
+{% set field_input = "w-full min-h-11 rounded-lg border border-border bg-surface px-3.5 py-2.5 font-sans text-sm text-text outline-none transition focus:border-primary focus:ring-[3px] focus:ring-primary/10" %}
+
+{% set field_label = "mb-2 block text-sm font-medium text-text" %}
+
+
+
+<div class="option-group mb-4 last:mb-0"
+
+    {% if opt.depends_on %}
+
+    data-depends-on="{{ opt.depends_on.keys()|list|first }}"
+
+    data-depends-value="{{ opt.depends_on.values()|list|first }}"
+
+    {% endif %}>
+
+
+
+    {% if opt.type == 'checkbox' %}
+
+    <label class="flex cursor-pointer items-start gap-3 rounded-lg border border-transparent px-1 py-1 text-sm text-text transition hover:bg-bg-subtle" for="opt-{{ opt.name }}">
+
+        <input type="checkbox" id="opt-{{ opt.name }}" name="{{ opt.name }}" form="tool-form" class="yet-checkbox mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded border-border accent-primary focus:ring-2 focus:ring-primary/30"
+
+            {{ 'checked' if opt.default }}>
+
+        <span class="min-w-0 flex-1 leading-snug">
+
+            <span class="block font-medium text-text">{{ opt.label }}</span>
+
+            {% if opt.check_label %}
+
+            <span class="mt-1 block text-xs leading-relaxed text-text-muted">{{ opt.check_label }}</span>
+
+            {% endif %}
+
+        </span>
+
+    </label>
+
+
+
+    {% else %}
+
+    <label class="{{ field_label }}" for="opt-{{ opt.name }}">{{ opt.label }}</label>
+
+
+
+    {% if opt.type == 'select' %}
+
+    <select id="opt-{{ opt.name }}" name="{{ opt.name }}" form="tool-form" class="yet-select {{ field_input }}">
+
+        {% for c in opt.choices %}
+
+        <option value="{{ c.value }}" {{ 'selected' if c.value == opt.get('default','') }}>{{ c.label }}</option>
+
+        {% endfor %}
+
+    </select>
+
+
+
+    {% elif opt.type == 'number' %}
+
+    <input type="number" id="opt-{{ opt.name }}" name="{{ opt.name }}" form="tool-form" class="{{ field_input }}"
+
+        value="{{ opt.default|default('') }}"
+
+        min="{{ opt.min|default('') }}" max="{{ opt.max|default('') }}"
+
+        step="{{ opt.step|default('1') }}">
+
+
+
+    {% elif opt.type == 'color' %}
+
+    <input type="color" id="opt-{{ opt.name }}" name="{{ opt.name }}" form="tool-form" class="h-11 w-full cursor-pointer rounded-lg border border-border bg-surface p-1"
+
+        value="{{ opt.default|default('#ffffff') }}">
+
+
+
+    {% elif opt.type == 'text' %}
+
+    <input type="text" id="opt-{{ opt.name }}" name="{{ opt.name }}" form="tool-form" class="{{ field_input }}"
+
+        value="{{ opt.default|default('') }}"
+
+        placeholder="{{ opt.placeholder|default('') }}">
+
+
+
+    {% elif opt.type == 'password' %}
+
+    <input type="password" id="opt-{{ opt.name }}" name="{{ opt.name }}" form="tool-form" class="{{ field_input }}"
+
+        placeholder="{{ opt.placeholder|default('') }}">
+
+
+
+    {% elif opt.type == 'file' %}
+
+    <input type="file" id="opt-{{ opt.name }}" name="{{ opt.name }}" form="tool-form" class="{{ field_input }} file:mr-3 file:rounded-md file:border-0 file:bg-primary-soft file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary"
+
+        accept="{{ opt.accept|default('') }}"
+
+        {{ 'required' if opt.required }}>
+
+
+
+    {% elif opt.type == 'range' %}
+
+    <div class="range-group flex items-center gap-4">
+
+        <input type="range" id="opt-{{ opt.name }}" name="{{ opt.name }}" form="tool-form" class="yet-range h-2 min-w-0 flex-1 cursor-pointer"
+
+            value="{{ opt.default|default(50) }}"
+
+            min="{{ opt.min|default(0) }}" max="{{ opt.max|default(100) }}"
+
+            step="{{ opt.step|default(1) }}"
+
+            oninput="this.nextElementSibling.textContent=this.value+'{{ opt.suffix|default('') }}'">
+
+        <span class="range-value min-w-14 shrink-0 text-right text-sm font-semibold tabular-nums text-text">{{ opt.default|default(50) }}{{ opt.suffix|default('') }}</span>
+
+    </div>
+
+
+
+    {% elif opt.type == 'radio' %}
+
+    <div class="radio-group flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-3">
+
+        {% for c in opt.choices %}
+
+        <label class="radio-label inline-flex cursor-pointer items-center gap-2.5 rounded-lg border border-border bg-bg-subtle px-3 py-2.5 text-sm text-text has-[:checked]:border-primary has-[:checked]:bg-primary/10">
+
+            <input type="radio" name="{{ opt.name }}" value="{{ c.value }}" form="tool-form" class="yet-radio h-4 w-4 shrink-0 cursor-pointer border-border accent-primary focus:ring-primary/30"
+
+                {{ 'checked' if c.value == opt.default }}>
+
+            <span>{{ c.label }}</span>
+
+        </label>
+
+        {% endfor %}
+
+    </div>
+
+    {% endif %}
+
+    {% endif %}
+
+</div>

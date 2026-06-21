@@ -1,0 +1,10 @@
+{% macro app_logo(show_text=false, show_version=false, extra_class='') %}
+<a href="/" class="logo flex min-w-0 items-center gap-2.5 text-base font-bold leading-none text-text no-underline {{ extra_class }}">
+    <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-white" aria-hidden="true"><i class="bi bi-tools text-[1.05rem]"></i></span>
+    {% if show_text %}
+    <span class="flex min-w-0 flex-col justify-center leading-tight">
+        <span class="truncate text-primary">Your Everyday Tools{% if show_version %}<span class="ml-1 text-[0.7rem] font-normal text-text-muted">v{{ app_version }}</span>{% endif %}</span>
+    </span>
+    {% endif %}
+</a>
+{% endmacro %}

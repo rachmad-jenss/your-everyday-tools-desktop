@@ -1,0 +1,262 @@
+/* Behavioral + content styles migrated from style.css / components.css — Tailwind-only bundle */
+
+/* Scrollbars */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+*::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 4px;
+    border: 2px solid var(--scrollbar-track);
+}
+*::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
+
+/* Theme transition */
+html.theme-animate,
+html.theme-animate *,
+html.theme-animate *::before,
+html.theme-animate *::after {
+    transition:
+        background-color 0.35s ease,
+        color 0.35s ease,
+        border-color 0.35s ease,
+        box-shadow 0.35s ease !important;
+}
+
+#theme-switcher .theme-btn.spinning i {
+    transform: rotate(360deg);
+}
+
+/* Spinner */
+.spin {
+    animation: legacy-spin 0.8s linear infinite;
+    display: inline-block;
+}
+@keyframes legacy-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Electron shell — title bar (32px) + toolbar row with sidebar brand slot */
+.app-chrome > .title-bar-row,
+.app-chrome > .top-bar-row {
+    pointer-events: auto;
+}
+
+body:not(.electron-desktop) .title-bar-row,
+body:not(.electron-desktop) #chrome-sidebar-brand {
+    display: none !important;
+}
+@media (min-width: 768px) {
+    body:not(.electron-desktop) .top-bar--offset {
+        margin-left: 280px;
+    }
+}
+body:not(.electron-desktop) .main-content {
+    padding-top: var(--header-h);
+}
+body:not(.electron-desktop) .sidebar {
+    top: 0;
+}
+
+body.electron-desktop .title-bar-row {
+    display: flex !important;
+    -webkit-app-region: drag;
+    app-region: drag;
+}
+body.electron-desktop #chrome-sidebar-brand {
+    display: flex !important;
+}
+body.electron-desktop .sidebar-brand {
+    display: none !important;
+}
+body.electron-desktop .sidebar {
+    top: calc(var(--title-bar-h, 32px) + var(--header-h));
+    border-right: 1px solid var(--color-border);
+}
+body.electron-desktop .main-content {
+    padding-top: calc(var(--title-bar-h, 32px) + var(--header-h));
+}
+body.electron-desktop #chrome-sidebar-brand {
+    border-right: 1px solid var(--color-border);
+}
+body.electron-desktop .title-bar-favicon,
+body.electron-desktop .electron-menu-item,
+body.electron-desktop .search-trigger,
+body.electron-desktop .theme-switcher,
+body.electron-desktop .theme-btn,
+body.electron-desktop .menu-btn,
+body.electron-desktop .top-breadcrumbs,
+body.electron-desktop .top-breadcrumbs a,
+body.electron-desktop #chrome-sidebar-brand a {
+    -webkit-app-region: no-drag;
+    app-region: no-drag;
+}
+body.electron-desktop .top-bar-row {
+    -webkit-app-region: drag;
+    app-region: drag;
+}
+
+/* Sidebar / main divider — always visible */
+.sidebar {
+    border-right: 1px solid var(--color-border);
+}
+
+/* Sidebar category folds — each category expands to its tools */
+.sidebar-cat-fold > summary::-webkit-details-marker {
+    display: none;
+}
+.sidebar-cat-fold > summary::marker {
+    content: "";
+}
+.sidebar-cat-fold[open] .sidebar-cat-chevron {
+    transform: rotate(180deg);
+}
+.sidebar-cat-chevron {
+    transition: transform 0.2s ease;
+}
+.sidebar-cat-summary.active {
+    background: var(--color-primary-soft);
+    color: var(--color-primary);
+}
+
+/* Sidebar mini links (JS injected) */
+.sidebar-mini-link {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.75rem;
+    margin: 0 0.5rem;
+    border-radius: 8px;
+    font-size: 0.8125rem;
+    color: var(--color-text-muted);
+    text-decoration: none;
+    transition: background 0.15s, color 0.15s;
+}
+.sidebar-mini-link:hover {
+    background: var(--color-bg-subtle);
+    color: var(--color-text);
+}
+.sidebar-mini-link i {
+    font-size: 0.85rem;
+    color: var(--color-primary);
+}
+
+/* Command palette — flex when visible */
+.search-palette:not(.hidden) {
+    display: flex;
+}
+
+/* Upload workspace steps */
+.workspace-step-card--fold .workspace-step-fold-trigger .chevron {
+    flex-shrink: 0;
+    transition: transform 0.2s ease;
+}
+.workspace-step-card--fold .accordion.open .workspace-step-fold-trigger .chevron {
+    transform: rotate(180deg);
+}
+.workspace-step-card--fold .accordion-panel {
+    display: none;
+    padding: 0 1rem 1rem;
+    padding-left: calc(1rem + 28px + 0.75rem);
+    border: none;
+}
+.workspace-step-card--fold .accordion.open .accordion-panel {
+    display: block;
+}
+.workspace-step-card--fold .accordion.open .workspace-step-hint {
+    display: none;
+}
+
+/* Result metadata after upload */
+.result-meta {
+    width: 100%;
+    color: var(--color-text-muted);
+    font-size: 0.8rem;
+}
+.result-meta span {
+    display: inline-flex;
+    align-items: center;
+    margin-right: 0.5rem;
+}
+
+/* Markdown preview rendered HTML */
+.md-preview {
+    padding: 0.8rem;
+    min-height: 250px;
+    line-height: 1.6;
+}
+.md-preview h1,
+.md-preview h2,
+.md-preview h3 {
+    margin: 0.8em 0 0.4em;
+    font-weight: 600;
+    color: var(--color-text);
+}
+.md-preview h1 { font-size: 1.5rem; }
+.md-preview h2 { font-size: 1.25rem; }
+.md-preview h3 { font-size: 1.1rem; }
+.md-preview p { margin-bottom: 0.6em; }
+.md-preview code {
+    background: var(--color-bg-subtle);
+    padding: 0.15em 0.4em;
+    border-radius: 3px;
+    font-size: 0.9em;
+}
+.md-preview pre {
+    background: var(--color-bg-subtle);
+    padding: 0.8rem;
+    border-radius: 6px;
+    overflow-x: auto;
+}
+.md-preview pre code { background: none; padding: 0; }
+.md-preview ul,
+.md-preview ol {
+    padding-left: 1.5em;
+    margin-bottom: 0.6em;
+}
+.md-preview blockquote {
+    border-left: 3px solid var(--color-primary);
+    padding-left: 0.8rem;
+    color: var(--color-text-muted);
+    margin: 0.6em 0;
+}
+.md-preview table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 0.6em 0;
+}
+.md-preview th,
+.md-preview td {
+    border: 1px solid var(--color-border);
+    padding: 0.4rem 0.6rem;
+    text-align: left;
+}
+.md-preview th {
+    background: var(--color-bg-subtle);
+    font-weight: 600;
+}
+
+/* App chrome — aligned header row */
+.sidebar-brand,
+.top-bar-row {
+    height: var(--header-h);
+    min-height: var(--header-h);
+    box-sizing: border-box;
+}
+.title-bar-row {
+    height: var(--title-bar-h, 32px);
+    min-height: var(--title-bar-h, 32px);
+    box-sizing: border-box;
+}
+.sidebar-footer {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+}
+
+/* Focus */
+:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+}

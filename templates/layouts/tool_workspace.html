@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} - Your Everyday Tools{% endblock %}
+
+{% block top_title %}{{ title }}{% endblock %}
+
+{% block content_class %} max-w-none px-8 pb-12 pt-6{% endblock %}
+
+
+
+{% block content %}
+
+{% set hide_tool_header = hide_tool_header if hide_tool_header is defined else true %}
+
+{% if not hide_tool_header %}
+
+<div class="tool-page-header mb-6 flex items-start justify-between gap-4">
+
+    <div>
+
+        <h1 class="mb-1 text-2xl font-bold text-text">{{ title }}</h1>
+
+        <p class="text-sm text-text-muted">{{ description }}</p>
+
+    </div>
+
+    {% block tool_header_actions %}{% endblock %}
+
+</div>
+
+{% endif %}
+
+
+
+{% if notes %}
+
+<div class="tool-notes-content mb-4 rounded-xl border border-border bg-bg-subtle px-4 py-3 text-sm leading-relaxed text-text-muted [&_a]:text-primary [&_a]:underline [&_code]:rounded [&_code]:bg-surface [&_code]:px-1 [&_p]:m-0 [&_p+p]:mt-2 [&_strong]:font-semibold [&_.callout]:m-0 [&_.callout]:border-0 [&_.callout]:bg-transparent [&_.callout]:p-0">
+
+    {{ notes|safe }}
+
+</div>
+
+{% endif %}
+
+
+
+<div id="capability-status" class="capability-status mb-4 hidden rounded-md border px-4 py-3 text-sm" data-endpoint="{{ endpoint | default('') }}"></div>
+
+
+
+<div class="tool-workspace grid min-h-[calc(100vh-68px-80px)] w-full gap-6{% if workspace_single %} single-column grid-cols-1{% else %} grid-cols-1 xl:grid-cols-[minmax(340px,400px)_1fr]{% endif %}">
+
+    <div class="workspace-panel flex w-full flex-col overflow-hidden rounded-2xl border border-border-light bg-surface shadow-sm{% if workspace_single %} col-span-full{% endif %}">
+
+        <div class="workspace-panel-body flex flex-1 w-full flex-col gap-1 overflow-y-auto p-6">
+
+            {% block workspace_input %}{% endblock %}
+
+
+
+            {% block workspace_settings %}{% endblock %}
+
+
+
+            {% block workspace_advanced %}{% endblock %}
+
+
+
+            <div class="workspace-actions mt-auto flex flex-wrap gap-3 pt-4">
+
+                {% block workspace_actions %}{% endblock %}
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+
+    {% if not workspace_single %}
+
+    <div class="workspace-panel workspace-output-panel flex flex-col overflow-hidden rounded-2xl border border-border-light bg-surface shadow-sm">
+
+        <div class="workspace-output-header flex flex-wrap items-center justify-between gap-3 border-b border-border-light px-5 py-4">
+
+            <div class="workspace-output-title flex min-w-0 flex-wrap items-center gap-2 text-sm font-semibold text-text">
+
+                <span>{% block workspace_output_title %}Output Preview{% endblock %}</span>
+
+                <span class="workspace-ready-badge inline-flex items-center gap-1 rounded-full bg-bg-subtle px-2 py-0.5 text-xs font-medium text-text-muted" id="workspace-ready-badge"><i class="bi bi-circle-fill text-[0.45rem]"></i> Ready</span>
+
+                <span class="workspace-page-count ml-auto text-sm font-medium text-text-muted" id="workspace-page-count" hidden></span>
+
+            </div>
+
+            <div class="workspace-output-toolbar flex flex-wrap items-center gap-2">
+
+                {% block workspace_output_toolbar %}{% endblock %}
+
+            </div>
+
+        </div>
+
+        <div class="workspace-output-body flex flex-1 flex-col overflow-y-auto p-5" id="workspace-output-body">
+
+            {% block workspace_output %}
+
+            <div class="workspace-preview-empty flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center text-text-muted" id="workspace-preview-empty">
+
+                <i class="bi bi-eye text-3xl opacity-50"></i>
+
+                <p class="text-sm">Output will appear here after you run the tool.</p>
+
+            </div>
+
+            {% endblock %}
+
+        </div>
+
+        <div class="workspace-status-bar idle border-t border-border-light px-6 py-3 text-sm font-medium text-text-muted" id="workspace-status-bar">
+
+            {% block workspace_status %}Ready{% endblock %}
+
+        </div>
+
+    </div>
+
+    {% endif %}
+
+</div>
+
+{% endblock %}
+

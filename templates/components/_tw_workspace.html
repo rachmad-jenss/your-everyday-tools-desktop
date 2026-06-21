@@ -1,0 +1,204 @@
+{# Tailwind utility macros for tool workspace templates #}
+{% macro btn_sm_sec() -%}
+inline-flex items-center justify-center gap-1.5 rounded-md border border-border bg-bg px-3 py-1.5 text-xs font-medium text-text transition hover:bg-border active:scale-[0.97]
+{%- endmacro %}
+
+{% macro btn_sm() -%}
+inline-flex items-center justify-center gap-1 rounded-md border border-border bg-bg px-2.5 py-1 text-xs font-medium text-text transition hover:bg-border active:scale-[0.97]
+{%- endmacro %}
+
+{% macro btn_pri() -%}
+inline-flex min-h-11 appearance-none items-center justify-center gap-1.5 rounded-lg border-0 bg-primary px-5 py-2.5 text-sm font-medium text-white shadow-none outline-none transition hover:bg-primary-dark active:scale-[0.97]
+{%- endmacro %}
+
+{% macro btn_sec() -%}
+inline-flex min-h-11 appearance-none items-center justify-center gap-1.5 rounded-lg border-0 bg-bg-subtle px-5 py-2.5 text-sm font-medium text-text transition hover:bg-border/60 active:scale-[0.97]
+{%- endmacro %}
+
+{% macro textarea() -%}
+min-h-[280px] w-full resize-y rounded-md border border-border bg-surface px-3.5 py-2 font-sans text-sm leading-relaxed text-text outline-none transition placeholder:text-text-muted focus:border-primary focus:ring-[3px] focus:ring-primary/10
+{%- endmacro %}
+
+{% macro textarea_mono() -%}
+min-h-[200px] w-full resize-y rounded-md border border-border-light bg-bg-subtle px-3.5 py-2 font-mono text-sm leading-relaxed text-text outline-none transition placeholder:text-text-muted focus:border-primary focus:ring-[3px] focus:ring-primary/10
+{%- endmacro %}
+
+{% macro pre_out() -%}
+min-h-[280px] m-0 w-full overflow-auto whitespace-pre-wrap break-words rounded-md border border-border-light bg-bg-subtle p-3 font-mono text-[0.85rem] leading-relaxed text-text
+{%- endmacro %}
+
+{% macro pre_plain() -%}
+m-0 min-h-[120px] w-full overflow-auto whitespace-pre-wrap break-words font-mono text-[0.85rem] leading-relaxed text-text
+{%- endmacro %}
+
+{% macro toolbar() -%}
+mb-4 flex flex-wrap items-center gap-3
+{%- endmacro %}
+
+{% macro toolbar_between() -%}
+mb-3 flex flex-wrap items-center justify-between gap-2
+{%- endmacro %}
+
+{% macro section_sm() -%}
+text-xs font-semibold uppercase tracking-wide text-text-muted
+{%- endmacro %}
+
+{% macro label_sm() -%}
+mb-2 block text-xs font-semibold uppercase tracking-wide text-text-muted
+{%- endmacro %}
+
+{% macro field_label() -%}
+flex min-w-[140px] flex-1 flex-col gap-1.5 text-sm font-medium text-text
+{%- endmacro %}
+
+{% macro select_cls() -%}
+yet-select min-h-11 w-full cursor-pointer appearance-none rounded-lg border border-border bg-surface bg-[length:16px_16px] bg-[position:right_0.75rem_center] bg-no-repeat px-3.5 py-2.5 pr-9 text-sm text-text outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/10
+{%- endmacro %}
+
+{% macro input_cls() -%}
+min-h-11 w-full rounded-lg border border-border bg-surface px-3.5 py-2.5 font-mono text-sm text-text outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/10
+{%- endmacro %}
+
+{% macro mode_wrap() -%}
+mode-toggle mb-4 flex flex-wrap gap-2
+{%- endmacro %}
+
+{% macro mode_btn() -%}
+mode-btn inline-flex items-center justify-center rounded-lg bg-primary/15 px-4 py-2 text-sm font-medium text-primary transition hover:bg-primary/25
+{%- endmacro %}
+
+{% macro mode_btn_on() -%}
+mode-btn is-active inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white shadow-sm transition
+{%- endmacro %}
+
+{% macro check_label() -%}
+flex cursor-pointer items-center gap-2.5 text-sm leading-snug text-text
+{%- endmacro %}
+
+{% macro checkbox() -%}
+yet-checkbox h-4 w-4 shrink-0 cursor-pointer rounded border-border text-primary accent-primary focus:ring-2 focus:ring-primary/30
+{%- endmacro %}
+
+{% macro range_cls() -%}
+yet-range w-full
+{%- endmacro %}
+
+{% macro inline_status() -%}
+inline-status
+{%- endmacro %}
+
+{% macro md_preview() -%}
+md-preview min-h-[280px] rounded-md border border-border-light bg-bg-subtle p-4 text-sm leading-relaxed text-text
+{%- endmacro %}
+
+{% macro field_block() -%}
+mb-5 flex flex-col gap-2
+{%- endmacro %}
+
+{% macro pane() -%}
+overflow-hidden rounded-lg border border-border bg-surface
+{%- endmacro %}
+
+{% macro pane_header() -%}
+flex items-center justify-between border-b border-border bg-bg-subtle px-4 py-2.5 text-sm font-semibold text-text
+{%- endmacro %}
+
+{% macro pane_body() -%}
+p-4
+{%- endmacro %}
+
+{% macro stat_card() -%}
+rounded-xl border border-border bg-surface px-4 py-3 text-center
+{%- endmacro %}
+
+{% macro calc_section() -%}
+mb-4 rounded-xl border border-border bg-surface p-4
+{%- endmacro %}
+
+{% macro section_title() -%}
+mb-3 text-sm font-semibold text-text
+{%- endmacro %}
+
+{% macro calc_result() -%}
+text-2xl font-semibold tabular-nums text-primary
+{%- endmacro %}
+
+{% macro inline_form() -%}
+flex flex-wrap items-center gap-2 text-sm text-text
+{%- endmacro %}
+
+{% macro input_sm() -%}
+w-24 rounded-md border border-border bg-surface px-2.5 py-1.5 font-mono text-sm text-text outline-none focus:border-primary focus:ring-[3px] focus:ring-primary/10
+{%- endmacro %}
+
+{% macro radio_label() -%}
+inline-flex cursor-pointer items-center gap-2 rounded-lg border border-border bg-bg-subtle px-3 py-2 text-sm text-text has-[:checked]:border-primary has-[:checked]:bg-primary/10
+{%- endmacro %}
+
+{% macro hash_card() -%}
+rounded-xl border border-border bg-surface p-4
+{%- endmacro %}
+
+{% macro hash_card_header() -%}
+mb-2 flex items-center justify-between border-b border-border pb-2 text-sm font-semibold text-text
+{%- endmacro %}
+
+{% macro calc_display() -%}
+mb-4 rounded-xl border border-border bg-bg-subtle p-4 text-right
+{%- endmacro %}
+
+{% macro calc_expr() -%}
+min-h-[1.2em] text-sm text-text-muted
+{%- endmacro %}
+
+{% macro calc_result_lg() -%}
+text-3xl font-light tabular-nums tracking-wide text-text
+{%- endmacro %}
+
+{% macro calc_btn() -%}
+inline-flex min-h-11 items-center justify-center rounded-lg border border-border bg-surface text-lg font-medium text-text transition hover:bg-bg-subtle active:scale-[0.97]
+{%- endmacro %}
+
+{% macro calc_btn_op() -%}
+inline-flex min-h-11 items-center justify-center rounded-lg bg-primary/15 text-lg font-semibold text-primary transition hover:bg-primary/25 active:scale-[0.97]
+{%- endmacro %}
+
+{% macro calc_btn_eq() -%}
+col-span-2 inline-flex min-h-11 items-center justify-center rounded-lg bg-primary text-lg font-semibold text-white transition hover:bg-primary-dark active:scale-[0.97]
+{%- endmacro %}
+
+{% macro calc_grid() -%}
+grid grid-cols-4 gap-2
+{%- endmacro %}
+
+{% macro split_pane() -%}
+grid grid-cols-2 gap-4 max-md:grid-cols-1
+{%- endmacro %}
+
+{% macro converter_row() -%}
+flex flex-col items-stretch gap-4 md:flex-row md:items-center
+{%- endmacro %}
+
+{% macro converter_swap() -%}
+inline-flex h-11 w-11 shrink-0 items-center justify-center self-center rounded-lg border border-border bg-surface text-primary transition hover:bg-bg-subtle active:scale-[0.97]
+{%- endmacro %}
+
+{% macro color_preview() -%}
+mb-4 h-24 w-full rounded-xl border border-border shadow-inner
+{%- endmacro %}
+
+{% macro tool_callout() -%}
+mb-4 rounded-xl border border-border bg-bg-subtle p-4 text-sm leading-relaxed text-text-muted
+{%- endmacro %}
+
+{% macro upload_zone() -%}
+upload-zone relative cursor-pointer rounded-xl border-2 border-dashed border-border bg-surface px-6 py-10 text-center transition hover:border-primary hover:bg-primary-soft
+{%- endmacro %}
+
+{% macro btn_success() -%}
+inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-700 active:scale-[0.97]
+{%- endmacro %}
+
+{% macro input_file() -%}
+w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text file:mr-3 file:rounded-md file:border-0 file:bg-primary-soft file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary
+{%- endmacro %}
