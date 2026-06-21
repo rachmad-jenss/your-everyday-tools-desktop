@@ -46,6 +46,18 @@
 
 <body class="flex min-h-screen bg-bg font-sans text-sm leading-normal text-text antialiased">
 
+    <script>
+    (function () {
+        if (!window.electronAPI || !window.electronAPI.isDesktop) return;
+        document.documentElement.classList.add("electron-desktop");
+        document.body.classList.add("electron-desktop");
+        ["title-bar", "chrome-sidebar-brand", "electron-menu-bar"].forEach(function (id) {
+            var el = document.getElementById(id);
+            if (el) el.hidden = false;
+        });
+    })();
+    </script>
+
     <header class="app-chrome fixed inset-x-0 top-0 z-[110] flex flex-col pointer-events-none" id="app-chrome">
 
         <div class="title-bar-row pointer-events-auto flex h-8 min-h-8 shrink-0 items-center gap-0 border-b border-border bg-surface pl-2 pr-[max(1rem,158px)]" id="title-bar" hidden>

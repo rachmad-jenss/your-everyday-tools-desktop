@@ -54,9 +54,6 @@ body:not(.electron-desktop) #chrome-sidebar-brand {
         margin-left: 280px;
     }
 }
-body:not(.electron-desktop) .main-content {
-    padding-top: var(--header-h);
-}
 body:not(.electron-desktop) .sidebar {
     top: 0;
 }
@@ -73,11 +70,8 @@ body.electron-desktop .sidebar-brand {
     display: none !important;
 }
 body.electron-desktop .sidebar {
-    top: calc(var(--title-bar-h, 32px) + var(--header-h));
+    top: var(--chrome-h);
     border-right: 1px solid var(--color-border);
-}
-body.electron-desktop .main-content {
-    padding-top: calc(var(--title-bar-h, 32px) + var(--header-h));
 }
 body.electron-desktop #chrome-sidebar-brand {
     border-right: 1px solid var(--color-border);

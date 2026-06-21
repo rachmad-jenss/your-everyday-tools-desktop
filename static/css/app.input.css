@@ -35,6 +35,7 @@
     --sidebar-w: 280px;
     --header-h: 68px;
     --title-bar-h: 32px;
+    --chrome-h: var(--header-h);
     --scrollbar-track: var(--color-bg-subtle);
     --scrollbar-thumb: #cbd5e1;
     --scrollbar-thumb-hover: #94a3b8;
@@ -637,4 +638,22 @@ button[type="submit"].btn-primary,
     .preview-grid-label {
         @apply text-sm font-semibold text-[var(--text-light)];
     }
+}
+
+/* App shell layout — unlayered (beats Tailwind preflight * { padding: 0 }) */
+body.electron-desktop,
+body:has(#title-bar:not([hidden])) {
+    --chrome-h: calc(var(--title-bar-h, 32px) + var(--header-h) + 2px);
+}
+
+.main-content {
+    padding-top: var(--chrome-h);
+}
+
+html {
+    scroll-padding-top: var(--chrome-h);
+}
+
+.tool-workspace {
+    min-height: calc(100dvh - var(--chrome-h) - 5rem);
 }

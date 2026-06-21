@@ -109,6 +109,7 @@ function initTheme() {
 function initElectronDesktop() {
     if (!window.electronAPI || !window.electronAPI.isDesktop) return;
     document.body.classList.add("electron-desktop");
+    document.documentElement.classList.add("electron-desktop");
     const titleBar = document.getElementById("title-bar");
     const menuBar = document.getElementById("electron-menu-bar");
     const chromeBrand = document.getElementById("chrome-sidebar-brand");
@@ -1001,10 +1002,26 @@ function initCustomSelects() {
     });
 }
 
+function syncChromeHeight() {
+    const chrome = document.getElementById("app-chrome");
+    if (!chrome) return;
+    const apply = () => {
+        const height = Math.ceil(chrome.getBoundingClientRect().height);
+        if (height > 0) {
+            document.documentElement.style.setProperty("--chrome-h", `${height}px`);
+        }
+    };
+    apply();
+    if (typeof ResizeObserver !== "undefined") {
+        new ResizeObserver(apply).observe(chrome);
+    }
+}
+
 /* ── Init ─────────────────────────────────────── */
 document.addEventListener("DOMContentLoaded", () => {
     initTheme();
     initElectronDesktop();
+    syncChromeHeight();
     initBreadcrumbs();
     initGreeting();
     initUploadZone();
