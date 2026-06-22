@@ -229,19 +229,28 @@ function resetWorkspacePreview() {
     const area = document.getElementById("result-area");
     const grid = document.getElementById("workspace-preview-grid");
     const toolbar = document.getElementById("preview-toolbar");
-    const dlWrap = document.getElementById("preview-download-wrap");
+    const previewDl = document.getElementById("preview-download-btn");
+    const viewToggle = document.getElementById("preview-view-toggle");
+    const zoomWrap = document.getElementById("preview-zoom-wrap");
+    outputPreviewMode = null;
     if (empty) {
         empty.hidden = false;
         const p = empty.querySelector("p");
-        if (p) p.textContent = "Output will appear here after you add files.";
+        if (p) p.textContent = "Output preview will appear here after you convert.";
     }
     if (area) {
         area.classList.add("hidden");
         area.style.removeProperty("display");
     }
-    if (grid) grid.hidden = true;
+    if (grid) {
+        grid.hidden = true;
+        grid.innerHTML = "";
+        grid.classList.remove("is-list");
+    }
     if (toolbar) toolbar.hidden = true;
-    if (dlWrap) dlWrap.hidden = true;
+    if (previewDl) previewDl.classList.add("hidden");
+    if (viewToggle) viewToggle.hidden = true;
+    if (zoomWrap) zoomWrap.hidden = true;
     revokePreviewUrls();
     updateUploadPreviewUI();
     updateWorkspaceStatus("Ready", "idle");
@@ -278,15 +287,11 @@ function initGreeting() {
 function showWorkspaceOutput() {
     const empty = document.getElementById("workspace-preview-empty");
     const area = document.getElementById("result-area");
-    const grid = document.getElementById("workspace-preview-grid");
-    const toolbar = document.getElementById("preview-toolbar");
     if (empty) empty.hidden = true;
-    if (grid) grid.hidden = true;
     if (area) {
         area.classList.remove("hidden");
         area.style.display = "block";
     }
-    if (toolbar) toolbar.hidden = !shouldShowImagePreview();
 }
 
 function setInlineStatus(el, message, type = "success") {
@@ -403,6 +408,7 @@ let selectedFiles = [];
 let previewObjectUrls = [];
 let previewZoom = 100;
 let previewView = "grid";
+let outputPreviewMode = null; // null | "pdf" | "images" | "image"
 
 function revokePreviewUrls() {
     previewObjectUrls.forEach(u => URL.revokeObjectURL(u));
@@ -423,6 +429,7 @@ function clearAllFiles() {
 function initUploadZone() {
     const zone = document.getElementById("upload-zone");
     const input = document.getElementById("file-input");
+    const addMore = document.getElementById("upload-add-more");
     if (!zone || !input) return;
 
     zone.addEventListener("dragover", e => { e.preventDefault(); zone.classList.add("dragover"); });
@@ -437,6 +444,10 @@ function initUploadZone() {
         addFiles(input.files);
         input.value = "";
     });
+
+    if (addMore) {
+        addMore.addEventListener("click", () => input.click());
+    }
 }
 
 function addFiles(fileList) {
@@ -466,72 +477,100 @@ function formatUploadStatus(files) {
     const pages = countPreviewPages(files);
     const unit = images.length ? "image" : "file";
     const count = images.length || n;
-    const bar = `Ready to convert • ${count} ${unit}${count !== 1 ? "s" : ""} • ${pages} page${pages !== 1 ? "s" : ""}`;
-    return { bar, state: "success", pages };
+    const bar = `Ready to convert · ${count} ${unit}${count !== 1 ? "s" : ""} · ${pages} page${pages !== 1 ? "s" : ""}`;
+    return { bar, state: "idle", pages };
 }
 
-function shouldShowImagePreview() {
-    const form = document.getElementById("tool-form");
-    if (!form || form.dataset.previewImages === "false") return false;
-    return selectedFiles.some(f => f.type.startsWith("image/"));
+function setPreviewToolbarVisible(showDownload, mode) {
+    const toolbar = document.getElementById("preview-toolbar");
+    const previewDl = document.getElementById("preview-download-btn");
+    const viewToggle = document.getElementById("preview-view-toggle");
+    const zoomWrap = document.getElementById("preview-zoom-wrap");
+    if (toolbar) toolbar.hidden = false;
+    if (previewDl) previewDl.classList.toggle("hidden", !showDownload);
+    const showImageControls = mode === "images";
+    if (viewToggle) viewToggle.hidden = !showImageControls;
+    if (zoomWrap) zoomWrap.hidden = !showImageControls;
 }
 
-function renderPreviewGrid() {
+function renderOutputImageGrid(urls) {
     const grid = document.getElementById("workspace-preview-grid");
     if (!grid) return;
-    revokePreviewUrls();
-    const files = selectedFiles.filter(f => f.type.startsWith("image/"));
     grid.classList.toggle("is-list", previewView === "list");
     grid.style.setProperty("--preview-zoom", previewZoom / 100);
-    grid.innerHTML = files.map((f, i) => {
-        const url = URL.createObjectURL(f);
-        previewObjectUrls.push(url);
-        return `
+    grid.innerHTML = urls.map((url, i) => `
         <div class="preview-grid-item relative overflow-hidden rounded-md border border-border bg-bg-subtle">
-            <div class="preview-grid-thumb aspect-[3/4] overflow-hidden"><img src="${url}" alt="" class="h-full w-full object-cover"></div>
+            <div class="preview-grid-thumb overflow-hidden"><img src="${url}" alt="Page ${i + 1}" class="h-full w-full object-contain"></div>
             <span class="preview-grid-label absolute bottom-1 right-1 rounded bg-black/60 px-1.5 py-0.5 text-[0.65rem] font-semibold text-white">${i + 1}</span>
-        </div>`;
-    }).join("");
+        </div>`).join("");
+}
+
+function showOutputPreview(url, contentType, filename, extraUrls) {
+    const empty = document.getElementById("workspace-preview-empty");
+    const grid = document.getElementById("workspace-preview-grid");
+    if (empty) empty.hidden = true;
+    if (!grid) return;
+
+    revokePreviewUrls();
+    grid.hidden = false;
+
+    if (contentType.includes("pdf")) {
+        outputPreviewMode = "pdf";
+        grid.classList.remove("is-list");
+        grid.innerHTML = `<iframe src="${url}" class="preview-pdf-frame h-[min(70vh,640px)] w-full rounded-lg border border-border bg-white" title="PDF preview of ${escapeHtml(filename)}"></iframe>`;
+        setPreviewToolbarVisible(true, "pdf");
+        return;
+    }
+
+    if (contentType.startsWith("image/") && !extraUrls) {
+        outputPreviewMode = "image";
+        grid.classList.remove("is-list");
+        grid.innerHTML = `<div class="preview-single-image flex min-h-[320px] items-center justify-center rounded-lg border border-border bg-bg-subtle p-4"><img src="${url}" alt="${escapeHtml(filename)}" class="max-h-[min(70vh,640px)] max-w-full object-contain"></div>`;
+        setPreviewToolbarVisible(true, "image");
+        return;
+    }
+
+    const urls = extraUrls && extraUrls.length ? extraUrls : [url];
+    outputPreviewMode = "images";
+    renderOutputImageGrid(urls);
+    setPreviewToolbarVisible(true, "images");
 }
 
 function updateUploadPreviewUI() {
-    const grid = document.getElementById("workspace-preview-grid");
     const empty = document.getElementById("workspace-preview-empty");
-    const toolbar = document.getElementById("preview-toolbar");
     const pageCount = document.getElementById("workspace-page-count");
     const resultArea = document.getElementById("result-area");
     const hasResult = isElementVisible(resultArea);
 
-    if (selectedFiles.length === 0 || hasResult) {
-        if (grid) grid.hidden = true;
-        if (toolbar) toolbar.hidden = true;
-        if (pageCount) pageCount.hidden = true;
-        if (!hasResult && empty) empty.hidden = false;
+    if (hasResult) return;
+
+    if (pageCount) {
         if (selectedFiles.length === 0) {
-            updateWorkspaceStatus("Ready", "idle");
+            pageCount.hidden = true;
+        } else {
+            const status = formatUploadStatus(selectedFiles);
+            pageCount.textContent = `${status.pages} page${status.pages !== 1 ? "s" : ""}`;
+            pageCount.hidden = false;
         }
+    }
+
+    if (selectedFiles.length === 0) {
+        if (empty) {
+            empty.hidden = false;
+            const p = empty.querySelector("p");
+            if (p) p.textContent = "Output preview will appear here after you convert.";
+        }
+        updateWorkspaceStatus("Ready", "idle");
         return;
     }
 
     const status = formatUploadStatus(selectedFiles);
-    if (pageCount) {
-        pageCount.textContent = `${status.pages} page${status.pages !== 1 ? "s" : ""}`;
-        pageCount.hidden = false;
-    }
     updateWorkspaceStatus(status.bar, status.state);
-
-    if (shouldShowImagePreview()) {
-        renderPreviewGrid();
-        if (grid) grid.hidden = false;
-        if (empty) empty.hidden = true;
-        if (toolbar) toolbar.hidden = false;
-    } else {
-        if (grid) grid.hidden = true;
-        if (toolbar) toolbar.hidden = true;
-        if (empty) {
-            empty.hidden = false;
-            const p = empty.querySelector("p");
-            if (p) p.textContent = `${selectedFiles.length} file${selectedFiles.length !== 1 ? "s" : ""} ready to process.`;
+    if (empty) {
+        empty.hidden = false;
+        const p = empty.querySelector("p");
+        if (p) {
+            p.textContent = `${selectedFiles.length} file${selectedFiles.length !== 1 ? "s" : ""} ready — click Convert to preview the output.`;
         }
     }
 }
@@ -541,7 +580,12 @@ function initWorkspacePreview() {
         btn.addEventListener("click", () => {
             previewView = btn.dataset.previewView;
             document.querySelectorAll("[data-preview-view]").forEach(b => b.classList.toggle("active", b === btn));
-            if (shouldShowImagePreview()) renderPreviewGrid();
+            if (outputPreviewMode === "images") {
+                const grid = document.getElementById("workspace-preview-grid");
+                if (grid) {
+                    grid.classList.toggle("is-list", previewView === "list");
+                }
+            }
         });
     });
     document.querySelectorAll("[data-zoom-delta]").forEach(btn => {
@@ -550,7 +594,9 @@ function initWorkspacePreview() {
             const label = document.getElementById("preview-zoom-label");
             if (label) label.textContent = previewZoom + "%";
             const grid = document.getElementById("workspace-preview-grid");
-            if (grid) grid.style.setProperty("--preview-zoom", previewZoom / 100);
+            if (grid && outputPreviewMode === "images") {
+                grid.style.setProperty("--preview-zoom", previewZoom / 100);
+            }
         });
     });
 }
@@ -559,6 +605,10 @@ function renderFileList() {
     const list = document.getElementById("file-list");
     const prompt = document.getElementById("upload-prompt");
     const hint = document.getElementById("upload-hint");
+    const zone = document.getElementById("upload-zone");
+    const addMore = document.getElementById("upload-add-more");
+    const input = document.getElementById("file-input");
+    const isMultiple = input && input.hasAttribute("multiple");
     if (!list) return;
 
     if (selectedFiles.length === 0) {
@@ -568,12 +618,16 @@ function renderFileList() {
             hint.textContent = "Up to 100 MB per file";
             hint.style.display = "";
         }
+        if (zone) zone.classList.remove("hidden");
+        if (addMore) addMore.classList.add("hidden");
         revokePreviewUrls();
         updateUploadPreviewUI();
         return;
     }
     if (prompt) prompt.style.display = "none";
     if (hint) hint.style.display = "none";
+    if (zone) zone.classList.add("hidden");
+    if (addMore && isMultiple) addMore.classList.remove("hidden");
 
     const count = selectedFiles.length;
     const showTip = count > 1 && selectedFiles.every(f => f.type.startsWith("image/"));
@@ -679,20 +733,18 @@ function initToolForm() {
                     showToast("Unexpected response from server.", "error");
                 }
             } else {
-                const blob = await resp.blob();
+                const url = URL.createObjectURL(blob);
                 const cd = resp.headers.get("Content-Disposition") || "";
                 let filename = "download";
                 const match = cd.match(/filename="?([^";\n]+)"?/);
                 if (match) filename = match[1];
 
-                const url = URL.createObjectURL(blob);
-                const meta = {
+                showFileResult(url, filename, {
                     engine: resp.headers.get("X-Conversion-Engine") || "",
                     quality: resp.headers.get("X-Conversion-Quality") || "",
                     warnings: resp.headers.get("X-Fidelity-Warnings") || "",
-                };
-
-                showFileResult(url, filename, ct.startsWith("image/"), meta);
+                    contentType: ct,
+                });
                 showToast("File ready for download!", "success");
 
                 if (typeof RecentActivity !== "undefined") {
@@ -731,7 +783,7 @@ function showError(msg) {
     updateWorkspaceStatus(msg, "error");
 }
 
-function showFileResult(url, filename, isImage, meta = {}) {
+function showFileResult(url, filename, meta = {}) {
     showWorkspaceOutput();
     const area = document.getElementById("result-area");
     area.style.display = "block";
@@ -739,44 +791,40 @@ function showFileResult(url, filename, isImage, meta = {}) {
     document.getElementById("result-text")?.style.setProperty("display", "none");
 
     const success = document.getElementById("result-success");
-    success.style.display = "flex";
-    document.getElementById("result-message").textContent = "File ready!";
-
-    const btn = document.getElementById("download-btn");
-    btn.href = url;
-    btn.download = filename;
-    btn.innerHTML = '<i class="bi bi-download"></i> Download ' + escapeHtml(filename);
+    const contentType = meta.contentType || "";
+    const hasMeta = !!(meta.engine || meta.quality || meta.warnings);
+    success.style.display = hasMeta ? "flex" : "none";
+    document.getElementById("result-message").textContent = "Conversion complete";
 
     const previewDl = document.getElementById("preview-download-btn");
-    const dlWrap = document.getElementById("preview-download-wrap");
-    if (previewDl && dlWrap) {
+    if (previewDl) {
         previewDl.href = url;
         previewDl.download = filename;
-        previewDl.innerHTML = '<i class="bi bi-download"></i> Download ' + escapeHtml(filename.split(".").slice(0, -1).join(".") || filename);
-        dlWrap.hidden = false;
+        previewDl.innerHTML = '<i class="bi bi-download"></i> Download ' + escapeHtml(filename);
+        previewDl.classList.remove("hidden");
     }
 
+    showOutputPreview(url, contentType, filename);
+
     const preview = document.getElementById("result-preview");
-    if (isImage) {
-        preview.style.display = "block";
-        preview.innerHTML = `<img src="${url}" alt="Preview">`;
-    } else {
+    if (preview) {
         preview.style.display = "none";
+        preview.innerHTML = "";
     }
 
     const oldMeta = success.querySelector(".result-meta");
     if (oldMeta) oldMeta.remove();
-    if (meta.engine || meta.quality || meta.warnings) {
+    if (hasMeta) {
         const div = document.createElement("div");
-        div.className = "result-meta";
+        div.className = "result-meta mt-3 text-xs text-text-muted";
         const parts = [];
         if (meta.engine) parts.push(`<span>Engine: ${escapeHtml(meta.engine)}</span>`);
         if (meta.quality) parts.push(`<span>Quality: ${escapeHtml(meta.quality)}</span>`);
         if (meta.warnings) parts.push(`<span>Warnings: ${escapeHtml(meta.warnings)}</span>`);
-        div.innerHTML = parts.join("");
+        div.innerHTML = parts.join(" · ");
         success.appendChild(div);
     }
-    updateWorkspaceStatus(`Ready · ${filename}`, "success");
+    updateWorkspaceStatus(`Done · ${filename}`, "success");
 }
 
 function showTextResult(text) {

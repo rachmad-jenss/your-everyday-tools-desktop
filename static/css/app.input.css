@@ -657,3 +657,48 @@ html {
 .tool-workspace {
     min-height: calc(100dvh - var(--chrome-h) - 5rem);
 }
+
+/* Upload / output preview */
+.workspace-preview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 0.75rem;
+    padding: 0.5rem;
+    transform: scale(var(--preview-zoom, 1));
+    transform-origin: top center;
+}
+
+.workspace-preview-grid.is-list {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+}
+
+.workspace-preview-grid.is-list .preview-grid-item {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0.75rem;
+}
+
+.workspace-preview-grid.is-list .preview-grid-thumb {
+    width: 4.5rem;
+    flex-shrink: 0;
+    aspect-ratio: 3 / 4;
+}
+
+.workspace-preview-grid.is-list .preview-grid-label {
+    position: static;
+    background: transparent;
+    color: var(--color-text-muted);
+    font-size: 0.875rem;
+    padding: 0;
+}
+
+.preview-grid-thumb {
+    aspect-ratio: 3 / 4;
+}
+
+.upload-zone.hidden {
+    display: none;
+}

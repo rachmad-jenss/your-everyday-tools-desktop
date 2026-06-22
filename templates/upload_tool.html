@@ -38,6 +38,11 @@
                     </div>
                 </div>
                 <p class="upload-hint mt-2 text-xs text-text-muted" id="upload-hint">Up to 100 MB per file</p>
+                {% if multiple %}
+                <button type="button" class="upload-add-more mt-3 hidden w-full rounded-md border border-dashed border-border bg-surface px-4 py-3 text-sm font-medium text-primary transition hover:border-primary hover:bg-primary-soft" id="upload-add-more">
+                    <i class="bi bi-plus-lg"></i> Add more files
+                </button>
+                {% endif %}
                 <div class="file-list" id="file-list"></div>
                 {% endif %}
             </form>
@@ -108,36 +113,28 @@
 
 {% block workspace_output_toolbar %}
 <div class="preview-toolbar flex flex-wrap items-center gap-3" id="preview-toolbar" hidden>
-    <div class="preview-view-toggle flex rounded-lg border border-border bg-bg-subtle p-0.5" role="group" aria-label="Preview layout">
+    <div class="preview-view-toggle flex rounded-lg border border-border bg-bg-subtle p-0.5" id="preview-view-toggle" role="group" aria-label="Preview layout" hidden>
         <button type="button" class="preview-toggle-btn active inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-text-muted transition" data-preview-view="grid" title="Grid view"><i class="bi bi-grid-3x3-gap"></i> Grid</button>
         <button type="button" class="preview-toggle-btn inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-text-muted transition" data-preview-view="list" title="List view"><i class="bi bi-list-ul"></i> List</button>
     </div>
-    <div class="preview-zoom flex items-center gap-1 rounded-lg border border-border bg-bg-subtle px-2 py-1 text-sm" aria-label="Zoom">
+    <div class="preview-zoom flex items-center gap-1 rounded-lg border border-border bg-bg-subtle px-2 py-1 text-sm" id="preview-zoom-wrap" aria-label="Zoom" hidden>
         <button type="button" class="preview-zoom-btn flex h-7 w-7 items-center justify-center rounded-md border-0 bg-transparent text-text hover:bg-surface" data-zoom-delta="-10" title="Zoom out">−</button>
         <span id="preview-zoom-label" class="min-w-[3rem] text-center text-xs font-medium">100%</span>
         <button type="button" class="preview-zoom-btn flex h-7 w-7 items-center justify-center rounded-md border-0 bg-transparent text-text hover:bg-surface" data-zoom-delta="10" title="Zoom in">+</button>
     </div>
-    <div class="preview-download-split flex overflow-hidden rounded-xl" id="preview-download-wrap" hidden>
-        <a id="preview-download-btn" class="preview-download-main inline-flex items-center gap-1.5 bg-primary px-4 py-2 text-sm font-medium text-white no-underline hover:bg-primary-dark" download>
-            <i class="bi bi-download"></i> Download
-        </a>
-        <button type="button" class="preview-download-caret inline-flex items-center border-0 border-l border-primary-dark/30 bg-primary px-2 py-2 text-white hover:bg-primary-dark" id="preview-download-caret" title="Download options" aria-label="Download options">
-            <i class="bi bi-chevron-down"></i>
-        </button>
-    </div>
+    <a id="preview-download-btn" class="preview-download-btn hidden inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-white no-underline hover:bg-primary-dark" download>
+        <i class="bi bi-download"></i> Download
+    </a>
 </div>
 {% endblock %}
 
 {% block workspace_output %}
-<div id="workspace-preview-grid" class="workspace-preview-grid grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-3" hidden></div>
+<div id="workspace-preview-grid" class="workspace-preview-grid" hidden></div>
 <div id="result-area" class="hidden h-full">
     <div id="result-success" class="result-success hidden flex-col items-stretch">
         <div class="flex flex-wrap items-center gap-2.5">
             <i class="bi bi-check-circle-fill text-success"></i>
             <span id="result-message">Done!</span>
-            <a id="download-btn" class="ml-auto inline-flex items-center gap-1.5 rounded-xl bg-success px-4 py-2 text-sm font-medium text-white no-underline hover:opacity-90" download>
-                <i class="bi bi-download"></i> Download
-            </a>
         </div>
         <div id="result-preview" class="mt-4 hidden"></div>
     </div>
@@ -155,7 +152,7 @@
 </div>
 <div class="workspace-preview-empty flex flex-1 flex-col items-center justify-center gap-3 py-16 text-center text-text-muted" id="workspace-preview-empty">
     <i class="bi bi-eye text-3xl opacity-50"></i>
-    <p class="text-sm">Output will appear here after you add files.</p>
+    <p class="text-sm">Output preview will appear here after you convert.</p>
 </div>
 {% endblock %}
 
