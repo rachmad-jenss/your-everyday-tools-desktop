@@ -22,6 +22,28 @@
         </div>
     </div>
 
+    <div class="settings-section rounded-lg border border-border bg-surface p-6" id="settings-update-panel">
+        <h2 class="mb-2 text-base font-semibold text-text">App Updates</h2>
+        <p class="settings-desc mb-4 text-sm leading-relaxed text-text-muted">Cek dan install pembaruan desktop dari GitHub Releases. Progress download tampil di sini atau di banner bawah layar.</p>
+        <div class="mb-3 text-sm text-text">
+            Versi saat ini: <span class="font-semibold" id="settings-update-version">v{{ app_version }}</span>
+        </div>
+        <p class="mb-3 text-sm text-text-muted" id="settings-update-status">Siap mengecek update.</p>
+        <pre class="mb-3 hidden max-h-32 overflow-auto whitespace-pre-wrap rounded-lg border border-border bg-bg-subtle p-3 text-xs leading-relaxed text-text-muted" id="settings-update-notes"></pre>
+        <div class="mb-4 hidden" id="settings-update-progress">
+            <div class="mb-1 flex items-center justify-between text-xs text-text-muted">
+                <span>Progress download</span>
+                <span id="settings-update-progress-label"></span>
+            </div>
+            <div class="h-2 overflow-hidden rounded-full bg-bg-subtle">
+                <div class="h-full rounded-full bg-primary transition-all duration-200" id="settings-update-progress-bar" style="width:0%"></div>
+            </div>
+        </div>
+        <div class="flex flex-wrap gap-2" id="settings-update-actions">
+            <button type="button" class="rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium text-text hover:bg-bg-subtle" data-update-action="check">Cek update</button>
+        </div>
+    </div>
+
     <div class="settings-section rounded-lg border border-border bg-surface p-6" id="components">
         <h2 class="mb-2 text-base font-semibold text-text">System Components</h2>
         <p class="settings-desc mb-4 text-sm leading-relaxed text-text-muted">Optional local engines used by some tools. On desktop, use Install/Manage to download FFmpeg and Tesseract. On web, follow the install guide for your OS.</p>

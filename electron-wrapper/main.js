@@ -7,6 +7,12 @@ const fs = require("fs");
 let mainWindow = null;
 let isManualUpdateCheck = false;
 let isUpdateDownloading = false;
+let updateCheckInFlight = null;
+let pendingUpdateInfo = null;
+let pendingUpdateDownloaded = false;
+let updateDownloadBackground = false;
+let updateUiDismissed = false;
+let lastDownloadProgress = { percent: 0, transferred: 0, total: 0, bytesPerSecond: 0 };
 let flaskProcess = null;
 let chosenPort = 5000;
 let flaskLastLines = []; // Rolling buffer of last Flask output lines for diagnostics
@@ -277,135 +283,194 @@ function killFlask() {
 
 // ── Auto-update via GitHub Releases ──────────────────────
 
-function showUpdaterError(err) {
-  const message = err && err.message ? err.message : String(err);
-  console.error("[Updater] Error:", message);
+function getCurrentUpdateStatus() {
+  if (isUpdateDownloading) {
+    return {
+      phase: "downloading",
+      version: pendingUpdateInfo?.version || null,
+      currentVersion: app.getVersion(),
+      releaseNotes: pendingUpdateInfo?.releaseNotes || "",
+      background: updateDownloadBackground,
+      dismissed: updateUiDismissed,
+      ...lastDownloadProgress,
+    };
+  }
+  if (pendingUpdateDownloaded) {
+    return {
+      phase: "downloaded",
+      version: pendingUpdateInfo?.version || null,
+      currentVersion: app.getVersion(),
+      releaseNotes: pendingUpdateInfo?.releaseNotes || "",
+    };
+  }
+  if (pendingUpdateInfo) {
+    return {
+      phase: "available",
+      version: pendingUpdateInfo.version,
+      currentVersion: app.getVersion(),
+      releaseNotes: pendingUpdateInfo.releaseNotes,
+    };
+  }
+  return { phase: "idle", currentVersion: app.getVersion() };
+}
+
+function sendUpdateStatus(payload) {
+  const data = { ...getCurrentUpdateStatus(), ...payload };
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("update:status", data);
+  }
+}
+
+function clearWindowUpdateProgress() {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.setProgressBar(-1);
     mainWindow.setTitle("Your Everyday Tools");
   }
+}
+
+function showUpdaterError(err) {
+  const message = err && err.message ? err.message : String(err);
+  console.error("[Updater] Error:", message);
+  const manual = isManualUpdateCheck;
+  clearWindowUpdateProgress();
   isUpdateDownloading = false;
-  dialog.showMessageBox(mainWindow, {
-    type: "error",
-    title: "Update Gagal",
-    message: "Download update tidak berhasil.",
-    detail:
-      `${message}\n\n` +
-      "Coba lagi nanti atau download manual di:\n" +
-      "https://github.com/rachmad-jenss/your-everyday-tools-desktop/releases",
+  isManualUpdateCheck = false;
+  sendUpdateStatus({
+    phase: "error",
+    message,
+    manual,
   });
+}
+
+async function startUpdateDownload() {
+  if (!pendingUpdateInfo || isUpdateDownloading) return;
+  isUpdateDownloading = true;
+  updateUiDismissed = false;
+  lastDownloadProgress = { percent: 0, transferred: 0, total: 0, bytesPerSecond: 0 };
+  sendUpdateStatus({
+    phase: "downloading",
+    version: pendingUpdateInfo.version,
+    releaseNotes: pendingUpdateInfo.releaseNotes,
+    background: updateDownloadBackground,
+    percent: 0,
+  });
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.setProgressBar(2, { mode: "indeterminate" });
+    mainWindow.setTitle("Your Everyday Tools — Downloading update…");
+  }
+  try {
+    await autoUpdater.downloadUpdate();
+  } catch (err) {
+    showUpdaterError(err);
+  }
+}
+
+function runUpdateCheck(manual) {
+  if (updateCheckInFlight) return updateCheckInFlight;
+  isManualUpdateCheck = manual;
+  updateUiDismissed = false;
+  sendUpdateStatus({ phase: "checking", manual });
+  updateCheckInFlight = autoUpdater
+    .checkForUpdates()
+    .catch((err) => {
+      isManualUpdateCheck = false;
+      sendUpdateStatus({ phase: "error", message: err.message, manual });
+      throw err;
+    })
+    .finally(() => {
+      updateCheckInFlight = null;
+    });
+  return updateCheckInFlight;
 }
 
 function setupAutoUpdater() {
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
+  if (process.platform === "win32") {
+    autoUpdater.verifyUpdateCodeSignature = false;
+  }
+
+  autoUpdater.on("checking-for-update", () => {
+    sendUpdateStatus({ phase: "checking" });
+  });
 
   autoUpdater.on("update-available", (info) => {
+    const manual = isManualUpdateCheck;
     isManualUpdateCheck = false;
     const newVersion = info.version || "unknown";
     const notes = releaseNotesToPlainText(info.releaseNotes);
-    dialog
-      .showMessageBox(mainWindow, {
-        type: "info",
-        title: "Update Tersedia",
-        message: `Versi baru tersedia: v${newVersion}`,
-        detail:
-          `Versi kamu: v${app.getVersion()}\n\n` +
-          (notes ? `${notes}\n\n` : "") +
-          "Mau download dan install sekarang?",
-        buttons: ["Download Sekarang", "Nanti Saja"],
-        defaultId: 0,
-        cancelId: 1,
-      })
-      .then(({ response }) => {
-        if (response === 0) {
-          isUpdateDownloading = true;
-          if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.setProgressBar(2, { mode: "indeterminate" });
-            mainWindow.setTitle("Your Everyday Tools — Downloading update…");
-          }
-          autoUpdater.downloadUpdate().catch(showUpdaterError);
-        }
-      });
+    pendingUpdateInfo = { version: newVersion, releaseNotes: notes };
+    pendingUpdateDownloaded = false;
+    updateUiDismissed = false;
+    sendUpdateStatus({
+      phase: "available",
+      version: newVersion,
+      releaseNotes: notes,
+      manual,
+    });
   });
 
   autoUpdater.on("update-not-available", () => {
     console.log("[Updater] No update available.");
-    if (isManualUpdateCheck) {
-      isManualUpdateCheck = false;
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        dialog.showMessageBox(mainWindow, {
-          type: "info",
-          title: "Tidak Ada Update",
-          message: "Kamu sudah menggunakan versi terbaru.",
-          detail: `Versi saat ini: v${app.getVersion()}`,
-        });
-      }
-    }
+    const manual = isManualUpdateCheck;
+    isManualUpdateCheck = false;
+    pendingUpdateInfo = null;
+    pendingUpdateDownloaded = false;
+    sendUpdateStatus({ phase: "up-to-date", manual });
   });
 
   autoUpdater.on("download-progress", (progress) => {
-    const pct = Math.round(progress.percent);
+    const pct = Math.round(progress.percent || 0);
     isUpdateDownloading = true;
+    lastDownloadProgress = {
+      percent: pct,
+      transferred: progress.transferred || 0,
+      total: progress.total || 0,
+      bytesPerSecond: progress.bytesPerSecond || 0,
+    };
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.setProgressBar(pct / 100);
       mainWindow.setTitle(`Your Everyday Tools — Downloading update ${pct}%`);
     }
+    sendUpdateStatus({
+      phase: "downloading",
+      version: pendingUpdateInfo?.version || null,
+      background: updateDownloadBackground,
+      dismissed: updateUiDismissed,
+      ...lastDownloadProgress,
+    });
   });
 
   autoUpdater.on("update-downloaded", () => {
     isUpdateDownloading = false;
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.setProgressBar(-1);
-      mainWindow.setTitle("Your Everyday Tools");
-    }
-    dialog
-      .showMessageBox(mainWindow, {
-        type: "info",
-        title: "Update Siap",
-        message: "Update sudah didownload.",
-        detail:
-          "Aplikasi akan restart untuk menginstall update.\nPastikan semua pekerjaan sudah disimpan.",
-        buttons: ["Restart Sekarang", "Nanti (install saat tutup app)"],
-        defaultId: 0,
-        cancelId: 1,
-      })
-      .then(({ response }) => {
-        if (response === 0) {
-          autoUpdater.quitAndInstall(false, true);
-        }
-      });
+    pendingUpdateDownloaded = true;
+    clearWindowUpdateProgress();
+    sendUpdateStatus({
+      phase: "downloaded",
+      version: pendingUpdateInfo?.version || null,
+      releaseNotes: pendingUpdateInfo?.releaseNotes || "",
+      background: updateDownloadBackground,
+      dismissed: updateUiDismissed,
+    });
   });
 
   autoUpdater.on("error", (err) => {
-    if (isUpdateDownloading) {
+    if (isUpdateDownloading || isManualUpdateCheck) {
       showUpdaterError(err);
     } else {
       console.error("[Updater] Error:", err.message);
     }
   });
 
-  // Auto-check 30 detik setelah app siap
   setTimeout(() => {
-    autoUpdater.checkForUpdates().catch((err) => {
+    runUpdateCheck(false).catch((err) => {
       console.error("[Updater] Silent check failed:", err.message);
     });
   }, 30000);
 }
 
 function checkForUpdatesManual() {
-  isManualUpdateCheck = true;
-  autoUpdater.checkForUpdates().catch(() => {
-    isManualUpdateCheck = false;
-    dialog.showMessageBox(mainWindow, {
-      type: "info",
-      title: "Update",
-      message: "Tidak bisa cek update",
-      detail:
-        "Gagal menghubungi server update. Periksa koneksi internet.\n\n" +
-        "Cek update manual di:\nhttps://github.com/rachmad-jenss/your-everyday-tools-desktop/releases",
-    });
-  });
+  runUpdateCheck(true).catch(() => {});
 }
 
 function buildMenu() {
@@ -520,6 +585,7 @@ function createWindow(port) {
   });
 
   mainWindow.webContents.on("did-finish-load", () => {
+    sendUpdateStatus(getCurrentUpdateStatus());
     readThemeFromPage(mainWindow.webContents)
       .then((resolved) => {
         return mainWindow.webContents
@@ -754,6 +820,41 @@ ipcMain.handle("theme:set", (_event, payload) => {
 
 ipcMain.handle("components:open", async () => {
   await showDownloaderWindow(true);
+});
+
+ipcMain.handle("app:getVersion", () => app.getVersion());
+
+ipcMain.handle("update:check", async () => {
+  await runUpdateCheck(true);
+  return getCurrentUpdateStatus();
+});
+
+ipcMain.handle("update:download", async (_event, opts) => {
+  if (!pendingUpdateInfo) {
+    throw new Error("Tidak ada update yang tersedia untuk didownload.");
+  }
+  updateDownloadBackground = !!(opts && opts.background);
+  await startUpdateDownload();
+  return getCurrentUpdateStatus();
+});
+
+ipcMain.handle("update:install", () => {
+  autoUpdater.quitAndInstall(false, true);
+});
+
+ipcMain.handle("update:dismiss", () => {
+  updateUiDismissed = true;
+  if (isUpdateDownloading) {
+    sendUpdateStatus({
+      phase: "downloading",
+      background: true,
+      dismissed: true,
+      ...lastDownloadProgress,
+    });
+    return getCurrentUpdateStatus();
+  }
+  sendUpdateStatus({ phase: "idle" });
+  return getCurrentUpdateStatus();
 });
 
 ipcMain.on("menu:popup", (event, label) => {
