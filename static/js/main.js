@@ -235,7 +235,9 @@ function resetWorkspacePreview() {
     outputPreviewMode = null;
     if (empty) {
         empty.hidden = false;
+        const icon = empty.querySelector("i");
         const p = empty.querySelector("p");
+        if (icon) icon.className = "bi bi-eye text-3xl opacity-50";
         if (p) p.textContent = "Output preview will appear here after you convert.";
     }
     if (area) {
@@ -410,9 +412,19 @@ let previewZoom = 100;
 let previewView = "grid";
 let outputPreviewMode = null; // null | "pdf" | "images" | "image"
 
-function revokePreviewUrls() {
+let outputResultUrl = null;
+
+function revokeInputPreviewUrls() {
     previewObjectUrls.forEach(u => URL.revokeObjectURL(u));
     previewObjectUrls = [];
+}
+
+function revokePreviewUrls() {
+    revokeInputPreviewUrls();
+    if (outputResultUrl) {
+        URL.revokeObjectURL(outputResultUrl);
+        outputResultUrl = null;
+    }
 }
 
 function toggleStepAccordion(btn) {
@@ -511,7 +523,7 @@ function showOutputPreview(url, contentType, filename, extraUrls) {
     if (empty) empty.hidden = true;
     if (!grid) return;
 
-    revokePreviewUrls();
+    revokeInputPreviewUrls();
     grid.hidden = false;
 
     if (contentType.includes("pdf")) {
@@ -568,7 +580,9 @@ function updateUploadPreviewUI() {
     updateWorkspaceStatus(status.bar, status.state);
     if (empty) {
         empty.hidden = false;
+        const icon = empty.querySelector("i");
         const p = empty.querySelector("p");
+        if (icon) icon.className = "bi bi-eye text-3xl opacity-50";
         if (p) {
             p.textContent = `${selectedFiles.length} file${selectedFiles.length !== 1 ? "s" : ""} ready — click Convert to preview the output.`;
         }
@@ -733,12 +747,13 @@ function initToolForm() {
                     showToast("Unexpected response from server.", "error");
                 }
             } else {
-                const url = URL.createObjectURL(blob);
+                const blob = await resp.blob();
                 const cd = resp.headers.get("Content-Disposition") || "";
                 let filename = "download";
                 const match = cd.match(/filename="?([^";\n]+)"?/);
                 if (match) filename = match[1];
 
+                const url = URL.createObjectURL(blob);
                 showFileResult(url, filename, {
                     engine: resp.headers.get("X-Conversion-Engine") || "",
                     quality: resp.headers.get("X-Conversion-Quality") || "",
@@ -771,19 +786,43 @@ function initToolForm() {
 }
 
 function showError(msg) {
-    showWorkspaceOutput();
+    const grid = document.getElementById("workspace-preview-grid");
+    const toolbar = document.getElementById("preview-toolbar");
+    const empty = document.getElementById("workspace-preview-empty");
     const area = document.getElementById("result-area");
-    if (!area) return;
-    area.style.display = "block";
-    document.getElementById("result-success").style.display = "none";
-    document.getElementById("result-text")?.style.setProperty("display", "none");
-    const errEl = document.getElementById("result-error");
-    errEl.style.display = "flex";
-    document.getElementById("error-message").textContent = msg;
+    const pageCount = document.getElementById("workspace-page-count");
+
+    outputPreviewMode = null;
+    if (grid) {
+        grid.hidden = true;
+        grid.innerHTML = "";
+    }
+    if (toolbar) toolbar.hidden = true;
+    if (pageCount) pageCount.hidden = true;
+    if (area) {
+        area.classList.add("hidden");
+        area.style.removeProperty("display");
+        const errEl = document.getElementById("result-error");
+        if (errEl) errEl.style.display = "none";
+    }
+    if (empty) {
+        empty.hidden = false;
+        const icon = empty.querySelector("i");
+        const p = empty.querySelector("p");
+        if (icon) {
+            icon.className = "bi bi-exclamation-circle text-3xl text-danger";
+        }
+        if (p) p.textContent = msg;
+    }
     updateWorkspaceStatus(msg, "error");
 }
 
 function showFileResult(url, filename, meta = {}) {
+    if (outputResultUrl && outputResultUrl !== url) {
+        URL.revokeObjectURL(outputResultUrl);
+    }
+    outputResultUrl = url;
+
     showWorkspaceOutput();
     const area = document.getElementById("result-area");
     area.style.display = "block";
