@@ -182,7 +182,7 @@
 
             <div class="mb-1.5 px-2 text-[0.6875rem] font-semibold uppercase tracking-wider text-text-muted">Favorites</div>
 
-            <div class="sidebar-favorites-list mb-4 flex flex-col gap-0.5 empty:hidden" id="sidebar-favorites"></div>
+            <div class="sidebar-favorites-list mb-4 flex flex-col gap-0.5" id="sidebar-favorites"></div>
 
 
 
@@ -218,13 +218,33 @@
 
                 {% for tool in cat.tools %}
 
-                <a href="/{{ cat.id }}/{{ tool.id }}" class="sidebar-mini-link flex items-center gap-2 rounded-md px-3 py-1.5 text-[0.8rem] text-text-muted no-underline hover:bg-bg-subtle hover:text-text{% if request.path == '/' ~ cat.id ~ '/' ~ tool.id %} !bg-primary-soft !text-primary font-medium{% endif %}{% if tool.disabled %} pointer-events-none opacity-45{% endif %}"{% if tool.disabled %} aria-disabled="true"{% endif %}>
+                <div class="sidebar-tool-row group flex items-center gap-0.5 pr-1">
 
-                    <i class="bi {{ tool.icon or 'bi-tools' }} shrink-0 text-primary"></i>
+                    <a href="/{{ cat.id }}/{{ tool.id }}" class="sidebar-mini-link min-w-0 flex-1 flex items-center gap-2 rounded-md px-3 py-1.5 text-[0.8rem] text-text-muted no-underline hover:bg-bg-subtle hover:text-text{% if request.path == '/' ~ cat.id ~ '/' ~ tool.id %} !bg-primary-soft !text-primary font-medium{% endif %}{% if tool.disabled %} pointer-events-none opacity-45{% endif %}"{% if tool.disabled %} aria-disabled="true"{% endif %}>
 
-                    <span class="min-w-0 truncate">{{ tool.name }}</span>
+                        <i class="bi {{ tool.icon or 'bi-tools' }} shrink-0 text-primary"></i>
 
-                </a>
+                        <span class="min-w-0 truncate">{{ tool.name }}</span>
+
+                    </a>
+
+                    {% if not tool.disabled %}
+
+                    <button type="button" class="sidebar-fav-btn shrink-0 cursor-pointer rounded border-0 bg-transparent p-1 text-text-muted transition hover:bg-amber-50 hover:text-amber-600"
+
+                        data-favorite data-cat-id="{{ cat.id }}" data-tool-id="{{ tool.id }}" data-tool-name="{{ tool.name }}"
+
+                        data-tool-icon="{{ tool.icon or 'bi-tools' }}" data-cat-name="{{ cat.name }}" data-href="/{{ cat.id }}/{{ tool.id }}"
+
+                        aria-label="Add to favorites" aria-pressed="false">
+
+                        <i class="bi bi-star text-[0.72rem]"></i>
+
+                    </button>
+
+                    {% endif %}
+
+                </div>
 
                 {% endfor %}
 

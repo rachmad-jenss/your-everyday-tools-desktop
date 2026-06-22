@@ -55,16 +55,25 @@ const Favorites = (() => {
             const catId = btn.dataset.catId;
             const toolId = btn.dataset.toolId;
             const pinned = isFavorite(catId, toolId);
-            if (typeof TW !== "undefined") {
+            const isSidebarBtn = btn.classList.contains("sidebar-fav-btn");
+            if (isSidebarBtn) {
+                btn.classList.toggle("pinned", pinned);
+            } else if (typeof TW !== "undefined") {
                 btn.className = pinned ? TW.pinBtnPinned : TW.pinBtn;
             } else {
                 btn.classList.toggle("pinned", pinned);
             }
             btn.setAttribute("aria-pressed", pinned ? "true" : "false");
-            btn.title = pinned ? "Remove from favorites" : "Add to favorites";
+            const label = pinned ? "Remove from favorites" : "Add to favorites";
+            btn.setAttribute("aria-label", label);
+            btn.title = label;
             const icon = btn.querySelector("i");
             if (icon) {
-                icon.className = pinned ? "bi bi-star-fill" : "bi bi-star";
+                if (isSidebarBtn) {
+                    icon.className = pinned ? "bi bi-star-fill text-[0.72rem]" : "bi bi-star text-[0.72rem]";
+                } else {
+                    icon.className = pinned ? "bi bi-star-fill" : "bi bi-star";
+                }
             }
         });
     }

@@ -143,13 +143,36 @@ const SidebarUI = {
     refreshFavorites() {
         const container = document.getElementById("sidebar-favorites");
         if (!container || typeof Favorites === "undefined") return;
-        const favs = Favorites.getAll().slice(0, 5);
-        container.innerHTML = favs.map(f => `
-            <a href="${f.href}" class="sidebar-mini-link flex items-center gap-2 rounded-md px-3 py-1.5 text-[0.8rem] text-text-muted no-underline hover:bg-bg hover:text-text">
-                <i class="bi ${f.icon || 'bi-star-fill'} text-primary"></i>
-                <span>${escapeHtml(f.name)}</span>
+        const all = Favorites.getAll();
+        const favs = all.slice(0, 5);
+        const path = window.location.pathname;
+
+        if (favs.length === 0) {
+            container.innerHTML = `<p class="px-3 py-1.5 text-[0.75rem] text-text-muted">Klik bintang di tool untuk pin di sini.</p>`;
+            return;
+        }
+
+        let html = favs.map(f => {
+            const active = path === f.href;
+            const activeCls = active ? " !bg-primary-soft !text-primary font-medium" : "";
+            return `
+            <a href="${f.href}" class="sidebar-mini-link flex items-center gap-2 rounded-md px-3 py-1.5 text-[0.8rem] text-text-muted no-underline hover:bg-bg-subtle hover:text-text${activeCls}">
+                <i class="bi ${f.icon || "bi-tools"} shrink-0 text-primary"></i>
+                <span class="min-w-0 truncate">${escapeHtml(f.name)}</span>
+                <i class="bi bi-star-fill ml-auto shrink-0 text-[0.65rem] text-amber-600" aria-hidden="true"></i>
             </a>
-        `).join("");
+        `;
+        }).join("");
+
+        if (all.length > 5) {
+            html += `
+            <a href="/favorites" class="sidebar-mini-link flex items-center gap-2 rounded-md px-3 py-1.5 text-[0.75rem] text-primary no-underline hover:bg-bg-subtle">
+                Lihat semua (${all.length})
+            </a>
+        `;
+        }
+
+        container.innerHTML = html;
     },
     refreshRecent() {
         const container = document.getElementById("sidebar-recent");

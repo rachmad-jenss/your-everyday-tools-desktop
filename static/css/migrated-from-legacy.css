@@ -137,6 +137,12 @@ body.electron-desktop .top-bar-row {
     font-size: 0.85rem;
     color: var(--color-primary);
 }
+.sidebar-tool-row { margin: 0 0.25rem; }
+.sidebar-tool-row .sidebar-mini-link { margin: 0; }
+.sidebar-fav-btn { display:flex; align-items:center; justify-content:center; width:1.5rem; height:1.5rem; flex-shrink:0; opacity:0; transition: opacity 0.15s, background 0.15s, color 0.15s; }
+.sidebar-tool-row:hover .sidebar-fav-btn, .sidebar-fav-btn.pinned, .sidebar-fav-btn[aria-pressed="true"] { opacity: 1; }
+.sidebar-fav-btn.pinned, .sidebar-fav-btn[aria-pressed="true"] { color: #d97706; }
+.sidebar-fav-btn.pinned:hover, .sidebar-fav-btn[aria-pressed="true"]:hover { color: #b45309; background: rgba(251, 191, 36, 0.15); }
 
 /* Command palette — flex when visible */
 .search-palette:not(.hidden) {

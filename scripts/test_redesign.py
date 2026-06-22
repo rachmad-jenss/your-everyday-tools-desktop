@@ -15,6 +15,7 @@ PAGES = [
     ("/settings", ["settings-page", "clear-local-data"]),
     ("/text/json-formatter", ["tool-workspace", "json-input"]),
     ("/pdf/merge", ["tool-workspace", "upload-zone", "workspace-output-panel"]),
+    ("/convert/pdf-to-word", ["tool-workspace", "sidebar-fav-btn", "data-favorite"]),
     ("/calc/calculator", ["single-column", "calc-result", "grid-cols-4"]),
 ]
 
