@@ -93,11 +93,17 @@ jobs:
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r requirements-desktop.txt
           pip install pyinstaller
+
+      - name: Audit essential dependencies
+        run: python scripts/audit_dependencies.py
 
       - name: Build backend with PyInstaller
         run: pyinstaller your-everyday-tools.spec --clean --noconfirm
+
+      - name: Verify bundled modules
+        run: python scripts/verify_bundle_imports.py
 
       - name: Stage backend into Electron resources
         run: |
@@ -165,11 +171,17 @@ jobs:
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r requirements-desktop.txt
           pip install pyinstaller
+
+      - name: Audit essential dependencies
+        run: python scripts/audit_dependencies.py
 
       - name: Build backend with PyInstaller
         run: pyinstaller your-everyday-tools.spec --clean --noconfirm
+
+      - name: Verify bundled modules
+        run: python scripts/verify_bundle_imports.py
 
       - name: Stage backend into Electron resources
         shell: bash

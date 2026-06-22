@@ -1,7 +1,6 @@
-import os
-import sys
-import json
 import importlib.util
+import json
+import os
 import shutil
 import subprocess
 import tempfile
@@ -9,25 +8,12 @@ from flask import Blueprint, render_template, request, send_file, jsonify
 
 from routes._helpers import safe_int, safe_float, log_error, NO_FILE_SINGLE
 from utils.capabilities import QUALITY_HIGH, set_conversion_metadata
+from utils.runtime import component_install_hint
+from utils.vendor_bins import find_ffmpeg
 
 bp = Blueprint("media", __name__)
 
-
-def _find_bundled_ffmpeg():
-    if getattr(sys, "frozen", False):
-        base = sys._MEIPASS
-    else:
-        base = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    vendor_dir = os.path.join(base, "vendor", "ffmpeg")
-    ext = ".exe" if sys.platform == "win32" else ""
-    ffmpeg_path = os.path.join(vendor_dir, f"ffmpeg{ext}")
-    ffprobe_path = os.path.join(vendor_dir, f"ffprobe{ext}")
-    if os.path.isfile(ffmpeg_path):
-        return ffmpeg_path, ffprobe_path if os.path.isfile(ffprobe_path) else None
-    return None, None
-
-
-_bundled_ffmpeg, _bundled_ffprobe = _find_bundled_ffmpeg()
+_bundled_ffmpeg, _bundled_ffprobe = find_ffmpeg()
 FFMPEG = _bundled_ffmpeg or shutil.which("ffmpeg")
 FFPROBE = _bundled_ffprobe or shutil.which("ffprobe")
 

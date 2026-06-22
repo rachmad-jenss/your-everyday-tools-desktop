@@ -12,6 +12,8 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT
 from utils.pymupdf import import_pymupdf
+from utils.runtime import component_install_hint, pip_or_bundle_hint
+from utils.vendor_bins import configure_pytesseract
 
 fitz = import_pymupdf()
 
@@ -27,15 +29,7 @@ HAS_MARKER = importlib.util.find_spec("marker") is not None
 
 try:
     import pytesseract
-    import sys as _sys
-    if getattr(_sys, "frozen", False):
-        _tess_dir = os.path.join(_sys._MEIPASS, "vendor", "tesseract")
-    else:
-        _tess_dir = os.path.join(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")), "vendor", "tesseract")
-    _tess_exe = os.path.join(_tess_dir, "tesseract.exe" if _sys.platform == "win32" else "tesseract")
-    if os.path.isfile(_tess_exe):
-        pytesseract.pytesseract.tesseract_cmd = _tess_exe
-        os.environ.setdefault("TESSDATA_PREFIX", os.path.join(_tess_dir, "tessdata"))
+    configure_pytesseract()
     HAS_TESSERACT = True
 except ImportError:
     HAS_TESSERACT = False
@@ -830,7 +824,11 @@ def pdf_to_word():
 
     # ── Layout mode (default) ──────────────────────────────
     if not HAS_PDF2DOCX:
-        return jsonify(error="Layout mode requires pdf2docx. Run: pip install pdf2docx — or switch to 'Flowing text' or 'Smart structure' mode."), 400
+        return jsonify(error=(
+            "Layout mode requires pdf2docx. "
+            + pip_or_bundle_hint(pip="pdf2docx")
+            + " Or switch to 'Flowing text' or 'Smart structure' mode."
+        )), 400
 
     import tempfile, os
 

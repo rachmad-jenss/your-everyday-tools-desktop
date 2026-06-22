@@ -1,0 +1,3 @@
+# Python deps for building the frozen desktop backend (CI / PyInstaller).
+-r requirements-core.txt
+waitress

@@ -15,6 +15,9 @@ import tempfile
 from pathlib import Path
 from typing import Iterable
 
+from utils.runtime import component_install_hint, pip_or_bundle_hint
+from utils.vendor_bins import find_ffmpeg, find_tesseract
+
 
 QUALITY_HIGH = "high"
 QUALITY_BASIC = "basic"
@@ -131,9 +134,10 @@ def _oda_path() -> str | None:
 
 def get_capabilities() -> dict:
     soffice = find_soffice()
-    ffmpeg = shutil.which("ffmpeg")
-    ffprobe = shutil.which("ffprobe")
-    tesseract = shutil.which("tesseract")
+    bundled_ffmpeg, bundled_ffprobe = find_ffmpeg()
+    ffmpeg = bundled_ffmpeg or shutil.which("ffmpeg")
+    ffprobe = bundled_ffprobe or shutil.which("ffprobe")
+    tesseract = find_tesseract() or shutil.which("tesseract")
     oda = _oda_path()
 
     engines = {
@@ -142,19 +146,20 @@ def get_capabilities() -> dict:
             "LibreOffice",
             soffice,
             ["--version"],
-            "Install LibreOffice locally, then restart this app.",
+            component_install_hint("LibreOffice")
+            + " Atau install LibreOffice dari libreoffice.org.",
         ),
         "ffmpeg": _binary_engine(
             "ffmpeg", "FFmpeg", ffmpeg, ["-version"],
-            "Install FFmpeg locally and make sure it is on PATH.",
+            component_install_hint("FFmpeg"),
         ),
         "ffprobe": _binary_engine(
             "ffprobe", "FFprobe", ffprobe, ["-version"],
-            "Install FFmpeg locally; ffprobe ships with it.",
+            component_install_hint("FFmpeg") + " ffprobe ships with FFmpeg.",
         ),
         "tesseract": _binary_engine(
             "tesseract", "Tesseract OCR", tesseract, ["--version"],
-            "Install the Tesseract binary and required language packs.",
+            component_install_hint("Tesseract OCR"),
         ),
         "oda": _binary_engine(
             "oda", "ODA File Converter", oda, [],
@@ -162,45 +167,46 @@ def get_capabilities() -> dict:
         ),
         "pymupdf": _package_engine(
             "pymupdf", "PyMuPDF", "fitz",
-            "Install PyMuPDF with pip install PyMuPDF.",
+            pip_or_bundle_hint(pip="PyMuPDF"),
         ),
         "pdf2docx": _package_engine(
             "pdf2docx", "pdf2docx", "pdf2docx",
-            "Install pdf2docx with pip install pdf2docx.",
+            pip_or_bundle_hint(pip="pdf2docx"),
             quality="medium",
         ),
         "pdfplumber": _package_engine(
             "pdfplumber", "pdfplumber", "pdfplumber",
-            "Install pdfplumber with pip install pdfplumber.",
+            pip_or_bundle_hint(pip="pdfplumber"),
             quality="medium",
         ),
         "marker": _package_engine(
             "marker", "Marker PDF", "marker",
-            "Install marker-pdf locally; first use downloads local model weights.",
+            pip_or_bundle_hint(pip="marker-pdf", bundled=False)
+            + " First use downloads ~2 GB of models.",
         ),
         "pytesseract": _package_engine(
             "pytesseract", "pytesseract", "pytesseract",
-            "Install pytesseract with pip install pytesseract.",
+            pip_or_bundle_hint(pip="pytesseract"),
         ),
         "pyzbar": _package_engine(
             "pyzbar", "pyzbar", "pyzbar",
-            "Install pyzbar and the local ZBar shared library.",
+            pip_or_bundle_hint(pip="pyzbar"),
         ),
         "rembg": _combined_package_engine(
             "rembg", "rembg", ["rembg", "onnxruntime"],
-            'Install rembg with CPU support: pip install "rembg[cpu]".',
+            pip_or_bundle_hint(pip='"rembg[cpu]"', bundled=False),
         ),
         "pillow-heif": _package_engine(
             "pillow-heif", "pillow-heif", "pillow_heif",
-            "Install pillow-heif with pip install pillow-heif.",
+            pip_or_bundle_hint(pip="pillow-heif"),
         ),
         "whisper": _package_engine(
             "whisper", "Whisper", "whisper",
-            "Install Whisper with pip install openai-whisper.",
+            pip_or_bundle_hint(pip="openai-whisper", bundled=False),
         ),
         "python-pptx": _package_engine(
             "python-pptx", "python-pptx", "pptx",
-            "Install python-pptx with pip install python-pptx.",
+            pip_or_bundle_hint(pip="python-pptx"),
             quality="medium",
         ),
     }

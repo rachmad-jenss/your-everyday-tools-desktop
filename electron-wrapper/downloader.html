@@ -100,11 +100,17 @@ h1 { font-size: 17px; font-weight: 700; margin-bottom: 6px; }
 
 <!-- Select Panel -->
 <div id="select-panel">
-  <h1>Komponen Opsional</h1>
+  <h1>Komponen Tambahan</h1>
   <p class="subtitle">
-    Pilih komponen yang ingin didownload sekarang.<br>
-    Bisa diatur ulang nanti lewat <em>Help &rarr; Kelola Komponen</em>.
+    Beberapa fitur Python sudah termasuk di aplikasi (PDF to Word, QR, HEIC, CAD, dll).<br>
+    Komponen di bawah ini berukuran besar — pilih yang ingin didownload sekarang.<br>
   </p>
+
+  <div style="background:#e8f4ea;border:1px solid #b8dfc0;border-radius:8px;padding:11px 14px;margin-bottom:14px;font-size:12px;line-height:1.55;color:#1e4620;">
+    <strong>Sudah termasuk:</strong> pdf2docx, pdfplumber, pyzbar, pillow-heif, pytesseract, ezdxf, matplotlib
+  </div>
+
+  <p style="font-size:12px;font-weight:600;color:#495057;margin-bottom:8px;">Download opsional (besar)</p>
 
   <div class="component checked" id="wrap-ffmpeg" onclick="toggle('ffmpeg')">
     <div class="comp-header">
@@ -133,6 +139,9 @@ h1 { font-size: 17px; font-weight: 700; margin-bottom: 6px; }
     <button class="btn btn-primary" id="btn-download" onclick="startDownload()">Download yang Dipilih</button>
     <button class="btn btn-secondary" onclick="skip()">Lewati</button>
   </div>
+  <p style="margin-top:10px;font-size:11px;color:#6c757d;text-align:center;">
+    Bisa diatur ulang nanti lewat <em>Help &rarr; Kelola Komponen</em>.
+  </p>
 </div>
 
 <!-- Progress Panel -->

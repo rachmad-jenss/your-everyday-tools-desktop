@@ -3,6 +3,8 @@ import sys
 import os
 import glob
 
+from PyInstaller.utils.hooks import collect_all
+
 block_cipher = None
 
 # Paths relative to this .spec file
@@ -13,14 +15,6 @@ is_win = sys.platform == 'win32'
 is_mac = sys.platform == 'darwin'
 
 # ── Collect native binaries for small bundled deps ─────────────────────────
-# pyzbar: libiconv.dll + libzbar-64.dll live inside the pyzbar package dir
-import pyzbar as _pyzbar
-_pyzbar_dir = os.path.dirname(_pyzbar.__file__)
-
-# pillow-heif: libheif, libde265, libx265 live in site-packages root
-import site as _site
-_site_dir = next(iter(_site.getsitepackages()), os.path.dirname(_pyzbar_dir))
-
 def _collect_dlls(base_dir, patterns, dest='.'):
     """Return list of (src_path, dest_subdir) tuples for PyInstaller binaries."""
     result = []
@@ -29,14 +23,44 @@ def _collect_dlls(base_dir, patterns, dest='.'):
             result.append((p, dest))
     return result
 
-# pyzbar loads libzbar-64.dll from os.path.dirname(__file__) at runtime,
-# so DLLs must be placed in the 'pyzbar' subdir, not the root.
-_pyzbar_dlls   = _collect_dlls(_pyzbar_dir, ['*.dll'], dest='pyzbar')
+_bundled_bins = []
+_extra_datas = []
+_extra_hidden = []
 
-# pillow-heif DLLs are loaded via ctypes from the root _internal dir.
-_heif_dlls     = _collect_dlls(_site_dir, ['libheif*.dll', 'libde265*.dll', 'libx265*.dll'])
-_heif_pyd      = _collect_dlls(_site_dir, ['_pillow_heif*.pyd'])
-_bundled_bins  = _pyzbar_dlls + _heif_dlls + _heif_pyd
+# pyzbar: libiconv.dll + libzbar-64.dll live inside the pyzbar package dir
+try:
+    import pyzbar as _pyzbar
+    _pyzbar_dir = os.path.dirname(_pyzbar.__file__)
+    _bundled_bins += _collect_dlls(_pyzbar_dir, ['*.dll'], dest='pyzbar')
+    _d, _b, _h = collect_all('pyzbar')
+    _extra_datas += _d
+    _bundled_bins += _b
+    _extra_hidden += _h
+except ImportError:
+    pass
+
+# pillow-heif: libheif, libde265, libx265 live in site-packages root
+try:
+    import site as _site
+    _site_dir = next(iter(_site.getsitepackages()), ROOT)
+    _bundled_bins += _collect_dlls(_site_dir, ['libheif*.dll', 'libde265*.dll', 'libx265*.dll'])
+    _bundled_bins += _collect_dlls(_site_dir, ['_pillow_heif*.pyd'])
+    _d, _b, _h = collect_all('pillow_heif')
+    _extra_datas += _d
+    _bundled_bins += _b
+    _extra_hidden += _h
+except ImportError:
+    pass
+
+# pdf2docx needs cv2 (opencv) — PyInstaller often misses these without collect_all
+for _pkg in ('pdf2docx', 'cv2', 'pdfplumber', 'matplotlib'):
+    try:
+        _d, _b, _h = collect_all(_pkg)
+        _extra_datas += _d
+        _bundled_bins += _b
+        _extra_hidden += _h
+    except Exception:
+        pass
 # ───────────────────────────────────────────────────────────────────────────
 
 a = Analysis(
@@ -51,8 +75,8 @@ a = Analysis(
         ('images', 'images'),
         # vendor/ffmpeg and vendor/tesseract are NOT bundled —
         # they are downloaded on first run via the Electron downloader.
-    ],
-    hiddenimports=[
+    ] + _extra_datas,
+    hiddenimports=_extra_hidden + [
         # Route blueprints
         'routes.convert_tools',
         'routes.pdf_tools',
@@ -102,6 +126,9 @@ a = Analysis(
         'pdf2docx',
         'pdfplumber',
         'img2pdf',
+        'cv2',
+        'numpy',
+        'numpy.core',
         'pytesseract',
         'ezdxf',
         'ezdxf.addons',

@@ -177,6 +177,8 @@ def pip_install_optional(*, force: bool = False) -> None:
 def verify_core_imports() -> bool:
     code = (
         "import flask, PIL, fitz\n"
+        "from pdf2docx import Converter\n"
+        "import cv2, pdfplumber, pyzbar, pytesseract\n"
         "assert hasattr(fitz, 'open'), getattr(fitz, '__file__', 'unknown')\n"
     )
     proc = subprocess.run(

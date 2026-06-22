@@ -1,11 +1,6 @@
-# Optional local packages. The launcher installs these best-effort so one
-# missing wheel or heavy dependency does not prevent the app from starting.
+# Heavy optional packages. The launcher installs these best-effort so one
+# missing wheel does not prevent the app from starting. Not bundled in the
+# frozen desktop build (too large).
 rembg[cpu]
-pyzbar
-pdf2docx
-pdfplumber
-pytesseract
-ezdxf
-matplotlib
-pillow-heif
 openai-whisper
+marker-pdf

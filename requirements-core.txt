@@ -1,4 +1,4 @@
-# Required for the app to start and for the primary built-in tools.
+# Required for the app to start and for built-in / bundled tools.
 Flask
 Pillow
 PyMuPDF
@@ -16,3 +16,13 @@ sqlparse
 croniter
 jsonpath-ng
 cryptography
+# PDF / image / CAD tools — bundled in desktop builds (PyInstaller)
+pdf2docx
+pdfplumber
+pyzbar
+pillow-heif
+pytesseract
+ezdxf
+matplotlib
+# pdf2docx runtime dependency; listed explicitly for PyInstaller
+opencv-python-headless
