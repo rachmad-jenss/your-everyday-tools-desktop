@@ -1,0 +1,6 @@
+#!/bin/sh
+# Reject AI co-author trailers. Commits must be attributed to humans only.
+if grep -qiE '^[[:space:]]*co-authored-by:.*(cursor|cursoragent|copilot|openai|chatgpt|anthropic|claude|gemini|codex|composer|@cursor\.com)' "$1"; then
+  echo "commit-msg: remove Co-authored-by for AI/tools. Commits must be attributed to humans only."
+  exit 1
+fi
