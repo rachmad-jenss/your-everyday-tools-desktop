@@ -11,7 +11,7 @@
     "watch:css": "npx @tailwindcss/cli -i ./static/css/app.input.css -o ./static/css/app.css --watch",
     "build:icon": "node scripts/build_icon_ico.mjs",
     "build:brand": "python scripts/build_favicon.py && npm run build:icon",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "python -m pytest -q"
   },
   "repository": {
     "type": "git",
@@ -19,7 +19,7 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "devDependencies": {
     "@fontsource/poppins": "^5.2.7",
     "@tailwindcss/cli": "^4.3.1",
