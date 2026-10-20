@@ -15,6 +15,11 @@ def resource_path(relative_path):
     return os.path.join(base, relative_path)
 
 
+def _debug_enabled():
+    """Enable Flask's interactive debugger only when explicitly requested."""
+    return os.environ.get("FLASK_DEBUG", "0").strip() == "1"
+
+
 def find_free_port(start=5000, end=5010):
     for port in range(start, end + 1):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -441,4 +446,4 @@ if __name__ == "__main__":
                 from waitress import serve
                 serve(app, host="127.0.0.1", port=port)
     else:
-        app.run(debug=True, host="127.0.0.1", port=port)
+        app.run(debug=_debug_enabled(), host="127.0.0.1", port=port)
