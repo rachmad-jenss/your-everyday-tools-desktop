@@ -321,6 +321,9 @@ pip install -r requirements.txt
 python app.py
 ```
 
+For development, run the test suite with `python -m pytest -q` (or `npm test`).
+The Flask debugger stays off unless you explicitly set `FLASK_DEBUG=1`.
+
 Open **http://localhost:5000** in your browser.
 
 ---
@@ -503,7 +506,7 @@ The app has sensible defaults. You can adjust these in `app.py`:
 | Setting              | Default  | Description                              |
 | -------------------- | -------- | ---------------------------------------- |
 | `MAX_CONTENT_LENGTH` | `100 MB` | Maximum upload file size                 |
-| `debug`              | `True`   | Flask debug mode (disable in production) |
+| `debug`              | `False`  | Enable source-run Flask debug mode with `FLASK_DEBUG=1` |
 | `port`               | `5000`   | Server port                              |
 
 ---
